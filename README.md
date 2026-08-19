@@ -1,4 +1,4 @@
-# Sniptory
+# Mukker
 
 A native macOS menu-bar utility that combines **clipboard history**, **text snippets**, and
 **screen capture with annotation** in one app. A quick popup on a global shortcut pastes back
@@ -10,7 +10,7 @@ editor.
 ### Clipboard & snippets
 
 - **Clipboard history** — text (incl. **rich text**/formatting), images, and file lists, with per-kind retention and a max-items cap.
-- **Snippets** — organize reusable text into collections; import `.alfredsnippets` snippet bundles and export/import Sniptory's own JSON.
+- **Snippets** — organize reusable text into collections; import `.alfredsnippets` snippet bundles and export/import Mukker's own JSON.
 - **Fast popup** (⌘E) — a single searchable list of snippets + history; reads from an in-memory cache so it opens instantly. Press the shortcut again to close. History lazy-loads in pages of 50; search spans everything.
 - **Fast append** — double-tap ⌘C to merge the new copy onto the previous text item.
 - **Star a clip into snippets** right from the preview.
@@ -44,6 +44,20 @@ five minutes ago is still one ⌘E away.
 
 All four global shortcuts are configurable in **Settings → Hotkeys**.
 
+## Where your data lives
+
+Clipboard history and snippets are stored in a SQLite database at
+`~/Library/Application Support/Mukker/mukker.sqlite`, with image and rich-text sidecar files
+alongside it. Saved screenshots go wherever you point **Settings → Capture → Screenshots folder**,
+defaulting to the Desktop.
+
+Upgrading from an earlier build that stored its data under a different name? The first launch
+copies the database, its sidecars and all your settings across automatically — the old folder is
+left untouched, so nothing is lost if you go back. macOS permissions are the exception: because
+the bundle identifier changed, **Accessibility and Screen Recording have to be granted once
+more** (Settings → Permissions has buttons for both). Snippet files exported by older builds still
+import fine.
+
 ## Permissions
 
 One **Accessibility** grant covers everything that needs it: pasting into the active app,
@@ -71,17 +85,24 @@ the `Makefile` reads the scheme out of `project.yml`, and every user-facing name
 `App/Support/Branding.swift`.
 
 ```bash
-./scripts/rename.sh NewName                              # product name only
+make rename NAME=NewName                                 # product name only
 ./scripts/rename.sh NewName --bundle-id com.me.NewName   # also change the bundle ID
+./scripts/rename.sh NewName --repo https://github.com/me/newname
 ```
 
-Data locations deliberately do **not** follow a rename — the Application Support folder name
-and the snippet export format string are frozen in `Branding.swift` so existing databases and
-previously exported files keep working.
+It rewrites `project.yml`, `Info.plist`, the docs and (with `--repo`) `Branding.repoURL`, then
+regenerates the Xcode project. Nothing moves on disk.
+
+Data locations deliberately do **not** follow a rename — the Application Support folder name, the
+database file name, the bundle identifier and the snippet export format string are frozen in
+`Branding.swift` so existing databases, permission grants and previously exported files keep
+working. The script derives its protect-list from those constants and skips doc lines mentioning
+them, so it can't quietly rewrite them. Moving the data identity too is a deliberate, separate
+change: update the constants *and* add a `LegacyDataMigrator` step that adopts the old ones.
 
 ## Install
 
-Sniptory ships ad-hoc-signed (no notarization).
+Mukker ships ad-hoc-signed (no notarization).
 
-- **DMG** — download from [Releases](https://github.com/miklos-szel/sniptory/releases), open it, and drag the app to `/Applications`. On first launch, right-click → **Open** to bypass Gatekeeper.
-- **Homebrew** — `brew install --cask miklos-szel/sniptory/sniptory` (the cask strips the quarantine flag on install).
+- **DMG** — download from [Releases](https://github.com/miklos-szel/mukker/releases), open it, and drag the app to `/Applications`. On first launch, right-click → **Open** to bypass Gatekeeper.
+- **Homebrew** — `brew install --cask miklos-szel/sniptory/mukker` (the tap keeps the project's former name; the cask strips the quarantine flag on install).

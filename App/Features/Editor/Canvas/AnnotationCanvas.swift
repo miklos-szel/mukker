@@ -17,8 +17,6 @@ struct FlatCanvas: View {
     /// Top-left of the base image in canvas coords (the image can be moved around).
     var imageOrigin: CGPoint = .zero
     let annotations: [Annotation]
-    /// Pixelated copy of the base, supplied when a blur annotation is present.
-    var pixelatedImage: CGImage?
 
     var body: some View {
         let offset = CGSize(width: imageOrigin.x - contentBounds.minX,

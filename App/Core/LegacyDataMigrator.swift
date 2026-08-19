@@ -1,38 +1,45 @@
 import Foundation
 
-/// One-shot import of data left behind by the two pre-merge apps.
+/// One-shot adoption of data written under a previous identity.
 ///
-/// The merged app keeps the clipboard app's bundle identifier, so its database
-/// and preferences are already in place and need no work. Two things do:
+/// This app has been renamed (and its bundle identifier changed) since users
+/// started storing data in it, so on launch it may find its database and
+/// preferences under an older name. Both are brought forward here, before
+/// anything reads them.
 ///
-/// 1. **The database**, if it isn't where we expect it — either because the app
-///    was renamed (a rename changes `CFBundleName`, and a user may have moved
-///    the Application Support folder to match) or because only an older
-///    differently-named install exists. We copy rather than move, so the old app
-///    keeps working if the user rolls back.
-/// 2. **The capture app's preferences**, which lived in its own defaults domain
-///    (`com.mukker.Mukker`) and would otherwise be lost. Keys are copied only
-///    when we don't already have a value, so a fresh setting always wins.
+/// - **Database + sidecars.** Copied — never moved — from the newest legacy
+///   support folder that has one, so an older build still works if the user
+///   rolls back.
+/// - **Preferences.** Copied from the previous bundle identifier's defaults
+///   domain. A bundle-ID change means macOS hands us an empty domain, and it
+///   also resets TCC (Accessibility / Screen Recording) — permissions are the
+///   one thing we cannot migrate; the user has to grant them once more.
 ///
-/// Runs before anything reads the database or the settings objects — see
-/// `AppDelegate.applicationDidFinishLaunching`.
+/// Bump `currentVersion` to re-run the whole migration for existing installs.
 @MainActor
 enum LegacyDataMigrator {
 
-    /// Bumping this re-runs the migration once for existing installs.
-    private static let currentVersion = 1
+    private static let currentVersion = 2
     private static let versionKey = "migration.legacyImportVersion"
 
-    /// Defaults domain of the pre-merge capture app.
-    private static let captureAppDomain = "com.mukker.Mukker"
+    /// Defaults domains this app has previously written to, oldest first. The
+    /// last match wins, so the most recent identity's values take precedence.
+    private static let legacyDefaultsDomains = [
+        "com.mukker.Mukker",       // pre-merge capture app
+        "com.sniptory.Sniptory"    // merged app, before the Mukker identity
+    ]
 
-    /// Application Support folder names that may hold a database we can adopt.
-    private static let legacySupportFolderNames = ["Sniptory", "Mukker"]
+    /// Database locations this app has previously used, in priority order:
+    /// `(Application Support folder, database file name)`.
+    private static let legacyDatabases = [
+        (folder: "Mukker", file: "sniptory.sqlite"),
+        (folder: "Sniptory", file: "sniptory.sqlite")
+    ]
 
     static func runIfNeeded(defaults: UserDefaults = .standard) {
         guard defaults.integer(forKey: versionKey) < currentVersion else { return }
         adoptLegacyDatabaseIfMissing()
-        importCaptureDefaults(into: defaults)
+        importLegacyDefaults(into: defaults)
         defaults.set(currentVersion, forKey: versionKey)
         Log.app.info("legacy data migration completed (v\(currentVersion, privacy: .public))")
     }
@@ -40,67 +47,74 @@ enum LegacyDataMigrator {
     // MARK: - Database + sidecars
 
     /// If our support directory has no database, copy one in from a legacy
-    /// location (database, its WAL/SHM siblings, and the image/rich-text sidecars).
+    /// location — the database, its WAL/SHM siblings (renamed to match our file
+    /// name), and the image / rich-text sidecar directories.
     private static func adoptLegacyDatabaseIfMissing() {
         let fm = FileManager.default
-        let target = AppPaths.supportDirectory
         guard !fm.fileExists(atPath: AppPaths.databaseURL.path) else { return }
-
         guard let appSupport = try? fm.url(for: .applicationSupportDirectory,
                                            in: .userDomainMask,
                                            appropriateFor: nil,
                                            create: false) else { return }
 
-        let candidates = (legacySupportFolderNames + [Branding.name])
-            .filter { $0 != Branding.supportFolderName }
-            .map { appSupport.appendingPathComponent($0, isDirectory: true) }
-
-        guard let source = candidates.first(where: {
-            fm.fileExists(atPath: $0.appendingPathComponent("sniptory.sqlite").path)
+        let current = (folder: Branding.supportFolderName, file: Branding.databaseFileName)
+        guard let source = legacyDatabases.first(where: { candidate in
+            candidate != current && fm.fileExists(
+                atPath: appSupport.appendingPathComponent(candidate.folder)
+                                  .appendingPathComponent(candidate.file).path)
         }) else { return }
 
-        let items = ["sniptory.sqlite", "sniptory.sqlite-wal", "sniptory.sqlite-shm",
-                     "images", "richtext"]
-        for item in items {
-            let from = source.appendingPathComponent(item)
-            let to = target.appendingPathComponent(item)
-            guard fm.fileExists(atPath: from.path), !fm.fileExists(atPath: to.path) else { continue }
-            do {
-                try fm.copyItem(at: from, to: to)
-            } catch {
-                Log.app.error("migration: could not copy \(item, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            }
+        let from = appSupport.appendingPathComponent(source.folder, isDirectory: true)
+        let to = AppPaths.supportDirectory
+
+        // The database keeps its contents but takes our file name; the WAL and
+        // SHM siblings must follow it or SQLite won't find them.
+        for suffix in ["", "-wal", "-shm"] {
+            copy(from.appendingPathComponent(source.file + suffix),
+                 to: to.appendingPathComponent(Branding.databaseFileName + suffix))
         }
-        Log.app.info("migration: adopted database from \(source.lastPathComponent, privacy: .public)")
+        for directory in ["images", "richtext"] {
+            copy(from.appendingPathComponent(directory), to: to.appendingPathComponent(directory))
+        }
+        Log.app.info("migration: adopted database from \(source.folder, privacy: .public)")
+    }
+
+    private static func copy(_ from: URL, to: URL) {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: from.path), !fm.fileExists(atPath: to.path) else { return }
+        do {
+            try fm.copyItem(at: from, to: to)
+        } catch {
+            Log.app.error("migration: could not copy \(from.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: - Preferences
 
-    /// Keys owned by `CaptureSettings` / `ShortcutSettings`, which used to live in
-    /// the capture app's own defaults domain. Listed explicitly rather than copying
-    /// the whole domain so we never import stale or unknown state.
-    private static let captureKeys = [
-        // CaptureSettings
-        "saveDirectory", "saveFormat", "downscaleRetina", "afterCapture",
-        "showMagnifierDuringCapture", "closeAfterCopy", "closeAfterSave",
-        "escCopiesAndCloses", "defaultColorIndex", "defaultTextColorIndex",
-        "defaultTextSize", "defaultLineWidth", "canvasPadding", "enableDebugMenu",
-        "toolShortcuts", "scrollMaxHeight", "scrollSpeed",
-        // ShortcutSettings (same key names and dictionary format as before the merge)
-        "areaCombo", "fullscreenCombo", "scrollCombo"
-    ]
-
-    private static func importCaptureDefaults(into defaults: UserDefaults) {
-        guard let legacy = UserDefaults(suiteName: captureAppDomain) else { return }
+    /// Copies our own keys out of each previous defaults domain. Later domains
+    /// overwrite earlier ones because they hold the more recent settings; keys
+    /// belonging to macOS (window frames, colour panel state) and this
+    /// migrator's own bookkeeping are skipped.
+    /// `domains` is injectable so tests can exercise the precedence rules without
+    /// reading the real user's preferences.
+    static func importLegacyDefaults(into defaults: UserDefaults,
+                                     from domains: [String] = legacyDefaultsDomains) {
         var imported = 0
-        for key in captureKeys {
-            guard defaults.object(forKey: key) == nil,
-                  let value = legacy.object(forKey: key) else { continue }
-            defaults.set(value, forKey: key)
-            imported += 1
+        for domain in domains where domain != Branding.bundleID {
+            guard let legacy = defaults.persistentDomain(forName: domain) else { continue }
+            for (key, value) in legacy where isAppOwned(key) {
+                defaults.set(value, forKey: key)
+                imported += 1
+            }
         }
         if imported > 0 {
-            Log.app.info("migration: imported \(imported, privacy: .public) capture preferences")
+            Log.app.info("migration: imported \(imported, privacy: .public) preferences")
         }
+    }
+
+    private static func isAppOwned(_ key: String) -> Bool {
+        if key.hasPrefix("migration.") { return false }
+        for prefix in ["NS", "Apple", "com.apple"] where key.hasPrefix(prefix) { return false }
+        return true
     }
 }

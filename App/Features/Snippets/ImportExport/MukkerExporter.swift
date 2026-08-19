@@ -1,6 +1,6 @@
 import Foundation
 
-struct SniptoryExporter {
+struct MukkerExporter {
     let repository: SnippetRepository
 
     init(repository: SnippetRepository = SnippetRepository()) {
@@ -15,7 +15,7 @@ struct SniptoryExporter {
             return ids.contains(cid)
         }
 
-        var exported: [SniptoryExport.ExportedCollection] = []
+        var exported: [MukkerExport.ExportedCollection] = []
         for c in targets {
             guard let cid = c.id else { continue }
             let snippets = try repository.snippets(in: cid)
@@ -24,7 +24,7 @@ struct SniptoryExporter {
                 keywordPrefix: c.keywordPrefix,
                 keywordSuffix: c.keywordSuffix,
                 snippets: snippets.map {
-                    SniptoryExport.ExportedSnippet(
+                    MukkerExport.ExportedSnippet(
                         name: $0.name,
                         keyword: $0.keyword,
                         content: $0.content,
@@ -33,8 +33,8 @@ struct SniptoryExporter {
                 }
             ))
         }
-        let payload = SniptoryExport(
-            format: SniptoryExport.currentFormat,
+        let payload = MukkerExport(
+            format: MukkerExport.currentFormat,
             exportedAt: Date(),
             collections: exported
         )

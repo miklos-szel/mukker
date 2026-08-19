@@ -1,5 +1,4 @@
 import AppKit
-import UniformTypeIdentifiers
 
 /// Flattens / encodes images and sends them to the clipboard or disk.
 enum ImageExporter {
@@ -56,29 +55,6 @@ enum ImageExporter {
         guard let data = data(from: cg, format: format) else { return nil }
         let url = directory.appendingPathComponent(
             AppPaths.suggestedFileName(fileExtension: format.fileExtension))
-        do {
-            try data.write(to: url)
-            Log.export.info("saved \(format.label) to \(url.path, privacy: .public)")
-            return url
-        } catch {
-            Log.export.error("save failed: \(error.localizedDescription, privacy: .public)")
-            return nil
-        }
-    }
-
-    /// Present a save panel for the given format, defaulting to `directory`.
-    @MainActor
-    @discardableResult
-    static func savePanel(_ cg: CGImage, format: SaveFormat, directory: URL) -> URL? {
-        guard let data = data(from: cg, format: format) else { return nil }
-        let type: UTType = format == .png ? .png : .jpeg
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [type]
-        panel.nameFieldStringValue = AppPaths.suggestedFileName(fileExtension: format.fileExtension)
-        panel.directoryURL = directory
-        panel.canCreateDirectories = true
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return nil }
         do {
             try data.write(to: url)
             Log.export.info("saved \(format.label) to \(url.path, privacy: .public)")

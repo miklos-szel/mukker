@@ -1,8 +1,13 @@
 import Foundation
 
 /// Our own portable JSON format. Versioned for forward-compatible migrations.
-struct SniptoryExport: Codable {
-    static let currentFormat = "sniptory.snippets.v1"
+struct MukkerExport: Codable {
+    /// Written into every new export.
+    static let currentFormat = Branding.snippetExportFormat
+
+    /// Formats the importer accepts. Keeps files exported before the app was
+    /// renamed readable — never drop an entry, only ever add to this set.
+    static let acceptedFormats: Set<String> = [currentFormat, "sniptory.snippets.v1"]
 
     let format: String
     let exportedAt: Date

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Sniptory
+@testable import AppCore
 
 final class SnippetBundleImporterTests: XCTestCase {
 
@@ -67,7 +67,7 @@ final class SnippetBundleImporterTests: XCTestCase {
         XCTAssertEqual(storedAgain.count, 3, "Re-import must not create duplicates")
     }
 
-    func testSniptoryExportImportRoundTrip() throws {
+    func testMukkerExportImportRoundTrip() throws {
         let db = try AppDatabase(inMemory: true)
         let repo = SnippetRepository(database: db)
         let parsed = try SnippetBundleImporter().parse(url: fixtureURL)
@@ -85,12 +85,12 @@ final class SnippetBundleImporterTests: XCTestCase {
             .appendingPathComponent("sniptory-test-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: exportURL) }
 
-        try SniptoryExporter(repository: repo).export(collectionIds: nil, to: exportURL)
+        try MukkerExporter(repository: repo).export(collectionIds: nil, to: exportURL)
         XCTAssertTrue(FileManager.default.fileExists(atPath: exportURL.path))
 
         let importDB = try AppDatabase(inMemory: true)
         let importRepo = SnippetRepository(database: importDB)
-        let imported = try SniptoryImporter(repository: importRepo).importFile(at: exportURL)
+        let imported = try MukkerImporter(repository: importRepo).importFile(at: exportURL)
         XCTAssertEqual(imported.count, 1)
         let cid = try XCTUnwrap(imported.first?.id)
         let importedSnippets = try importRepo.snippets(in: cid)

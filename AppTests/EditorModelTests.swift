@@ -1,6 +1,6 @@
 import XCTest
 import AppKit
-@testable import Sniptory
+@testable import AppCore
 
 final class EditorModelTests: XCTestCase {
 
@@ -196,25 +196,7 @@ final class EditorModelTests: XCTestCase {
         XCTAssertEqual(vm.annotations[0].style.color, .blue)
     }
 
-    // MARK: - Blur / pixelate
-
-    func testPixellatePreservesDimensions() throws {
-        let base = solidImage(.white, size: 128)
-        let pixelated = try XCTUnwrap(ImageEffects.pixellate(base))
-        XCTAssertEqual(pixelated.width, 128)
-        XCTAssertEqual(pixelated.height, 128)
-    }
-
-    @MainActor
-    func testPixelatedBaseIsCachedAndInvalidatedByCrop() {
-        let vm = EditorViewModel(image: solidImage(.white, size: 100), sourceScale: 1.0)
-        let first = vm.pixelatedBase()
-        XCTAssertTrue(first === vm.pixelatedBase(), "pixelated base should be cached")
-
-        vm.cropRect = CGRect(x: 0, y: 0, width: 60, height: 60)
-        vm.applyCrop()
-        XCTAssertFalse(first === vm.pixelatedBase(), "crop must invalidate the pixelated cache")
-    }
+    // MARK: - Blur
 
     @MainActor
     func testFlattenWithBlurKeepsResolution() {

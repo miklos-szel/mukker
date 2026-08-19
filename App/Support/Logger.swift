@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 
 /// Unified log categories across both feature sets. View with e.g.
-/// `log show --predicate 'subsystem == "com.sniptory.Sniptory"' --info --last 1m`.
+/// `log show --predicate 'subsystem == "com.mukker.Mukker"' --info --last 1m`.
 enum Log {
     static let subsystem = Branding.bundleID
 

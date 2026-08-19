@@ -44,10 +44,6 @@ final class ClipboardCache: ObservableObject {
         items.removeAll { $0.id == id }
     }
 
-    func clearUnpinned() {
-        items.removeAll { !$0.pinned }
-    }
-
     func togglePinned(id: Int64) {
         guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
         items[idx].pinned.toggle()

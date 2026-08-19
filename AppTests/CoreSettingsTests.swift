@@ -2,7 +2,7 @@ import XCTest
 import AppKit
 import Carbon.HIToolbox
 import HotKey
-@testable import Sniptory
+@testable import AppCore
 
 final class CoreSettingsTests: XCTestCase {
 

@@ -19,7 +19,7 @@ enum AppPaths {
     }
 
     static var databaseURL: URL {
-        supportDirectory.appendingPathComponent("sniptory.sqlite")
+        supportDirectory.appendingPathComponent(Branding.databaseFileName)
     }
 
     static var imagesDirectory: URL {
@@ -60,7 +60,7 @@ enum AppPaths {
         return formatter
     }()
 
-    /// A timestamped file name like "Sniptory 2026-05-29 at 09.41.12.png".
+    /// A timestamped file name like "Mukker 2026-05-29 at 09.41.12.png".
     static func suggestedFileName(date: Date = .now, fileExtension: String = "png") -> String {
         "\(Branding.name) \(fileNameFormatter.string(from: date)).\(fileExtension)"
     }

@@ -6,6 +6,10 @@
 # are named App/ and AppTests/, and the Makefile reads the scheme out of
 # project.yml, so nothing moves on disk.
 #
+# No Swift file needs editing: user-facing names come from Branding.name at
+# runtime, and the Swift module is pinned to AppCore via PRODUCT_MODULE_NAME, so
+# the tests' `@testable import AppCore` keeps working across renames.
+#
 #   ./scripts/rename.sh Clipper                       # product name only
 #   ./scripts/rename.sh Clipper --bundle-id com.me.Clipper
 #   ./scripts/rename.sh Clipper --repo https://github.com/me/clipper
@@ -77,9 +81,24 @@ if [[ -n "${NEW_REPO}" ]]; then
     App/Support/Branding.swift
 fi
 
-# Docs: headings and prose.
+# Docs: headings and prose — but NOT the lines that document frozen identity.
+# The data folder, the database file, the export format, the bundle ID and the
+# exporter type names deliberately do not follow a rename, so a blanket sed here
+# silently rewrites accurate documentation into lies. Those lines are skipped.
+# Derived from the frozen constants themselves, so this list can't go stale the
+# way a hardcoded one did once the identity moved.
+rx() { printf '%s' "$1" | sed 's/[].[^$()*+?{}|\\]/\\&/g'; }
+FROZEN_FOLDER="$(sed -n 's/.*supportFolderName = "\(.*\)".*/\1/p' App/Support/Branding.swift)"
+FROZEN_DB="$(sed -n 's/.*databaseFileName = "\(.*\)".*/\1/p' App/Support/Branding.swift)"
+FROZEN_FORMAT="$(sed -n 's/.*snippetExportFormat = "\(.*\)".*/\1/p' App/Support/Branding.swift)"
+FROZEN_BUNDLE="$(awk '/PRODUCT_BUNDLE_IDENTIFIER:/{print $2; exit}' project.yml)"
+PROTECTED="$(rx "${FROZEN_DB}")|$(rx "${FROZEN_FORMAT}")|$(rx "${FROZEN_BUNDLE}")"
+PROTECTED="${PROTECTED}|Application Support/$(rx "${FROZEN_FOLDER}")"
+PROTECTED="${PROTECTED}|supportFolderName|databaseFileName|snippetExportFormat|acceptedFormats"
+
 for doc in README.md CLAUDE.md CHANGELOG.md; do
-  [[ -f "${doc}" ]] && sed -i '' -e "s/${OLD_NAME}/${NEW_NAME}/g" "${doc}"
+  [[ -f "${doc}" ]] || continue
+  perl -i -pe "next if m{${PROTECTED}}; s/\Q${OLD_NAME}\E/${NEW_NAME}/g" "${doc}"
 done
 
 # The generated project carries the old name in its bundle path — drop it.

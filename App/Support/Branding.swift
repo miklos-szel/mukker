@@ -16,21 +16,27 @@ enum Branding {
 
     /// Subsystem for `Log` and any other bundle-scoped identifier.
     static var bundleID: String {
-        Bundle.main.bundleIdentifier ?? "com.sniptory.Sniptory"
+        Bundle.main.bundleIdentifier ?? "com.mukker.Mukker"
     }
 
-    static let repoURL = URL(string: "https://github.com/miklos-szel/sniptory")!
+    static let repoURL = URL(string: "https://github.com/miklos-szel/mukker")!
 
     /// Used only when the Info.plist can't be read (unit tests run without one).
-    private static let fallbackName = "Sniptory"
+    private static let fallbackName = "Mukker"
 
     // MARK: - Frozen identity (must NOT follow a rename)
 
     /// Name of the Application Support folder holding the SQLite database and its
-    /// image/RTF sidecars. Renaming this orphans every existing user's history.
-    static let supportFolderName = "Sniptory"
+    /// image/RTF sidecars. Changing this orphans every existing user's history —
+    /// only ever change it together with a `LegacyDataMigrator` step that adopts
+    /// the old folder (see `legacySupportFolderNames`).
+    static let supportFolderName = "Mukker"
 
-    /// Wire format string for native snippet export. Renaming this makes files
-    /// exported by older builds unreadable.
-    static let snippetExportFormat = "sniptory.snippets.v1"
+    /// File name of the SQLite database inside `supportFolderName`.
+    static let databaseFileName = "mukker.sqlite"
+
+    /// Wire format string written into native snippet exports. Changing this makes
+    /// files exported by older builds unreadable unless the importer keeps
+    /// accepting the old value — see `MukkerExport.acceptedFormats`.
+    static let snippetExportFormat = "mukker.snippets.v1"
 }

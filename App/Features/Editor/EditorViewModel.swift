@@ -6,7 +6,7 @@ import SwiftUI
 @MainActor
 final class EditorViewModel: ObservableObject {
     /// The base (captured/cropped/resized) image in pixels.
-    @Published var baseImage: CGImage { didSet { pixelatedCache = nil } }
+    @Published var baseImage: CGImage
     @Published var zoom: CGFloat = 1.0
 
     /// Most recent canvas viewport size in points, kept in sync by the view so the
@@ -21,9 +21,6 @@ final class EditorViewModel: ObservableObject {
     /// auto-cleared shortly after it's set.
     @Published var statusMessage: String?
     private var statusClearTask: Task<Void, Never>?
-
-    /// Lazily-built, cached pixelated copy of `baseImage` for blur annotations.
-    private var pixelatedCache: CGImage?
 
     /// Pixels-per-point of the source capture, so we can show logical sizes.
     let sourceScale: CGFloat
@@ -120,9 +117,6 @@ final class EditorViewModel: ObservableObject {
         return list
     }
 
-    /// Pixelated layer for the on-screen canvas (covers the live draft too).
-    var displayPixelatedLayer: CGImage? { pixelatedLayer(for: displayAnnotations) }
-
     /// Image size in pixels.
     var pixelSize: CGSize {
         CGSize(width: baseImage.width, height: baseImage.height)
@@ -218,20 +212,6 @@ final class EditorViewModel: ObservableObject {
         var pad = a.style.lineWidth / 2 + 2
         if a.kind == .arrow { pad += max(12, a.style.lineWidth * 4) }
         return a.boundingBox.insetBy(dx: -pad, dy: -pad)
-    }
-
-    /// Pixelated copy of the base image, built once and reused. Drives blur
-    /// annotations, which reveal this image clipped to their rect.
-    func pixelatedBase() -> CGImage {
-        if let cached = pixelatedCache { return cached }
-        let result = ImageEffects.pixellate(baseImage) ?? baseImage
-        pixelatedCache = result
-        return result
-    }
-
-    /// The pixelated image to hand the canvas, or nil when no blur is present.
-    private func pixelatedLayer(for annotations: [Annotation]) -> CGImage? {
-        annotations.contains { $0.kind == .blur } ? pixelatedBase() : nil
     }
 
     // MARK: - Drawing gestures (logical-point coordinates)
@@ -719,7 +699,7 @@ final class EditorViewModel: ObservableObject {
         let renderer = ImageRenderer(content:
             FlatCanvas(baseImage: baseImage, imageSize: logicalSize, contentBounds: bounds,
                        imageOrigin: imageOrigin,
-                       annotations: annotations, pixelatedImage: pixelatedLayer(for: annotations)))
+                       annotations: annotations))
         renderer.proposedSize = ProposedViewSize(bounds.size)
         renderer.scale = sourceScale
         return renderer.cgImage ?? baseImage

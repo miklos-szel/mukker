@@ -16,13 +16,6 @@ enum PopupResult: Identifiable, Equatable {
         case .clip(let k):       return "k:\(k.id ?? -1)"
         }
     }
-
-    var isSnippetSection: Bool {
-        switch self {
-        case .collection, .snippet: return true
-        case .clip: return false
-        }
-    }
 }
 
 @MainActor

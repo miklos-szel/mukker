@@ -1,6 +1,6 @@
 import Foundation
 
-struct SniptoryImporter {
+struct MukkerImporter {
     let repository: SnippetRepository
 
     init(repository: SnippetRepository = SnippetRepository()) {
@@ -16,9 +16,9 @@ struct SniptoryImporter {
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let payload = try decoder.decode(SniptoryExport.self, from: data)
+        let payload = try decoder.decode(MukkerExport.self, from: data)
 
-        guard payload.format == SniptoryExport.currentFormat else {
+        guard MukkerExport.acceptedFormats.contains(payload.format) else {
             throw ImportError.unsupportedFormat(payload.format)
         }
 

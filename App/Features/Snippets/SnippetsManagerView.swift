@@ -145,9 +145,9 @@ final class SnippetsManagerViewModel: ObservableObject {
         }
     }
 
-    func importFromSniptory(url: URL) {
+    func importFromMukker(url: URL) {
         do {
-            _ = try SniptoryImporter().importFile(at: url)
+            _ = try MukkerImporter().importFile(at: url)
             SnippetCache.shared.loadAll()
             reload()
         } catch {
@@ -157,7 +157,7 @@ final class SnippetsManagerViewModel: ObservableObject {
 
     func exportAll(to url: URL) {
         do {
-            try SniptoryExporter().export(collectionIds: nil, to: url)
+            try MukkerExporter().export(collectionIds: nil, to: url)
         } catch {
             errorMessage = "Export failed: \(error.localizedDescription)"
         }
@@ -166,7 +166,7 @@ final class SnippetsManagerViewModel: ObservableObject {
     func exportSelected(to url: URL) {
         guard let id = selectedCollectionId else { return }
         do {
-            try SniptoryExporter().export(collectionIds: [id], to: url)
+            try MukkerExporter().export(collectionIds: [id], to: url)
         } catch {
             errorMessage = "Export failed: \(error.localizedDescription)"
         }
@@ -337,20 +337,20 @@ struct SnippetsManagerView: View {
         if asBundle {
             panel.allowedContentTypes = [.init(filenameExtension: "alfredsnippets") ?? .data]
         } else {
-            panel.allowedContentTypes = [.json, .init(filenameExtension: "sniptory") ?? .json]
+            panel.allowedContentTypes = [.json, .init(filenameExtension: "mukker") ?? .json]
         }
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if asBundle {
             vm.importSnippetBundle(url: url)
         } else {
-            vm.importFromSniptory(url: url)
+            vm.importFromMukker(url: url)
         }
     }
 
     private func exportPanel(allCollections: Bool) {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = allCollections ? "sniptory-snippets.json" : "collection.json"
+        panel.nameFieldStringValue = allCollections ? "mukker-snippets.json" : "collection.json"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if allCollections {
             vm.exportAll(to: url)

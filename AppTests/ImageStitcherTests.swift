@@ -1,6 +1,6 @@
 import XCTest
 import AppKit
-@testable import Sniptory
+@testable import AppCore
 
 final class ImageStitcherTests: XCTestCase {
 

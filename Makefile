@@ -12,7 +12,7 @@ APP          := $(DERIVED)/Build/Products/$(CONFIG)/$(SCHEME).app
 TESTS        := AppTests
 XCODEBUILD   := xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIG) -derivedDataPath $(DERIVED)
 
-.PHONY: all generate build run rebuild test test-one quit clean dmg
+.PHONY: all generate build build-tests run rebuild test test-one quit clean dmg
 
 all: build
 
@@ -23,6 +23,11 @@ generate:
 ## Build the app (regenerates the project first)
 build: generate
 	$(XCODEBUILD) build
+
+## Compile the tests without running them (`make build` skips the test target,
+## so a broken test import otherwise hides until `make test`)
+build-tests: generate
+	$(XCODEBUILD) build-for-testing
 
 ## Build and launch the app
 run: build quit

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Sniptory
+@testable import AppCore
 
 final class ClipboardRepositoryTests: XCTestCase {
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Sniptory is a native macOS menu-bar utility combining two feature sets that used to be separate
+Mukker is a native macOS menu-bar utility combining two feature sets that used to be separate
 apps:
 
 - **Clipboard history + snippets** (with rich-text support; no auto-expansion). A global shortcut
@@ -22,9 +22,36 @@ The two sides are deliberately independent at runtime. The only things they shar
 `AppDelegate`, and the Settings window. Emergent integration: a capture copied to the clipboard
 is picked up by `ClipboardMonitor` like any other copy, so captures land in history for free.
 
+## Naming
+
+The app is **Mukker** throughout — product name, bundle identifier, storage folder and export
+format all agree. That was not always true: this repo was assembled from two apps (a clipboard/
+snippets app called Sniptory and a capture app called Mukker) and the merged result kept
+Sniptory's identity for a while, so **anything you find referring to Sniptory is legacy-support
+code, not current identity**. Don't "fix" it — it's what keeps existing installs working:
+
+- `LegacyDataMigrator.legacyDefaultsDomains` / `legacyDatabases` — where older installs kept their
+  settings and database.
+- `MukkerExport.acceptedFormats` — still imports `sniptory.snippets.v1` files.
+- `ShortcutSettings.K.legacyPopup` — the pre-merge popup-hotkey blob.
+
+Identity is split into two halves that behave differently on a rename:
+
+| Follows the product name | Frozen until deliberately migrated |
+| --- | --- |
+| Window titles, menus, alerts, saved screenshot names (`Branding.name`) | Bundle ID `com.mukker.Mukker` — changing it resets TCC grants and hands the app an empty defaults domain |
+| `project.yml` `name:`, the `.xcodeproj`, the built `.app`, the scheme | `Branding.supportFolderName` + `databaseFileName` → `~/Library/Application Support/Mukker/mukker.sqlite` |
+| Repo/README headings | `Branding.snippetExportFormat` (`mukker.snippets.v1`) and the `Mukker*` exporter/importer types |
+
+The frozen half may only change together with a `LegacyDataMigrator` step that adopts the old
+value — that is exactly what version 2 of the migrator does. `scripts/rename.sh` derives its
+protect-list from these constants and skips doc lines mentioning them, so a plain rename can never
+silently rewrite them.
+
 ## Build / test / run
 
-The Xcode project (`Sniptory.xcodeproj`) is **generated from `project.yml`** by
+The Xcode project (`Mukker.xcodeproj` — named after `project.yml`'s `name:`) is
+**generated from `project.yml`** by
 [xcodegen](https://github.com/yonaskolb/XcodeGen). Treat `project.yml` as the source of truth —
 edit it and re-run `xcodegen generate` (or `make generate`). Do not hand-edit the `.xcodeproj`;
 it is not checked in.
@@ -52,18 +79,32 @@ The product name is **not** baked into the tree, and this is load-bearing — do
 - Every user-facing name comes from **`App/Support/Branding.swift`** (`Branding.name`, read from
   `CFBundleName` at runtime). Never hardcode the app name in a string literal — interpolate
   `Branding.name`.
-- `scripts/rename.sh NewName [--bundle-id …] [--repo …]` does the rest.
+- The Swift module is pinned to **`AppCore`** via `PRODUCT_MODULE_NAME` in `project.yml`, so
+  `@testable import AppCore` survives a rename. Don't let the module name track the product name —
+  `make build` compiles only the app target, so a broken test import hides until `make test`; use
+  `make build-tests` for a fast compile-only check of the test target.
+- `scripts/rename.sh NewName [--bundle-id …] [--repo …]` (or `make rename NAME=NewName`) does the
+  rest: `project.yml` (name, target key, `CFBundleName`/`DisplayName`, the test target's dependency
+  and `TEST_HOST`), `Info.plist`, optionally `Branding.repoURL`, the docs, then a clean
+  `xcodegen generate`. It has already been used once — Sniptory → Mukker.
 
 Two constants in `Branding` are **frozen** and must not follow a rename:
 `supportFolderName` (the Application Support folder holding the database + sidecars — renaming
 orphans user data) and `snippetExportFormat` (the wire format string in exported snippet files).
-`SniptoryExporter`/`SniptoryImporter`/`SniptoryExport` keep their type names for the same reason:
-they are named after the file format, not the product.
+The rename script skips doc lines mentioning either, plus the bundle ID and the `Sniptory*`
+exporter types — a blanket find-and-replace across the docs turns accurate statements into false
+ones, which is exactly what happened the first time.
+`MukkerExporter`/`MukkerImporter`/`MukkerExport` are named after the file format, not the product,
+so they only move when the format does — and when it moves, the old string stays in
+`MukkerExport.acceptedFormats` forever.
 
-`LegacyDataMigrator` (`Core/`) runs once at launch, before anything reads the DB or settings: it
-adopts a database left in a differently-named Application Support folder, and imports the capture
-app's old preferences from the `com.mukker.Mukker` defaults domain. Bump its `currentVersion` to
-re-run it for existing installs.
+`LegacyDataMigrator` (`Core/`) runs once at launch, before anything reads the DB or settings. It
+copies (never moves) the newest legacy database into place — renaming the file and its WAL/SHM
+siblings, plus the `images/` and `richtext/` sidecar directories — and imports preferences from
+every previous defaults domain, oldest first so the most recent identity wins. Bump its
+`currentVersion` to re-run the whole migration for existing installs. Permissions are the one
+thing it cannot carry: a bundle-ID change resets TCC, so the user must re-grant Accessibility and
+Screen Recording once.
 
 ## Architecture
 
@@ -159,7 +200,8 @@ clipboard prefs. It is a `@MainActor ObservableObject` backed by computed proper
   text onto the previous text item, optionally writing the merged result back to the pasteboard
   (calling `ClipboardMonitor.suppressNextChange()` so we don't re-capture our own write).
 
-**Storage.** GRDB `DatabaseQueue` at `~/Library/Application Support/Sniptory/sniptory.sqlite`.
+**Storage.** GRDB `DatabaseQueue` at `~/Library/Application Support/Mukker/mukker.sqlite`
+(both parts come from `Branding` — see *Naming* above).
 Schema is owned by `AppDatabase.migrator`; add schema via a new `registerMigration("vN")` block,
 never edit an existing one (currently `v1`, `v2_lastUsed`, `v3_richText`). Models (`ClipItem`,
 `Snippet`, `SnippetCollection`) conform to `FetchableRecord, MutablePersistableRecord` with
@@ -200,8 +242,10 @@ toggle is on.
 - **Editor vs export look:** on screen the non-exported surround is a transparency `Checkerboard`;
   `FlatCanvas`'s white matte makes the same region export white.
 - **Blur** obscures the composite beneath it via a `GraphicsContext` blur filter in
-  `AnnotationLayer.drawBlur(_:below:)` — it does not erase what's under it.
-  (`ImageEffects.pixellate` / `pixelatedBase` are legacy, still test-covered.)
+  `AnnotationLayer.drawBlur(_:below:)` — it does not erase what's under it. There is no
+  pre-rendered pixelated layer: the old `ImageEffects.pixellate` → `pixelatedBase` →
+  `AnnotationCanvas.pixelatedImage` chain was dead (the canvas stored the image and never drew
+  it) and has been removed.
 - **Inline text** uses an AppKit-backed `InlineTextField` (in `ToolGestureHandler`) that makes
   itself first responder on appear — SwiftUI `@FocusState` is unreliable in our custom window.
 
@@ -231,7 +275,8 @@ without migration, but exhaustive switches in `Paster`, `PreviewPane`, `PopupRow
   fighting SwiftUI.
 - **Logging:** use `Log.<category>` from `Support/Logger.swift` (categories: `app`, `hotkey`,
   `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`, `export`). View with
-  `log show --predicate 'subsystem == "com.sniptory.Sniptory"' --info --last 1m`.
+  `log show --predicate 'subsystem == "com.mukker.Mukker"' --info --last 1m` (the subsystem is the
+  bundle ID).
 - **Code signing:** ad-hoc only (`CODE_SIGN_IDENTITY: "-"`); hardened runtime auto-disabled. Don't
   add entitlements requiring a real Developer ID without coordinating with the user.
 - **Always work on a feature branch.** Never commit directly to `main`. Create **one** branch off
@@ -242,6 +287,7 @@ without migration, but exhaustive switches in `Paster`, `PreviewPane`, `PopupRow
   GitHub release with the DMG + SHA-256. To cut a release: bump `CFBundleShortVersionString`/
   `CFBundleVersion` in `project.yml`, update `CHANGELOG.md`, commit, then
   `git tag vX.Y.Z && git push origin vX.Y.Z`. Homebrew is served from the separate
-  **`miklos-szel/homebrew-sniptory`** tap; `dist/sniptory.rb` is the cask template (it strips the
-  quarantine flag on install because the build is ad-hoc signed).
+  **`miklos-szel/homebrew-sniptory`** tap (still named after the project's former name);
+  `dist/mukker.rb` is the cask template (it strips the quarantine flag on install because the
+  build is ad-hoc signed).
 - Do **not** reference the inspiration apps by name anywhere in the code or UI.

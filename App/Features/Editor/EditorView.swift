@@ -83,8 +83,7 @@ struct EditorView: View {
                                imageSize: viewModel.logicalSize,
                                contentBounds: draw,
                                imageOrigin: viewModel.imageOrigin,
-                               annotations: viewModel.displayAnnotations,
-                               pixelatedImage: viewModel.displayPixelatedLayer)
+                               annotations: viewModel.displayAnnotations)
                         .offset(x: draw.minX - work.minX, y: draw.minY - work.minY)
                     // The hand tool's pan is handled inside ToolGestureHandler (which
                     // reliably receives canvas drags); it reports translation here and

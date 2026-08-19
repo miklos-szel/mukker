@@ -1,14 +1,44 @@
 # Changelog
 
-All notable changes to Sniptory are documented here. The format loosely follows
+All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- **The app's data identity is now Mukker**, matching its name. The bundle identifier is
+  `com.mukker.Mukker`, storage moved to `~/Library/Application Support/Mukker/mukker.sqlite`, and
+  new snippet exports are written as `mukker.snippets.v1`.
+  - Your history, snippets and settings are **migrated automatically on first launch** — copied,
+    not moved, so an older build still works if you roll back.
+  - Snippet files exported by earlier builds still import (`sniptory.snippets.v1` stays in
+    `MukkerExport.acceptedFormats`).
+  - **You must re-grant Accessibility and Screen Recording once**: a bundle-identifier change
+    makes macOS treat this as a new app, and permissions are the one thing no migration can carry.
+  - Export/import types renamed `Sniptory*` → `Mukker*`; the Homebrew cask is now `mukker`.
+
+### Removed
+- **Dead pixelate codepath** — `ImageEffects.pixellate`, `EditorViewModel.pixelatedBase`/
+  `pixelatedLayer`/`displayPixelatedLayer` and `AnnotationCanvas.pixelatedImage`. The canvas
+  stored the pre-rendered pixelated image and never drew it; blur has been rendered by
+  `AnnotationLayer.drawBlur`'s graphics filter all along.
+- `ImageExporter.savePanel`, `PopupResult.isSnippetSection`, `ClipboardCache.clearUnpinned` and
+  `KeyCombo.displayString` — no callers.
+
+### Fixed
+- **Renaming no longer breaks the tests.** The Swift module is pinned to `AppCore`
+  (`PRODUCT_MODULE_NAME`), so `@testable import` survives a rename; previously a rename left the
+  test target unable to resolve the app module, which `make build` doesn't catch.
+- **`scripts/rename.sh` no longer rewrites frozen identity in the docs.** It used to
+  find-and-replace the old name everywhere, turning accurate statements about the Application
+  Support folder, the bundle ID and the export format into false ones.
+- `Branding.snippetExportFormat` is now actually the source of the export format string rather
+  than an unused duplicate of it.
+
 ## [0.4.0] - 2026-08-19
 
 ### Added
-- **Screen capture and annotation** — the whole capture app is now part of Sniptory:
+- **Screen capture and annotation** — the whole capture app is now part of Mukker:
   area, fullscreen and scrolling capture, and the borderless annotation editor
   (arrow, line, rectangle, rounded rectangle, ellipse, text, highlight,
   blur/pixelate, freehand pen, numbered counter), with crop, movable base image,

@@ -25,7 +25,7 @@ struct SnippetBundleImporter {
     /// Parses the file at `url`. `collectionName` defaults to the file's basename.
     func parse(url: URL, collectionName: String? = nil) throws -> ParsedCollection {
         let fm = FileManager.default
-        let tempDir = fm.temporaryDirectory.appendingPathComponent("sniptory-import-\(UUID().uuidString)", isDirectory: true)
+        let tempDir = fm.temporaryDirectory.appendingPathComponent("mukker-import-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: tempDir) }
 

@@ -68,14 +68,4 @@ extension KeyCombo {
         return result
     }
 
-    /// Glyph string like "⌃⇧⌘4" for display in settings and menus.
-    var displayString: String {
-        var s = ""
-        if modifiers.contains(.control) { s += "⌃" }
-        if modifiers.contains(.option) { s += "⌥" }
-        if modifiers.contains(.shift) { s += "⇧" }
-        if modifiers.contains(.command) { s += "⌘" }
-        s += key?.description.uppercased() ?? ""
-        return s
-    }
 }
