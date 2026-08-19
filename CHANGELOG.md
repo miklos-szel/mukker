@@ -3,7 +3,7 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.5.0] - 2026-08-19
 
 ### Added
 - **Keep Awake** — a third feature set alongside clipboard/snippets and capture. A *Keep Awake*
