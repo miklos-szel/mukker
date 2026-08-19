@@ -1,0 +1,12 @@
+.DS_Store
+build/
+DerivedData/
+# Generated from project.yml by xcodegen — not checked in.
+*.xcodeproj/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+# DMG build output
+dist/*.dmg

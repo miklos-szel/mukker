@@ -1,0 +1,85 @@
+name: Sniptory
+options:
+  bundleIdPrefix: com.sniptory
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    ENABLE_HARDENED_RUNTIME: YES
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    PRODUCT_NAME: "$(TARGET_NAME)"
+    GENERATE_INFOPLIST_FILE: NO
+    SWIFT_STRICT_CONCURRENCY: minimal
+
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    from: "6.29.0"
+  HotKey:
+    url: https://github.com/soffes/HotKey
+    from: "0.2.0"
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation
+    from: "0.9.19"
+
+targets:
+  # Source directories are deliberately named App/ and AppTests/ rather than after
+  # the product, so renaming the app never means moving files. See scripts/rename.sh.
+  Sniptory:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+      - path: CHANGELOG.md
+        buildPhase: resources
+    resources:
+      - path: App/Resources/Assets.xcassets
+        optional: true
+    info:
+      path: App/Resources/Info.plist
+      properties:
+        CFBundleName: Sniptory
+        CFBundleDisplayName: Sniptory
+        CFBundleIdentifier: com.sniptory.Sniptory
+        CFBundleIconName: AppIcon
+        CFBundleShortVersionString: "0.4.0"
+        CFBundleVersion: "11"
+        CFBundlePackageType: APPL
+        LSMinimumSystemVersion: "14.0"
+        LSUIElement: true
+        NSHumanReadableCopyright: ""
+        NSAppleEventsUsageDescription: "Sniptory needs Accessibility access to paste items into the active app."
+    dependencies:
+      - package: GRDB
+        product: GRDB
+      - package: HotKey
+      - package: ZIPFoundation
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sniptory.Sniptory
+        ENABLE_PREVIEWS: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  AppTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: AppTests
+        excludes:
+          - "Fixtures/**"
+    resources:
+      - path: AppTests/Fixtures
+    dependencies:
+      - target: Sniptory
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sniptory.AppTests
+        GENERATE_INFOPLIST_FILE: YES
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Sniptory.app/Contents/MacOS/Sniptory"

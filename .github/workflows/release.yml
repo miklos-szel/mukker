@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build DMG
+        run: make dmg
+
+      - name: Compute checksum
+        id: sha
+        run: |
+          DMG=$(ls dist/*.dmg | head -n1)
+          echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(shasum -a 256 "$DMG" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.sha.outputs.dmg }}
+          body: |
+            Ad-hoc signed build. After installing via the DMG, the first launch may be blocked by Gatekeeper —
+            right-click the app and choose **Open**, or install through the Homebrew cask (which strips the quarantine flag).
+
+            DMG SHA-256: `${{ steps.sha.outputs.sha256 }}`
