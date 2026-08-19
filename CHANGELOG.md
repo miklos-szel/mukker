@@ -3,7 +3,19 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.5.0] - 2026-08-19
+
+### Added
+- **Keep Awake** — a third feature set alongside clipboard/snippets and capture. A *Keep Awake*
+  submenu in the menu bar stops the Mac idling to sleep, and the menu-bar icon changes while it's
+  on so the state is visible at a glance.
+  - An activation lasts **2 hours** by default and then releases itself; the menu shows the time
+    remaining and offers one-off durations from 5 minutes to 5 hours, or until you turn it off.
+  - **Settings → Keep Awake** sets the default duration, whether to turn on at launch, whether to
+    let the display sleep while the machine keeps running, and whether an explicit manual sleep
+    turns it off.
+  - The underlying power assertion is short-lived and refreshed on a timer, so a crash can't leave
+    your Mac pinned awake with nothing left to release it.
 
 ### Changed
 - **The app's data identity is now Mukker**, matching its name. The bundle identifier is

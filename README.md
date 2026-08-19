@@ -1,9 +1,9 @@
 # Mukker
 
-A native macOS menu-bar utility that combines **clipboard history**, **text snippets**, and
-**screen capture with annotation** in one app. A quick popup on a global shortcut pastes back
-into the app you were just using; a capture shortcut opens a screenshot in a full annotation
-editor.
+A native macOS menu-bar utility that combines **clipboard history**, **text snippets**,
+**screen capture with annotation**, and **keeping your Mac awake** in one app. A quick popup on a
+global shortcut pastes back into the app you were just using; a capture shortcut opens a
+screenshot in a full annotation editor.
 
 ## Features
 
@@ -24,6 +24,17 @@ editor.
 - **Annotation editor** — arrow, line, rectangle, rounded rectangle, ellipse, text, highlight, blur/pixelate, freehand pen, and numbered counters, with configurable colors, line width and per-tool keys.
 - **Crop, movable base image, wheel zoom**, and a checkerboard surround that exports white.
 - **Copy or save** as PNG/JPEG, with optional 1× downscaling, a configurable destination folder, and auto-close after copy/save.
+
+### Keep awake
+
+- **Stop the Mac idling to sleep** while a long job runs — one click in the menu bar, no Terminal.
+- **Timed by default** — an activation lasts **2 hours** and then releases itself, so you can't
+  leave the Mac pinned awake by accident. Pick a different length from the *Keep Awake* menu
+  (5 minutes through 5 hours, or until you turn it off), or change the default in
+  **Settings → Keep Awake**.
+- **The menu-bar icon shows the state**, and the menu shows the time remaining.
+- **Optionally let the display sleep** while the machine keeps running, turn it on automatically at
+  launch, and have it stand down when you close the lid or sleep the Mac yourself.
 
 Captures copied to the clipboard also land in your clipboard history, so a screenshot you took
 five minutes ago is still one ⌘E away.

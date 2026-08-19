@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Tabbed Settings window. The two feature-specific tabs mirror the apps this
-/// one was merged from — Clipboard & Snippets, and Capture — while Hotkeys,
-/// Permissions and About are shared across both.
+/// Tabbed Settings window. One tab per feature set — Clipboard & Snippets,
+/// Capture, Keep Awake — while Hotkeys, Permissions and About are shared
+/// across all of them.
 struct SettingsView: View {
     var body: some View {
         TabView {
@@ -10,6 +10,8 @@ struct SettingsView: View {
                 .tabItem { Label("Clipboard", systemImage: "doc.on.clipboard") }
             CapturePane()
                 .tabItem { Label("Capture", systemImage: "camera.viewfinder") }
+            KeepAwakePane()
+                .tabItem { Label("Keep Awake", systemImage: "moon.zzz") }
             HotkeysPane()
                 .tabItem { Label("Hotkeys", systemImage: "keyboard") }
             PermissionsPane()
