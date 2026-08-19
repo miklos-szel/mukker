@@ -12,9 +12,13 @@ struct AppMain: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @ObservedObject private var shortcuts = ShortcutSettings.shared
     @ObservedObject private var captureSettings = CaptureSettings.shared
+    @ObservedObject private var keepAwake = KeepAwakeService.shared
 
     var body: some Scene {
-        MenuBarExtra(Branding.name, image: "MenuBarIcon") {
+        // The icon carries the Keep Awake state, so the menu bar shows at a
+        // glance whether the Mac is being held awake.
+        MenuBarExtra(Branding.name,
+                     image: keepAwake.isActive ? "MenuBarIconAwake" : "MenuBarIcon") {
             Menu("Clipboard & Snippets") {
                 menuItem("Show Clipboard & Snippets", combo: shortcuts.popupCombo) {
                     appDelegate.showPopup()
@@ -43,6 +47,19 @@ struct AppMain: App {
                     }
                 }
 #endif
+            }
+
+            Menu("Keep Awake") {
+                Button(keepAwake.isActive ? "Turn Off" : "Turn On") {
+                    keepAwake.toggle()
+                }
+                if keepAwake.isActive {
+                    Text(keepAwake.statusText)
+                }
+                Divider()
+                ForEach(KeepAwakeDuration.allCases) { duration in
+                    Button(duration.label) { keepAwake.activate(for: duration) }
+                }
             }
 
             Divider()

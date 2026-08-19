@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Wires every long-lived service in the app. Read this top-to-bottom to follow
 /// the runtime flow: legacy migration → storage/caches → clipboard services →
-/// capture services → global hotkeys → window entry points.
+/// capture services → keep-awake → global hotkeys → window entry points.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var snippetsWindow: NSWindow?
@@ -40,6 +40,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             EditorWindowController.shared.open(image: image, sourceScale: scale)
         }
 
+        // Sleep prevention: installs its workspace observers and honours the
+        // "turn on at launch" preference. Independent of the other two feature sets.
+        KeepAwakeService.shared.start()
+
         // One manager owns all four system-wide shortcuts. The menu items carry
         // the same key equivalents for discoverability; CaptureCoordinator's
         // in-flight guard keeps a double-trigger from starting two captures.
@@ -55,6 +59,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // so windows we open can come forward.
         NSApp.setActivationPolicy(.accessory)
         Log.app.info("\(Branding.name, privacy: .public) launched")
+    }
+
+    /// Release the power assertion promptly on a clean quit. (It is also
+    /// self-expiring, so an unclean exit drains within the assertion timeout.)
+    func applicationWillTerminate(_ notification: Notification) {
+        KeepAwakeService.shared.deactivate()
     }
 
     // MARK: - Clipboard & snippets entry points

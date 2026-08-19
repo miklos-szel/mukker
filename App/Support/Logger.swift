@@ -9,6 +9,7 @@ enum Log {
     // Shared
     static let app = Logger(subsystem: subsystem, category: "app")
     static let hotkey = Logger(subsystem: subsystem, category: "hotkey")
+    static let keepAwake = Logger(subsystem: subsystem, category: "keepAwake")
 
     // Clipboard / snippets
     static let clipboard = Logger(subsystem: subsystem, category: "clipboard")

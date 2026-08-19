@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Mukker is a native macOS menu-bar utility combining two feature sets that used to be separate
-apps:
+Mukker is a native macOS menu-bar utility combining three feature sets — two of which used to be
+separate apps:
 
 - **Clipboard history + snippets** (with rich-text support; no auto-expansion). A global shortcut
   (⌘E default) pops a centered floating panel showing text/image clipboard history and snippet
@@ -16,8 +16,11 @@ apps:
   blur/pixelate, freehand pen, numbered counter), cropping, then copying to the clipboard or
   saving a PNG/JPEG. The capture side is **stateless** — captures live only until copied or
   saved; there is no capture history.
+- **Keep Awake.** A menu-bar toggle that holds an IOKit power assertion so the Mac stops idling to
+  sleep, for a configurable duration (**2 hours** by default) after which it releases itself. It
+  needs no permissions and touches neither the database nor any other subsystem.
 
-The two sides are deliberately independent at runtime. The only things they share are
+The three sides are deliberately independent at runtime. The only things they share are
 `PermissionsService`, `HotKeyManager`/`ShortcutSettings`, `Log`, `AppPaths`, `Branding`, the
 `AppDelegate`, and the Settings window. Emergent integration: a capture copied to the clipboard
 is picked up by `ClipboardMonitor` like any other copy, so captures land in history for free.
@@ -116,7 +119,8 @@ Higher layers may import lower; never the reverse.
 `ShortcutSettings`, `HotKeyManager`, `ClipboardMonitor`, `ClipboardRetentionService`,
 `FastAppendService`, `ActiveAppTracker`, `PermissionsService`, `LoginItemService`, `Paster`,
 `PopupWindowController`, `CaptureCoordinator`, `ScrollingCaptureService`,
-`EditorWindowController`, `AppIconCache`, `ClipThumbnailCache`.
+`EditorWindowController`, `AppIconCache`, `ClipThumbnailCache`, `KeepAwakeSettings`,
+`KeepAwakeService`.
 `AppDelegate.applicationDidFinishLaunching` wires them together — start there to follow runtime
 flow.
 
@@ -135,11 +139,14 @@ flow.
   change (the `HotKey` objects must be retained or the shortcuts die). The menu-bar glyphs derive
   from the same object via `KeyCombo.swiftUIKeyEquivalent`, so menu, settings and live hotkey can
   never drift.
-- **Menu bar:** one `MenuBarExtra` (`App/App/AppMain.swift`) with a *Clipboard & Snippets* submenu
-  and a *Capture* submenu; only Settings and Quit sit at the top level.
+- **Menu bar:** one `MenuBarExtra` (`App/App/AppMain.swift`) with a *Clipboard & Snippets*, a
+  *Capture* and a *Keep Awake* submenu; only Settings and Quit sit at the top level. Its icon is
+  the one piece of shared state — it swaps to `MenuBarIconAwake` while Keep Awake is on, which is
+  why `AppMain` observes `KeepAwakeService`.
 - **Settings:** one `TabView` (`Features/Settings/SettingsWindow.swift`) — `ClipboardPane`,
-  `CapturePane`, `HotkeysPane`, `PermissionsPane`, `AboutPane`. The first two are per-feature-set;
-  the last three are shared. Add a feature-specific setting to its own pane, not to the shared ones.
+  `CapturePane`, `KeepAwakePane`, `HotkeysPane`, `PermissionsPane`, `AboutPane`. The first three
+  are per-feature-set; the last three are shared. Add a feature-specific setting to its own pane,
+  not to the shared ones.
 
 ### Clipboard & snippets
 
@@ -261,6 +268,37 @@ On the popup side, `PopupResult` is the single row type the list renders — add
 without migration, but exhaustive switches in `Paster`, `PreviewPane`, `PopupRow` and
 `ClipboardSettings.retention(for:)`/`isKindEnabled(_:)` must each gain an arm.
 
+### Keep awake
+
+`KeepAwakeService` (`Core/`) is the only thing in the app that talks to IOKit power management;
+`KeepAwakeSettings` holds the preferences and the `KeepAwakeDuration` enum (raw value = minutes,
+`0` = indefinite). Two details are load-bearing and easy to "simplify" wrongly:
+
+- The assertion is created with a **30 s timeout and re-created every 10 s**, not once for the
+  whole duration. A long-lived assertion survives a crash or `kill -9` and pins the Mac awake with
+  nothing left to release it; a self-expiring one drains within the timeout. The refresh interval
+  must stay *below* the timeout so consecutive assertions overlap. The refresh timer runs on
+  `.common` so it keeps firing while a menu is open.
+- The countdown is an **absolute `Date` deadline**, not a decrementing counter — run-loop timers
+  don't advance while the Mac is asleep, so `NSWorkspace.didWakeNotification` settles up against
+  the wall clock. `willSleep` (honouring `deactivateOnManualSleep`) and the session-resign/become
+  pair (fast user switching drops the assertion) are handled alongside it.
+
+`isActive` is the service's only stored `@Published` property; `remaining` is derived from the
+deadline on read. `AppMain` observes the service for both the icon and the menu's status line, so a
+value that changed every second would rebuild the whole `MenuBarExtra` body (and can close an open
+menu). Instead the object republishes **once a minute** while counting down, and
+`format(remaining:)` hides seconds above a minute — the two granularities are matched on purpose,
+so the menu is never visibly stale. Anything wanting a per-second countdown polls `remaining`
+itself, as `KeepAwakePane` does. `KeepAwakeDuration` carries a
+`#if DEBUG` **1-minute** case so the expiry path can be exercised without a five-minute wait.
+
+Assertion type follows `allowDisplaySleep`: `kIOPMAssertPreventUserIdleDisplaySleep` normally,
+`kIOPMAssertPreventUserIdleSystemSleep` when the user lets the screen go dark. The service
+subscribes to that setting so flipping it re-asserts immediately instead of at the next refresh.
+Verify a change with `pmset -g assertions` — and check again 30 s later, or you have only proven
+the *first* assertion was created.
+
 ## Conventions
 
 - **Concurrency:** `SWIFT_STRICT_CONCURRENCY: minimal`. UI/coordinator classes are `@MainActor`;
@@ -274,7 +312,7 @@ without migration, but exhaustive switches in `Paster`, `PreviewPane`, `PopupRow
   `KeyEventCatcher`, `ShortcutRecorderField`, `InlineTextField`). Follow these patterns rather than
   fighting SwiftUI.
 - **Logging:** use `Log.<category>` from `Support/Logger.swift` (categories: `app`, `hotkey`,
-  `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`, `export`). View with
+  `keepAwake`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`, `export`). View with
   `log show --predicate 'subsystem == "com.mukker.Mukker"' --info --last 1m` (the subsystem is the
   bundle ID).
 - **Code signing:** ad-hoc only (`CODE_SIGN_IDENTITY: "-"`); hardened runtime auto-disabled. Don't
