@@ -26,6 +26,7 @@ final class PopupWindowController {
     private var panel: PopupPanel?
     private let viewModel = PopupViewModel()
     private var keyObserver: NSObjectProtocol?
+    private var resignActiveObserver: NSObjectProtocol?
     private var didPromptForAX = false
     /// Our own record of intent, so a hide can never be undone by the
     /// re-assert in `show()` and so every close path runs through `hide()`.
@@ -45,11 +46,28 @@ final class PopupWindowController {
                 self?.handleWindowDidBecomeKey(note)
             }
         }
+        observeAppResignedActive()
     }
 
     deinit {
-        if let observer = keyObserver {
+        for observer in [keyObserver, resignActiveObserver].compactMap({ $0 }) {
             NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    /// Backstop for the dismiss-on-focus-loss rule: the panel only resigns key
+    /// once, so if something else (an auxiliary panel such as the accent picker)
+    /// holds key when the user switches away, no `resignKey` reaches us.
+    private func observeAppResignedActive() {
+        resignActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.panel?.isVisible == true, NSApp.modalWindow == nil else { return }
+                self.hide(reason: "app resigned active")
+            }
         }
     }
 
@@ -66,7 +84,7 @@ final class PopupWindowController {
             Log.hotkey.debug("popup toggle ignored (duplicate request)")
             return
         }
-        if isPopupFocused { hide() } else { present() }
+        if isPopupFocused { hide(reason: "hotkey toggle") } else { present() }
     }
 
     func show() {
@@ -92,18 +110,18 @@ final class PopupWindowController {
 
         if panel == nil {
             viewModel.onRequestClose = { [weak self] in
-                self?.hide()
+                self?.hide(reason: "selection")
             }
             let rect = NSRect(origin: .zero, size: currentSize)
             let panel = PopupPanel(contentRect: rect)
             panel.onDismiss = { [weak self] in
-                self?.hide()
+                self?.hide(reason: "esc")
             }
             panel.onResignKey = { [weak self] in
                 self?.handlePanelResignedKey()
             }
             panel.onCommandComma = { [weak self] in
-                self?.hide()
+                self?.hide(reason: "opening settings")
                 self?.onRequestSettings?()
             }
             panel.onCommandC = { [weak self] in
@@ -134,7 +152,7 @@ final class PopupWindowController {
         // depend on it having happened.
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate()
-        Log.hotkey.debug("popup show: visible=\(panel.isVisible) key=\(panel.isKeyWindow) active=\(NSApp.isActive)")
+        Log.hotkey.info("popup show: visible=\(panel.isVisible) key=\(panel.isKeyWindow) active=\(NSApp.isActive)")
         // Guarantee the search field has focus and the selection is back at the top
         // on every show (the panel + view model are reused). Done after the window is
         // visible so we win any cache refresh that was queued before the show.
@@ -144,7 +162,7 @@ final class PopupWindowController {
             // up front and key, put it there. Guarded by `isShown` so an
             // intentional close in the meantime wins.
             if isShown, !panel.isVisible || !panel.isKeyWindow {
-                Log.hotkey.debug("popup show: re-asserting front (visible=\(panel.isVisible) key=\(panel.isKeyWindow))")
+                Log.hotkey.info("popup show: re-asserting front (visible=\(panel.isVisible) key=\(panel.isKeyWindow))")
                 panel.makeKeyAndOrderFront(nil)
             }
             if let field = Self.firstTextField(in: panel.contentView) {
@@ -156,7 +174,9 @@ final class PopupWindowController {
 
     /// The single close path — every dismissal routes through here so `isShown`
     /// stays in step with the window.
-    private func hide() {
+    private func hide(reason: String) {
+        guard isShown || panel?.isVisible == true else { return }
+        Log.hotkey.info("popup hide: \(reason, privacy: .public)")
         isShown = false
         panel?.orderOut(nil)
     }
@@ -245,8 +265,13 @@ final class PopupWindowController {
         // permissions alert) is layered over the popup on purpose and the flow
         // returns to it afterwards.
         guard NSApp.modalWindow == nil else { return }
-        Log.hotkey.debug("popup hidden: another window became key")
-        hide()
+        // Only a real window displaces the popup. Auxiliary panels that belong
+        // to the popup's own UI take key status too — the press-and-hold accent
+        // picker in the search field is one — and closing the popup under them
+        // would be absurd. Those cannot become main; Settings, the Snippets
+        // manager and the capture editor all can.
+        guard window.canBecomeMain else { return }
+        hide(reason: "\(String(describing: type(of: window))) became key")
     }
 
     /// Clicking outside the app dismisses the popup. This used to be AppKit's
@@ -260,7 +285,7 @@ final class PopupWindowController {
             // Another of our windows took focus — `handleWindowDidBecomeKey`
             // owns that case.
             if let key = NSApp.keyWindow, key !== panel { return }
-            self.hide()
+            self.hide(reason: "resigned key")
         }
     }
 }
