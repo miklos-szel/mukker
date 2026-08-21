@@ -14,7 +14,7 @@ cask "mukker" do
   desc "Menu-bar clipboard history, snippets, and screen capture with annotation"
   homepage "https://github.com/miklos-szel/mukker"
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "Mukker.app"
 
