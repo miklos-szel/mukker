@@ -3,6 +3,23 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.0] - 2026-08-21
+
+### Fixed
+- **The popup no longer needs a second ⌘E press.** Three separate defects could each swallow a
+  press: the popup was ordered behind another window (the capture editor, Settings, an alert) while
+  still counting as open, so the next press "closed" something you couldn't see; `hidesOnDeactivate`
+  tied the panel's visibility to app activation, which macOS 14 can refuse; and ⌘E arriving twice
+  (global hotkey plus the menu item's key equivalent) could open then immediately close it. The
+  hotkey now only closes the popup when it actually has focus, and re-shows it otherwise.
+
+### Removed
+- **Migration from pre-rename installs is gone**, along with every trace of the app's former
+  identity. This is a **breaking change** if you are upgrading from a build older than 0.5.0:
+  the old database, preferences and popup shortcut are no longer adopted on first launch, and
+  snippet files exported by those builds no longer import. Export your snippets with 0.5.0 first if
+  you still need them.
+
 ## [0.5.0] - 2026-08-19
 
 ### Added
@@ -23,11 +40,11 @@ All notable changes to Mukker are documented here. The format loosely follows
   new snippet exports are written as `mukker.snippets.v1`.
   - Your history, snippets and settings are **migrated automatically on first launch** — copied,
     not moved, so an older build still works if you roll back.
-  - Snippet files exported by earlier builds still import (`sniptory.snippets.v1` stays in
+  - Snippet files exported by earlier builds still import (the previous format string stays in
     `MukkerExport.acceptedFormats`).
   - **You must re-grant Accessibility and Screen Recording once**: a bundle-identifier change
     makes macOS treat this as a new app, and permissions are the one thing no migration can carry.
-  - Export/import types renamed `Sniptory*` → `Mukker*`; the Homebrew cask is now `mukker`.
+  - The export/import types were renamed to match the format; the Homebrew cask is now `mukker`.
 
 ### Removed
 - **Dead pixelate codepath** — `ImageEffects.pixellate`, `EditorViewModel.pixelatedBase`/
@@ -57,7 +74,7 @@ All notable changes to Mukker are documented here. The format loosely follows
   wheel zoom, and copy/save as PNG or JPEG.
 - **Menu bar submenus** — one icon, with *Clipboard & Snippets* and *Capture*
   submenus so each feature set keeps its own entry points.
-- **First-run migration** — an existing `sniptory.sqlite` (with its image and
+- **First-run migration** — an existing pre-merge database (with its image and
   rich-text sidecars) is adopted automatically, and the capture app's preferences
   are imported from its old defaults domain, so nothing is lost in the merge.
 

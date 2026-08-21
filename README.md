@@ -62,12 +62,16 @@ Clipboard history and snippets are stored in a SQLite database at
 alongside it. Saved screenshots go wherever you point **Settings → Capture → Screenshots folder**,
 defaulting to the Desktop.
 
-Upgrading from an earlier build that stored its data under a different name? The first launch
-copies the database, its sidecars and all your settings across automatically — the old folder is
-left untouched, so nothing is lost if you go back. macOS permissions are the exception: because
-the bundle identifier changed, **Accessibility and Screen Recording have to be granted once
-more** (Settings → Permissions has buttons for both). Snippet files exported by older builds still
-import fine.
+Upgrading from a build older than 0.5.0, which stored its data under a different name? **Nothing is
+carried over automatically** — 0.6.0 removed the one-shot migration. The old folder is left
+untouched, so you can move the data across by hand: **quit Mukker first** (copying a live SQLite
+database risks a corrupt copy), then copy the old database — along with its `-wal`/`-shm` siblings
+and the `images/`/`richtext/` sidecar folders — into `~/Library/Application Support/Mukker/`,
+renaming the database and its siblings to `mukker.sqlite`. Settings, the popup shortcut and
+snippet files exported by those builds are not read any more.
+That upgrade path also changed the bundle identifier, so macOS treats this as a new app:
+**Accessibility and Screen Recording have to be granted once more** (Settings → Permissions has
+buttons for both).
 
 ## Permissions
 
@@ -109,11 +113,23 @@ database file name, the bundle identifier and the snippet export format string a
 `Branding.swift` so existing databases, permission grants and previously exported files keep
 working. The script derives its protect-list from those constants and skips doc lines mentioning
 them, so it can't quietly rewrite them. Moving the data identity too is a deliberate, separate
-change: update the constants *and* add a `LegacyDataMigrator` step that adopts the old ones.
+change: update the constant *and* add a migration step that adopts the old value. There is none in
+the tree today, so on its own each one costs something different — renaming the folder or the
+database file starts the app from an empty history, changing the bundle identifier drops your
+settings and permission grants, and changing the export format string makes previously exported
+snippet files unreadable.
 
 ## Install
 
 Mukker ships ad-hoc-signed (no notarization).
 
 - **DMG** — download from [Releases](https://github.com/miklos-szel/mukker/releases), open it, and drag the app to `/Applications`. On first launch, right-click → **Open** to bypass Gatekeeper.
-- **Homebrew** — `brew install --cask miklos-szel/sniptory/mukker` (the tap keeps the project's former name; the cask strips the quarantine flag on install).
+- **Homebrew** — this repo is its own tap, so point Homebrew at it once and install from it (the cask
+  strips the quarantine flag, so no Gatekeeper prompt):
+
+  ```bash
+  brew tap miklos-szel/mukker https://github.com/miklos-szel/mukker
+  brew install --cask miklos-szel/mukker/mukker
+  ```
+
+  Upgrades come with `brew update && brew upgrade --cask mukker`.

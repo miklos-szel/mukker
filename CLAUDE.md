@@ -28,15 +28,9 @@ is picked up by `ClipboardMonitor` like any other copy, so captures land in hist
 ## Naming
 
 The app is **Mukker** throughout — product name, bundle identifier, storage folder and export
-format all agree. That was not always true: this repo was assembled from two apps (a clipboard/
-snippets app called Sniptory and a capture app called Mukker) and the merged result kept
-Sniptory's identity for a while, so **anything you find referring to Sniptory is legacy-support
-code, not current identity**. Don't "fix" it — it's what keeps existing installs working:
-
-- `LegacyDataMigrator.legacyDefaultsDomains` / `legacyDatabases` — where older installs kept their
-  settings and database.
-- `MukkerExport.acceptedFormats` — still imports `sniptory.snippets.v1` files.
-- `ShortcutSettings.K.legacyPopup` — the pre-merge popup-hotkey blob.
+format all agree, and nothing in the tree carries an earlier identity: the one-shot migration that
+adopted data written under the pre-rename name has been removed, so there is no legacy path left to
+preserve.
 
 Identity is split into two halves that behave differently on a rename:
 
@@ -46,10 +40,14 @@ Identity is split into two halves that behave differently on a rename:
 | `project.yml` `name:`, the `.xcodeproj`, the built `.app`, the scheme | `Branding.supportFolderName` + `databaseFileName` → `~/Library/Application Support/Mukker/mukker.sqlite` |
 | Repo/README headings | `Branding.snippetExportFormat` (`mukker.snippets.v1`) and the `Mukker*` exporter/importer types |
 
-The frozen half may only change together with a `LegacyDataMigrator` step that adopts the old
-value — that is exactly what version 2 of the migrator does. `scripts/rename.sh` derives its
-protect-list from these constants and skips doc lines mentioning them, so a plain rename can never
-silently rewrite them.
+The frozen half may only change together with a migration step that adopts the old value, and no
+such step exists in the tree any more — so each constant now costs something specific on its own:
+`supportFolderName`/`databaseFileName` orphan the database and its sidecars (the app starts from an
+empty history), the bundle ID resets TCC grants and hands the app an empty defaults domain (history
+survives, settings and permissions don't), and `snippetExportFormat` makes previously exported
+snippet files unreadable unless the old string is added to `MukkerExport.acceptedFormats`.
+`scripts/rename.sh` derives its protect-list from these constants and skips doc lines mentioning
+them, so a plain rename can never silently rewrite them.
 
 ## Build / test / run
 
@@ -89,25 +87,20 @@ The product name is **not** baked into the tree, and this is load-bearing — do
 - `scripts/rename.sh NewName [--bundle-id …] [--repo …]` (or `make rename NAME=NewName`) does the
   rest: `project.yml` (name, target key, `CFBundleName`/`DisplayName`, the test target's dependency
   and `TEST_HOST`), `Info.plist`, optionally `Branding.repoURL`, the docs, then a clean
-  `xcodegen generate`. It has already been used once — Sniptory → Mukker.
+  `xcodegen generate`. It has already been used once.
 
 Two constants in `Branding` are **frozen** and must not follow a rename:
 `supportFolderName` (the Application Support folder holding the database + sidecars — renaming
 orphans user data) and `snippetExportFormat` (the wire format string in exported snippet files).
-The rename script skips doc lines mentioning either, plus the bundle ID and the `Sniptory*`
-exporter types — a blanket find-and-replace across the docs turns accurate statements into false
-ones, which is exactly what happened the first time.
+The rename script skips doc lines mentioning either, plus the bundle ID — a blanket
+find-and-replace across the docs turns accurate statements into false ones, which is exactly what
+happened the first time.
 `MukkerExporter`/`MukkerImporter`/`MukkerExport` are named after the file format, not the product,
-so they only move when the format does — and when it moves, the old string stays in
-`MukkerExport.acceptedFormats` forever.
+so they only move when the format does — and when it moves, the old string must stay in
+`MukkerExport.acceptedFormats` or previously exported files stop importing.
 
-`LegacyDataMigrator` (`Core/`) runs once at launch, before anything reads the DB or settings. It
-copies (never moves) the newest legacy database into place — renaming the file and its WAL/SHM
-siblings, plus the `images/` and `richtext/` sidecar directories — and imports preferences from
-every previous defaults domain, oldest first so the most recent identity wins. Bump its
-`currentVersion` to re-run the whole migration for existing installs. Permissions are the one
-thing it cannot carry: a bundle-ID change resets TCC, so the user must re-grant Accessibility and
-Screen Recording once.
+A bundle-ID change also resets TCC, so a rename that touches it costs the user their Accessibility
+and Screen Recording grants — there is no way to migrate those.
 
 ## Architecture
 
@@ -324,8 +317,10 @@ the *first* assertion was created.
   `.github/workflows/release.yml` triggers on a pushed `v*` tag, runs `make dmg`, and publishes the
   GitHub release with the DMG + SHA-256. To cut a release: bump `CFBundleShortVersionString`/
   `CFBundleVersion` in `project.yml`, update `CHANGELOG.md`, commit, then
-  `git tag vX.Y.Z && git push origin vX.Y.Z`. Homebrew is served from the separate
-  **`miklos-szel/homebrew-sniptory`** tap (still named after the project's former name);
-  `dist/mukker.rb` is the cask template (it strips the quarantine flag on install because the
-  build is ad-hoc signed).
+  `git tag vX.Y.Z && git push origin vX.Y.Z`. **This repo doubles as its own Homebrew tap**:
+  `Casks/mukker.rb` is the live cask (it strips the quarantine flag on install because the build is
+  ad-hoc signed), and the release workflow rewrites its `version`/`sha256` and pushes that back to
+  `main` — so never hand-edit those two lines. Because the repo is not named `homebrew-*`, users
+  tap it with the two-argument form:
+  `brew tap miklos-szel/mukker https://github.com/miklos-szel/mukker`.
 - Do **not** reference the inspiration apps by name anywhere in the code or UI.
