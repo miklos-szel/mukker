@@ -64,9 +64,11 @@ defaulting to the Desktop.
 
 Upgrading from a build older than 0.5.0, which stored its data under a different name? **Nothing is
 carried over automatically** — 0.6.0 removed the one-shot migration. The old folder is left
-untouched, so you can copy the database and its `images/`/`richtext/` sidecars into
-`~/Library/Application Support/Mukker/` yourself (naming the database `mukker.sqlite`), but
-settings, the popup shortcut and snippet files exported by those builds are not read any more.
+untouched, so you can move the data across by hand: **quit Mukker first** (copying a live SQLite
+database risks a corrupt copy), then copy the old database — along with its `-wal`/`-shm` siblings
+and the `images/`/`richtext/` sidecar folders — into `~/Library/Application Support/Mukker/`,
+renaming the database and its siblings to `mukker.sqlite`. Settings, the popup shortcut and
+snippet files exported by those builds are not read any more.
 That upgrade path also changed the bundle identifier, so macOS treats this as a new app:
 **Accessibility and Screen Recording have to be granted once more** (Settings → Permissions has
 buttons for both).
