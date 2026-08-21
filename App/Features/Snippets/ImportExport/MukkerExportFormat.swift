@@ -5,9 +5,9 @@ struct MukkerExport: Codable {
     /// Written into every new export.
     static let currentFormat = Branding.snippetExportFormat
 
-    /// Formats the importer accepts. Keeps files exported before the app was
-    /// renamed readable — never drop an entry, only ever add to this set.
-    static let acceptedFormats: Set<String> = [currentFormat, "sniptory.snippets.v1"]
+    /// Formats the importer accepts. If `currentFormat` ever changes, the old
+    /// value has to stay in here or previously exported files stop importing.
+    static let acceptedFormats: Set<String> = [currentFormat]
 
     let format: String
     let exportedAt: Date

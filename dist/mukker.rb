@@ -1,13 +1,10 @@
 # Homebrew cask template for Mukker.
 #
-# This file lives in the separate tap repo `miklos-szel/homebrew-sniptory`
+# This file lives in the separate tap repo `miklos-szel/homebrew-mukker`
 # (path: Casks/mukker.rb). It is kept here only as a reference/template.
 # On each release: update `version` and `sha256` to match the published DMG.
 #
-# NOTE: the Homebrew tap still carries the project's former name; the app repo
-# itself is now miklos-szel/mukker. Update the tap reference if it is renamed.
-#
-# Install:  brew install --cask miklos-szel/sniptory/mukker
+# Install:  brew install --cask miklos-szel/mukker/mukker
 cask "mukker" do
   version "0.4.0"
   sha256 "REPLACE_WITH_DMG_SHA256"
@@ -29,12 +26,8 @@ cask "mukker" do
                    sudo: false
   end
 
-  # Both identities are listed: the app copies (never moves) data forward when it
-  # adopts a pre-rename install, so an uninstall should clean up either location.
   zap trash: [
     "~/Library/Application Support/Mukker",
-    "~/Library/Application Support/Sniptory",
     "~/Library/Preferences/com.mukker.Mukker.plist",
-    "~/Library/Preferences/com.sniptory.Sniptory.plist",
   ]
 end

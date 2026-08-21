@@ -1,5 +1,4 @@
 import AppKit
-import Carbon.HIToolbox
 import Combine
 import HotKey
 
@@ -27,19 +26,10 @@ final class ShortcutSettings: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
-        let storedPopup = Self.combo(from: defaults, key: K.popup)
-        let adoptedPopup = storedPopup == nil ? Self.legacyPopupCombo(from: defaults) : nil
-        popupCombo = storedPopup ?? adoptedPopup ?? Self.defaultPopupCombo
+        popupCombo = Self.combo(from: defaults, key: K.popup) ?? Self.defaultPopupCombo
         areaCombo = Self.combo(from: defaults, key: K.area) ?? Self.defaultAreaCombo
         fullscreenCombo = Self.combo(from: defaults, key: K.full) ?? Self.defaultFullscreenCombo
         scrollCombo = Self.combo(from: defaults, key: K.scroll) ?? Self.defaultScrollCombo
-
-        // `didSet` doesn't fire for assignments made during `init`, so a combo
-        // adopted from the pre-merge format has to be written out by hand —
-        // that way the legacy key is read exactly once.
-        if let adoptedPopup {
-            defaults.set(adoptedPopup.dictionary, forKey: K.popup)
-        }
     }
 
     /// Emits whenever any of the four combos changes — the manager's re-register signal.
@@ -64,27 +54,10 @@ final class ShortcutSettings: ObservableObject {
         return KeyCombo(dictionary: dict)
     }
 
-    /// Pre-merge the popup shortcut was persisted as a JSON `{keyCode, modifiers}`
-    /// blob under its own key. Read it once so upgraders keep their shortcut; the
-    /// value is rewritten in the current format by `popupCombo`'s `didSet`.
-    private static func legacyPopupCombo(from defaults: UserDefaults) -> KeyCombo? {
-        struct LegacyHotKey: Decodable { var keyCode: UInt32; var modifiers: UInt32 }
-        guard let data = defaults.data(forKey: K.legacyPopup),
-              let legacy = try? JSONDecoder().decode(LegacyHotKey.self, from: data),
-              let key = Key(carbonKeyCode: legacy.keyCode) else { return nil }
-        var flags: NSEvent.ModifierFlags = []
-        if legacy.modifiers & UInt32(cmdKey) != 0 { flags.insert(.command) }
-        if legacy.modifiers & UInt32(shiftKey) != 0 { flags.insert(.shift) }
-        if legacy.modifiers & UInt32(optionKey) != 0 { flags.insert(.option) }
-        if legacy.modifiers & UInt32(controlKey) != 0 { flags.insert(.control) }
-        return KeyCombo(key: key, modifiers: flags)
-    }
-
     private enum K {
         static let popup = "popupCombo"
         static let area = "areaCombo"
         static let full = "fullscreenCombo"
         static let scroll = "scrollCombo"
-        static let legacyPopup = "com.sniptory.globalHotKey"
     }
 }

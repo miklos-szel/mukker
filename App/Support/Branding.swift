@@ -27,9 +27,9 @@ enum Branding {
     // MARK: - Frozen identity (must NOT follow a rename)
 
     /// Name of the Application Support folder holding the SQLite database and its
-    /// image/RTF sidecars. Changing this orphans every existing user's history —
-    /// only ever change it together with a `LegacyDataMigrator` step that adopts
-    /// the old folder (see `legacySupportFolderNames`).
+    /// image/RTF sidecars. Changing this orphans every existing user's history:
+    /// there is no migration step that adopts an older folder, so the app would
+    /// simply start from an empty database.
     static let supportFolderName = "Mukker"
 
     /// File name of the SQLite database inside `supportFolderName`.

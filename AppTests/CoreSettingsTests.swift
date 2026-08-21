@@ -1,6 +1,5 @@
 import XCTest
 import AppKit
-import Carbon.HIToolbox
 import HotKey
 @testable import AppCore
 
@@ -62,22 +61,6 @@ final class CoreSettingsTests: XCTestCase {
         let second = ShortcutSettings(defaults: defaults)
         XCTAssertEqual(second.popupCombo, KeyCombo(key: .j, modifiers: [.command, .option]))
         XCTAssertEqual(second.areaCombo, KeyCombo(key: .a, modifiers: [.command]))
-    }
-
-    /// Pre-merge the popup shortcut lived in its own JSON blob; upgraders must
-    /// keep it rather than silently falling back to the ⌘E default.
-    @MainActor
-    func testLegacyPopupHotKeyIsAdopted() {
-        let defaults = makeDefaults()
-        // kVK_ANSI_K = 40, cmdKey | shiftKey
-        let legacy = #"{"keyCode":40,"modifiers":\#(UInt32(cmdKey) | UInt32(shiftKey))}"#
-        defaults.set(Data(legacy.utf8), forKey: "com.sniptory.globalHotKey")
-
-        let shortcuts = ShortcutSettings(defaults: defaults)
-        XCTAssertEqual(shortcuts.popupCombo, KeyCombo(key: .k, modifiers: [.command, .shift]))
-
-        // Rewritten in the current format, so the legacy blob is only read once.
-        XCTAssertNotNil(defaults.dictionary(forKey: "popupCombo"))
     }
 
     @MainActor

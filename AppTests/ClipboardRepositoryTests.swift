@@ -73,7 +73,7 @@ final class ClipboardRepositoryTests: XCTestCase {
     /// Creates a real temp file and returns its path.
     private func makeTempFile(named name: String) throws -> String {
         let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("sniptory-test-\(UUID().uuidString)-\(name)")
+            .appendingPathComponent("mukker-test-\(UUID().uuidString)-\(name)")
         try Data("x".utf8).write(to: url)
         return url.path
     }

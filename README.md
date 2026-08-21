@@ -109,11 +109,12 @@ database file name, the bundle identifier and the snippet export format string a
 `Branding.swift` so existing databases, permission grants and previously exported files keep
 working. The script derives its protect-list from those constants and skips doc lines mentioning
 them, so it can't quietly rewrite them. Moving the data identity too is a deliberate, separate
-change: update the constants *and* add a `LegacyDataMigrator` step that adopts the old ones.
+change: update the constants *and* add a migration step that adopts the old ones — there is none in
+the tree today, so changing one on its own starts the app from an empty database.
 
 ## Install
 
 Mukker ships ad-hoc-signed (no notarization).
 
 - **DMG** — download from [Releases](https://github.com/miklos-szel/mukker/releases), open it, and drag the app to `/Applications`. On first launch, right-click → **Open** to bypass Gatekeeper.
-- **Homebrew** — `brew install --cask miklos-szel/sniptory/mukker` (the tap keeps the project's former name; the cask strips the quarantine flag on install).
+- **Homebrew** — `brew install --cask miklos-szel/mukker/mukker` (the cask strips the quarantine flag on install).

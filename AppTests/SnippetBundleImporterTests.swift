@@ -82,7 +82,7 @@ final class SnippetBundleImporterTests: XCTestCase {
         )
 
         let exportURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("sniptory-test-\(UUID().uuidString).json")
+            .appendingPathComponent("mukker-test-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: exportURL) }
 
         try MukkerExporter(repository: repo).export(collectionIds: nil, to: exportURL)

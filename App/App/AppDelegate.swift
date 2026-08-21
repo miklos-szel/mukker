@@ -2,17 +2,14 @@ import AppKit
 import SwiftUI
 
 /// Wires every long-lived service in the app. Read this top-to-bottom to follow
-/// the runtime flow: legacy migration → storage/caches → clipboard services →
-/// capture services → keep-awake → global hotkeys → window entry points.
+/// the runtime flow: storage/caches → clipboard services → capture services →
+/// keep-awake → global hotkeys → window entry points.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var snippetsWindow: NSWindow?
     private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Must run before anything touches the database or the settings objects.
-        LegacyDataMigrator.runIfNeeded()
-
         // Ensure DB is created early, then pre-warm the caches so the popup opens
         // instantly (zero DB hits per popup after launch).
         _ = AppDatabase.shared
