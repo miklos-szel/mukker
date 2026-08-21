@@ -313,7 +313,10 @@ the *first* assertion was created.
   `.github/workflows/release.yml` triggers on a pushed `v*` tag, runs `make dmg`, and publishes the
   GitHub release with the DMG + SHA-256. To cut a release: bump `CFBundleShortVersionString`/
   `CFBundleVersion` in `project.yml`, update `CHANGELOG.md`, commit, then
-  `git tag vX.Y.Z && git push origin vX.Y.Z`. Homebrew is served from the separate
-  **`miklos-szel/homebrew-mukker`** tap; `dist/mukker.rb` is the cask template (it strips the
-  quarantine flag on install because the build is ad-hoc signed).
+  `git tag vX.Y.Z && git push origin vX.Y.Z`. **This repo doubles as its own Homebrew tap**:
+  `Casks/mukker.rb` is the live cask (it strips the quarantine flag on install because the build is
+  ad-hoc signed), and the release workflow rewrites its `version`/`sha256` and pushes that back to
+  `main` — so never hand-edit those two lines. Because the repo is not named `homebrew-*`, users
+  tap it with the two-argument form:
+  `brew tap miklos-szel/mukker https://github.com/miklos-szel/mukker`.
 - Do **not** reference the inspiration apps by name anywhere in the code or UI.

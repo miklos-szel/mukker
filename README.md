@@ -117,4 +117,12 @@ the tree today, so changing one on its own starts the app from an empty database
 Mukker ships ad-hoc-signed (no notarization).
 
 - **DMG** — download from [Releases](https://github.com/miklos-szel/mukker/releases), open it, and drag the app to `/Applications`. On first launch, right-click → **Open** to bypass Gatekeeper.
-- **Homebrew** — `brew install --cask miklos-szel/mukker/mukker` (the cask strips the quarantine flag on install).
+- **Homebrew** — this repo is its own tap, so point Homebrew at it once and install from it (the cask
+  strips the quarantine flag, so no Gatekeeper prompt):
+
+  ```bash
+  brew tap miklos-szel/mukker https://github.com/miklos-szel/mukker
+  brew install --cask miklos-szel/mukker/mukker
+  ```
+
+  Upgrades come with `brew update && brew upgrade --cask mukker`.

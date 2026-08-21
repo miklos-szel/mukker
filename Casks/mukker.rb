@@ -1,13 +1,13 @@
-# Homebrew cask template for Mukker.
+# Homebrew cask for Mukker. This repo doubles as its own tap, so the file is
+# live — `version` and `sha256` always describe the latest published release,
+# and `.github/workflows/release.yml` rewrites both when a `v*` tag is built.
 #
-# This file lives in the separate tap repo `miklos-szel/homebrew-mukker`
-# (path: Casks/mukker.rb). It is kept here only as a reference/template.
-# On each release: update `version` and `sha256` to match the published DMG.
-#
-# Install:  brew install --cask miklos-szel/mukker/mukker
+# Install:
+#   brew tap miklos-szel/mukker https://github.com/miklos-szel/mukker
+#   brew install --cask miklos-szel/mukker/mukker
 cask "mukker" do
-  version "0.4.0"
-  sha256 "REPLACE_WITH_DMG_SHA256"
+  version "0.5.0"
+  sha256 "95aa1519112a1a516cc87096cc334c085814f4f1cbd4052c70eb8d1993213bbc"
 
   url "https://github.com/miklos-szel/mukker/releases/download/v#{version}/Mukker-#{version}.dmg"
   name "Mukker"

@@ -37,3 +37,22 @@ jobs:
             right-click the app and choose **Open**, or install through the Homebrew cask (which strips the quarantine flag).
 
             DMG SHA-256: `${{ steps.sha.outputs.sha256 }}`
+
+      # This repo doubles as its own Homebrew tap, so the cask has to follow the
+      # release it describes — otherwise `brew install` keeps serving the
+      # previous DMG.
+      - name: Update the cask
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          git fetch origin main
+          git checkout -B main origin/main
+          sed -i '' -E "s/^  version \".*\"/  version \"${VERSION}\"/" Casks/mukker.rb
+          sed -i '' -E "s/^  sha256 \".*\"/  sha256 \"${{ steps.sha.outputs.sha256 }}\"/" Casks/mukker.rb
+          if git diff --quiet Casks/mukker.rb; then
+            echo "cask already current"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "Update cask to ${VERSION}" Casks/mukker.rb
+          git push origin main
