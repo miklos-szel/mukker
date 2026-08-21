@@ -3,7 +3,7 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.6.0] - 2026-08-21
 
 ### Fixed
 - **The popup no longer needs a second ⌘E press.** Three separate defects could each swallow a
