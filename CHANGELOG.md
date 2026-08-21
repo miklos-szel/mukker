@@ -12,6 +12,11 @@ All notable changes to Mukker are documented here. The format loosely follows
   tied the panel's visibility to app activation, which macOS 14 can refuse; and ⌘E arriving twice
   (global hotkey plus the menu item's key equivalent) could open then immediately close it. The
   hotkey now only closes the popup when it actually has focus, and re-shows it otherwise.
+- **Pasting puts the text back where you were typing.** The popup no longer takes application focus
+  when it opens — it is a non-activating panel, so it can hold the keyboard without the app you
+  were working in ever going to the background. Enter then pastes into that app instead of losing
+  the focus hand-back to macOS 14's cooperative activation rules (which Mukker now also yields
+  explicitly, for the case where a Mukker window really was frontmost).
 
 ### Removed
 - **Migration from pre-rename installs is gone**, along with every trace of the app's former

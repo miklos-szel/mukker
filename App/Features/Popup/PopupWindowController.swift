@@ -74,9 +74,15 @@ final class PopupWindowController {
     /// The popup only counts as open when it is actually the focused window.
     /// A panel that is `isVisible` but not key is one the user cannot see or
     /// type into, and pressing the hotkey then must re-show it — not close it.
+    ///
+    /// `isKeyWindow` only means that while our app is active. Showing the popup
+    /// deliberately does *not* activate the app (see `present()`), so in the
+    /// normal case `NSApp.isActive` is false for the popup's whole life and our
+    /// own record is the honest answer. Burial can no longer desync it:
+    /// `handleWindowDidBecomeKey` hides the popup instead of ordering it back.
     private var isPopupFocused: Bool {
-        guard let panel, panel.isVisible else { return false }
-        return panel.isKeyWindow
+        guard let panel, panel.isVisible, isShown else { return false }
+        return NSApp.isActive ? panel.isKeyWindow : true
     }
 
     func toggle() {
@@ -146,12 +152,12 @@ final class PopupWindowController {
         centerOnScreen(panel)
         panel.level = .floating
         isShown = true
-        // Order in first, then ask to activate: the panel is non-activating, so
-        // it can take key focus on its own. Activation on macOS 14+ is
-        // cooperative and may be deferred or denied, and nothing here may
-        // depend on it having happened.
+        // Deliberately no `NSApp.activate()`: the panel is non-activating, so it
+        // takes key focus on its own and the app the user was working in stays
+        // frontmost. Activating here would hand us the focus and leave `Paster`
+        // to claw it back — which macOS 14 cooperative activation can refuse,
+        // so the pasted ⌘V would land nowhere.
         panel.makeKeyAndOrderFront(nil)
-        NSApp.activate()
         Log.hotkey.info("popup show: visible=\(panel.isVisible) key=\(panel.isKeyWindow) active=\(NSApp.isActive)")
         // Guarantee the search field has focus and the selection is back at the top
         // on every show (the panel + view model are reused). Done after the window is
@@ -164,6 +170,9 @@ final class PopupWindowController {
             if isShown, !panel.isVisible || !panel.isKeyWindow {
                 Log.hotkey.info("popup show: re-asserting front (visible=\(panel.isVisible) key=\(panel.isKeyWindow))")
                 panel.makeKeyAndOrderFront(nil)
+                // Last resort only: if the panel cannot hold key on its own,
+                // take the focus rather than leave the user with no popup.
+                if !panel.isKeyWindow { NSApp.activate() }
             }
             if let field = Self.firstTextField(in: panel.contentView) {
                 panel.makeFirstResponder(field)

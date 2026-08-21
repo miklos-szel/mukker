@@ -18,7 +18,16 @@ final class ActiveAppTracker {
     }
 
     /// Re-activate the previously captured app.
+    ///
+    /// Under macOS 14 cooperative activation an app that is itself active has to
+    /// yield before another one may take focus, or the `activate()` is simply
+    /// ignored. Showing the popup no longer activates us, but anything that does
+    /// (Settings, the capture editor, a modal alert) would otherwise leave the
+    /// paste with nowhere to go.
+    @MainActor
     func reactivate() {
-        lastActiveApp?.activate()
+        guard let app = lastActiveApp else { return }
+        NSApp.yieldActivation(to: app)
+        app.activate()
     }
 }
