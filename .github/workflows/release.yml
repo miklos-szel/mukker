@@ -44,15 +44,27 @@ jobs:
       - name: Update the cask
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          git fetch origin main
-          git checkout -B main origin/main
-          sed -i '' -E "s/^  version \".*\"/  version \"${VERSION}\"/" Casks/mukker.rb
-          sed -i '' -E "s/^  sha256 \".*\"/  sha256 \"${{ steps.sha.outputs.sha256 }}\"/" Casks/mukker.rb
-          if git diff --quiet Casks/mukker.rb; then
-            echo "cask already current"
-            exit 0
-          fi
+          SHA256="${{ steps.sha.outputs.sha256 }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "Update cask to ${VERSION}" Casks/mukker.rb
-          git push origin main
+          # Someone can land on main while the DMG builds, which would make the
+          # push a non-fast-forward. Rebuild the commit on top of whatever main
+          # is now and try again rather than failing a release that has already
+          # published.
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git checkout -B main origin/main
+            sed -i '' -E "s/^  version \".*\"/  version \"${VERSION}\"/" Casks/mukker.rb
+            sed -i '' -E "s/^  sha256 \".*\"/  sha256 \"${SHA256}\"/" Casks/mukker.rb
+            if git diff --quiet Casks/mukker.rb; then
+              echo "cask already current"
+              exit 0
+            fi
+            git commit -m "Update cask to ${VERSION}" Casks/mukker.rb
+            if git push origin main; then
+              exit 0
+            fi
+            echo "main moved under us; retrying (attempt ${attempt}/3)"
+          done
+          echo "could not update the cask after 3 attempts" >&2
+          exit 1

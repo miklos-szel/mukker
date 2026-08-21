@@ -40,10 +40,14 @@ Identity is split into two halves that behave differently on a rename:
 | `project.yml` `name:`, the `.xcodeproj`, the built `.app`, the scheme | `Branding.supportFolderName` + `databaseFileName` → `~/Library/Application Support/Mukker/mukker.sqlite` |
 | Repo/README headings | `Branding.snippetExportFormat` (`mukker.snippets.v1`) and the `Mukker*` exporter/importer types |
 
-The frozen half may only change together with a migration step that adopts the old value; there is
-no such step in the tree today, so changing one of these constants orphans every existing user's
-data outright. `scripts/rename.sh` derives its protect-list from these constants and skips doc lines
-mentioning them, so a plain rename can never silently rewrite them.
+The frozen half may only change together with a migration step that adopts the old value, and no
+such step exists in the tree any more — so each constant now costs something specific on its own:
+`supportFolderName`/`databaseFileName` orphan the database and its sidecars (the app starts from an
+empty history), the bundle ID resets TCC grants and hands the app an empty defaults domain (history
+survives, settings and permissions don't), and `snippetExportFormat` makes previously exported
+snippet files unreadable unless the old string is added to `MukkerExport.acceptedFormats`.
+`scripts/rename.sh` derives its protect-list from these constants and skips doc lines mentioning
+them, so a plain rename can never silently rewrite them.
 
 ## Build / test / run
 

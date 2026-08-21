@@ -113,8 +113,11 @@ database file name, the bundle identifier and the snippet export format string a
 `Branding.swift` so existing databases, permission grants and previously exported files keep
 working. The script derives its protect-list from those constants and skips doc lines mentioning
 them, so it can't quietly rewrite them. Moving the data identity too is a deliberate, separate
-change: update the constants *and* add a migration step that adopts the old ones — there is none in
-the tree today, so changing one on its own starts the app from an empty database.
+change: update the constant *and* add a migration step that adopts the old value. There is none in
+the tree today, so on its own each one costs something different — renaming the folder or the
+database file starts the app from an empty history, changing the bundle identifier drops your
+settings and permission grants, and changing the export format string makes previously exported
+snippet files unreadable.
 
 ## Install
 
