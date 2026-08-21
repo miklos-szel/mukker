@@ -1,6 +1,24 @@
 import AppKit
 import SwiftUI
 
+/// Coalesces duplicate show/toggle requests that arrive within a short window.
+///
+/// ⌘E reaches us twice when the app is active: once from the Carbon global
+/// hotkey and once from the menu-bar item's key equivalent. Without this, the
+/// two deliveries can cancel each other out (show, then toggle-closed) and the
+/// press looks like it did nothing.
+struct RequestDebounce {
+    private var last: Date = .distantPast
+
+    /// True if the request should be acted on; false if it duplicates one we
+    /// just handled.
+    mutating func accept(_ now: Date = Date(), window: TimeInterval = 0.2) -> Bool {
+        guard now.timeIntervalSince(last) >= window else { return false }
+        last = now
+        return true
+    }
+}
+
 @MainActor
 final class PopupWindowController {
     static let shared = PopupWindowController()
@@ -9,6 +27,10 @@ final class PopupWindowController {
     private let viewModel = PopupViewModel()
     private var keyObserver: NSObjectProtocol?
     private var didPromptForAX = false
+    /// Our own record of intent, so a hide can never be undone by the
+    /// re-assert in `show()` and so every close path runs through `hide()`.
+    private var isShown = false
+    private var debounce = RequestDebounce()
 
     /// Set by the App layer (AppDelegate) so the popup can open Settings on ⌘,.
     var onRequestSettings: (() -> Void)?
@@ -31,15 +53,32 @@ final class PopupWindowController {
         }
     }
 
+    /// The popup only counts as open when it is actually the focused window.
+    /// A panel that is `isVisible` but not key is one the user cannot see or
+    /// type into, and pressing the hotkey then must re-show it — not close it.
+    private var isPopupFocused: Bool {
+        guard let panel, panel.isVisible else { return false }
+        return panel.isKeyWindow
+    }
+
     func toggle() {
-        if let panel, panel.isVisible {
-            panel.orderOut(nil)
-        } else {
-            show()
+        guard debounce.accept() else {
+            Log.hotkey.debug("popup toggle ignored (duplicate request)")
+            return
         }
+        if isPopupFocused { hide() } else { present() }
     }
 
     func show() {
+        guard debounce.accept() else {
+            Log.hotkey.debug("popup show ignored (duplicate request)")
+            return
+        }
+        present()
+    }
+
+    /// Builds the panel if needed, then puts it on screen. Callers debounce.
+    private func present() {
         ActiveAppTracker.shared.captureFrontmost()
         // Each open starts fresh: top-level, empty query, first row selected.
         viewModel.reset()
@@ -53,12 +92,18 @@ final class PopupWindowController {
 
         if panel == nil {
             viewModel.onRequestClose = { [weak self] in
-                self?.panel?.orderOut(nil)
+                self?.hide()
             }
             let rect = NSRect(origin: .zero, size: currentSize)
             let panel = PopupPanel(contentRect: rect)
+            panel.onDismiss = { [weak self] in
+                self?.hide()
+            }
+            panel.onResignKey = { [weak self] in
+                self?.handlePanelResignedKey()
+            }
             panel.onCommandComma = { [weak self] in
-                self?.panel?.orderOut(nil)
+                self?.hide()
                 self?.onRequestSettings?()
             }
             panel.onCommandC = { [weak self] in
@@ -82,18 +127,38 @@ final class PopupWindowController {
         applyAppearance(to: panel)
         centerOnScreen(panel)
         panel.level = .floating
-        NSApp.activate(ignoringOtherApps: true)
+        isShown = true
+        // Order in first, then ask to activate: the panel is non-activating, so
+        // it can take key focus on its own. Activation on macOS 14+ is
+        // cooperative and may be deferred or denied, and nothing here may
+        // depend on it having happened.
         panel.makeKeyAndOrderFront(nil)
+        NSApp.activate()
+        Log.hotkey.debug("popup show: visible=\(panel.isVisible) key=\(panel.isKeyWindow) active=\(NSApp.isActive)")
         // Guarantee the search field has focus and the selection is back at the top
         // on every show (the panel + view model are reused). Done after the window is
         // visible so we win any cache refresh that was queued before the show.
         DispatchQueue.main.async { [weak self, weak panel] in
             guard let self, let panel else { return }
+            // Re-assert once: if activation raced us and the panel did not end
+            // up front and key, put it there. Guarded by `isShown` so an
+            // intentional close in the meantime wins.
+            if isShown, !panel.isVisible || !panel.isKeyWindow {
+                Log.hotkey.debug("popup show: re-asserting front (visible=\(panel.isVisible) key=\(panel.isKeyWindow))")
+                panel.makeKeyAndOrderFront(nil)
+            }
             if let field = Self.firstTextField(in: panel.contentView) {
                 panel.makeFirstResponder(field)
             }
             self.viewModel.selectFirstRow()
         }
+    }
+
+    /// The single close path — every dismissal routes through here so `isShown`
+    /// stays in step with the window.
+    private func hide() {
+        isShown = false
+        panel?.orderOut(nil)
     }
 
     /// Reference geometry — defines the popup's **aspect ratio** and the
@@ -166,14 +231,36 @@ final class PopupWindowController {
         panel.setFrameOrigin(origin)
     }
 
+    /// Another window of ours taking focus means the popup is unusable — close
+    /// it rather than leaving it behind the new window, where it would still
+    /// count as visible and swallow the next hotkey press.
     private func handleWindowDidBecomeKey(_ note: Notification) {
-        guard let panel = panel else { return }
+        guard let panel, panel.isVisible else { return }
         guard let window = note.object as? NSWindow else { return }
         if window === panel {
             panel.level = .floating
-        } else {
-            panel.level = .normal
-            panel.orderBack(nil)
+            return
+        }
+        // A modal alert (e.g. "New Collection" from the preview pane, or a
+        // permissions alert) is layered over the popup on purpose and the flow
+        // returns to it afterwards.
+        guard NSApp.modalWindow == nil else { return }
+        Log.hotkey.debug("popup hidden: another window became key")
+        hide()
+    }
+
+    /// Clicking outside the app dismisses the popup. This used to be AppKit's
+    /// `hidesOnDeactivate`, which also refused to show the panel while the app
+    /// was inactive — the reason a press could vanish entirely.
+    private func handlePanelResignedKey() {
+        // Let the new key window settle before deciding.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let panel = self.panel, panel.isVisible else { return }
+            guard NSApp.modalWindow == nil else { return }
+            // Another of our windows took focus — `handleWindowDidBecomeKey`
+            // owns that case.
+            if let key = NSApp.keyWindow, key !== panel { return }
+            self.hide()
         }
     }
 }
