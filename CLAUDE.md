@@ -121,7 +121,7 @@ Higher layers may import lower; never the reverse.
 `PopupWindowController`, `CaptureCoordinator`, `ScrollingCaptureService`,
 `EditorWindowController`, `AppIconCache`, `ClipThumbnailCache`, `KeepAwakeSettings`,
 `KeepAwakeService`, `WindowTilingSettings`, `WindowTiler`, `CalendarSettings`,
-`CalendarEventsService`.
+`CalendarEventsService`, `HourlyChimeService`.
 `AppDelegate.applicationDidFinishLaunching` wires them together — start there to follow runtime
 flow. There is **no SwiftUI `App` type**: its only scene was the old `MenuBarExtra`, so the entry
 point is a plain AppKit `App/App/main.swift`.
@@ -373,6 +373,17 @@ Things that are load-bearing and easy to undo:
   two-digit number. Switching the date off restores the old glyph and the old swap.
 - `CalendarSettings.hiddenCalendarIDs` stores the calendars to **hide**, not to show, so one
   subscribed to later appears by default instead of silently going missing.
+- **The hourly chime** (`HourlyChimeService`, `Core/`) is the app's only sound and its only
+  CoreAudio caller. Same absolute-deadline discipline as the day rollover: a one-shot timer armed
+  on the top of the coming hour (at second **1**, so an early fire can't read the previous hour),
+  re-armed after every fire and on `.NSSystemClockDidChange`/`didWakeNotification` — never a
+  repeating one-hour timer, which drifts away from the hour with each sleep. A fire outside the
+  active hours is a silent no-op, not a stopped schedule. The played `NSSound` is **retained in a
+  property** (`play()` returns immediately, a local would be released mid-beep) and its
+  `playbackDeviceIdentifier` is set to the current default output device, looked up via CoreAudio
+  — left alone, `NSSound` follows "Play sound effects through", which is often not the device the
+  user is listening to. `MUKKER_CHIME_EVERY_MINUTE=1` (DEBUG) moves the schedule to the top of
+  every minute so it can be exercised without waiting an hour.
 
 ### Window tiling
 

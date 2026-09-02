@@ -79,6 +79,43 @@ struct CalendarPane: View {
                 }
             }
 
+            Section {
+                Toggle("Chime at the top of every hour", isOn: $settings.hourlyChimeEnabled)
+
+                LabeledContent("Sound") {
+                    HStack(spacing: 8) {
+                        Picker("", selection: $settings.hourlyChimeSound) {
+                            ForEach(sounds, id: \.self) { Text($0).tag($0) }
+                        }
+                        .labelsHidden()
+                        .frame(width: 160)
+                        .disabled(!settings.hourlyChimeEnabled)
+
+                        Button("Test") { HourlyChimeService.shared.chimeNow() }
+                    }
+                }
+
+                Picker("From", selection: $settings.chimeStartHour) {
+                    ForEach(0..<24) { Text(Self.hourLabel($0)).tag($0) }
+                }
+                .pickerStyle(.menu)
+                .disabled(!settings.hourlyChimeEnabled)
+
+                Picker("Until", selection: $settings.chimeEndHour) {
+                    ForEach(0..<24) { Text(Self.hourLabel($0)).tag($0) }
+                }
+                .pickerStyle(.menu)
+                .disabled(!settings.hourlyChimeEnabled)
+            } header: {
+                Text("Hourly Chime")
+            } footer: {
+                Text("Both hours chime, and a range that ends before it starts wraps "
+                     + "past midnight. The sound plays on whichever output device the "
+                     + "Mac is currently using. Test plays it even when the chime is off.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             if hasCalendarAccess {
                 Section {
                     if calendars.isEmpty {
@@ -112,6 +149,19 @@ struct CalendarPane: View {
         .formStyle(.grouped)
         .onAppear(perform: refresh)
         .onReceive(pollTimer) { _ in refresh() }
+    }
+
+    /// Read once — the catalogue is a directory listing and the pane re-renders
+    /// on every poll tick.
+    private let sounds = HourlyChimeService.availableSounds
+
+    /// "9 AM" or "09:00", whichever the user's region uses.
+    private static func hourLabel(_ hour: Int) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.setLocalizedDateFormatFromTemplate("j")
+        let date = Calendar.current.date(from: DateComponents(hour: hour)) ?? Date()
+        return formatter.string(from: date)
     }
 
     private var preview: String {

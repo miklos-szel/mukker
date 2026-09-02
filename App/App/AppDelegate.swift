@@ -44,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Sleep prevention: installs its workspace observers and honours the
         // "turn on at launch" preference. Independent of the other two feature sets.
         KeepAwakeService.shared.start()
+        HourlyChimeService.shared.start()
 
         // One manager owns all four system-wide shortcuts. The menu items carry
         // the same key equivalents for discoverability; CaptureCoordinator's
