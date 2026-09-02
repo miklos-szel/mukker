@@ -11,7 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     /// The menu bar item. Retained here for the life of the app — dropping it
     /// removes the item from the menu bar.
-    private var menuBar: MenuBarController?
+    private(set) var menuBar: MenuBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Ensure DB is created early, then pre-warm the caches so the popup opens
@@ -78,6 +78,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBar = MenuBarController(actions: menuBarActions())
 
 #if DEBUG
+        if ProcessInfo.processInfo.environment["MUKKER_OPEN_MENU"] == "1" {
+            // A run-loop timer, not a dispatch block: NSMenu tracking does not
+            // drain the main dispatch queue, so anything queued that way would
+            // only run once the menu closes again.
+            let timer = Timer(timeInterval: 1.5, repeats: false) { _ in
+                MainActor.assumeIsolated { self.menuBar?.debugOpenMenu() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+        }
         if ProcessInfo.processInfo.environment["MUKKER_DUMP_MENU"] == "1", let menuBar {
             print(menuBar.debugDump())
             exit(0)

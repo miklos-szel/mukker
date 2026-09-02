@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import HotKey
+import SwiftUI
 
 /// Owns the app's single menu bar item.
 ///
@@ -40,6 +41,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private var cachedIcon: (day: Int, image: NSImage)?
     private var dayRolloverTimer: Timer?
 
+    /// The menu is rebuilt on every open, but the calendar is not: keeping the
+    /// model and its hosting view alive keeps the SwiftUI view's identity, so
+    /// paging doesn't flicker and `reset()` is the only thing that moves it.
+    private let calendarModel = CalendarMenuModel()
+    private lazy var calendarHostingView = NSHostingView(
+        rootView: CalendarMenuView(model: calendarModel))
+    private lazy var calendarItem: NSMenuItem = {
+        let item = NSMenuItem()
+        item.view = calendarHostingView
+        return item
+    }()
+
     init(actions: Actions) {
         self.actions = actions
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -64,6 +77,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             .store(in: &cancellables)
 
         observeDayRollover()
+    }
+
+    /// Sizes the hosted calendar to what SwiftUI wants. A menu takes the item's
+    /// height from its view's frame and never re-measures it, so this has to run
+    /// before the menu opens — the width changes with the week-number column.
+    private func sizeCalendarItem() {
+        calendarHostingView.layoutSubtreeIfNeeded()
+        calendarHostingView.frame = NSRect(origin: .zero, size: calendarHostingView.fittingSize)
     }
 
     deinit {
@@ -148,6 +169,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     // MARK: - NSMenuDelegate
 
+    func menuWillOpen(_ menu: NSMenu) {
+        // Every open starts on this month with today selected.
+        calendarModel.reset()
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         for item in buildItems() { menu.addItem(item) }
@@ -158,6 +184,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func buildItems() -> [NSMenuItem] {
         let shortcuts = ShortcutSettings.shared
         var items: [NSMenuItem] = []
+
+        sizeCalendarItem()
+        items.append(calendarItem)
+        items.append(.separator())
 
         items.append(submenu("Clipboard & Snippets", of: [
             ActionMenuItem("Show Clipboard & Snippets", combo: shortcuts.popupCombo,
@@ -259,6 +289,11 @@ final class ActionMenuItem: NSMenuItem {
 
 #if DEBUG
 extension MenuBarController {
+    /// Pops the menu open. The app has no Dock icon and no main menu, so this is
+    /// the only way to get the menu on screen for a screenshot without a human
+    /// clicking the status item.
+    func debugOpenMenu() { statusItem.button?.performClick(nil) }
+
     /// Renders the menu the way opening it would, for the launch-time dump.
     func debugDump() -> String {
         menuNeedsUpdate(menu)
