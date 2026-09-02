@@ -45,8 +45,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// model and its hosting view alive keeps the SwiftUI view's identity, so
     /// paging doesn't flicker and `reset()` is the only thing that moves it.
     private let calendarModel = CalendarMenuModel()
-    private lazy var calendarHostingView = NSHostingView(
-        rootView: CalendarMenuView(model: calendarModel))
+    private lazy var calendarHostingView: MenuHostingView<CalendarMenuView> = {
+        let view = MenuHostingView(rootView: CalendarMenuView(model: calendarModel))
+        // The one moment the menu's window is known to exist: `menuWillOpen` is
+        // too early — AppKit has not put the item views in a window yet.
+        view.onMoveToWindow = { [weak self] in self?.makeMenuWindowsOpaque() }
+        return view
+    }()
     private lazy var calendarItem: NSMenuItem = {
         let item = NSMenuItem()
         item.view = calendarHostingView
@@ -175,27 +180,42 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     // MARK: - NSMenuDelegate
 
-    func menuWillOpen(_ menu: NSMenu) {
-        makeOpaque(menu)
+    /// Menus are translucent by default: AppKit draws them into an
+    /// `NSVisualEffectView` that samples the desktop behind, and a calendar grid
+    /// — or any menu — read over whatever happens to be back there is hard work.
+    /// Switching that view to blend within its window and giving the window an
+    /// opaque background to blend with makes the menu solid.
+    ///
+    /// Every open menu is treated, not just the one holding the calendar, so the
+    /// submenus match: each is its own window, and they only exist once the user
+    /// opens them.
+    ///
+    /// Nothing private is called — this walks the menu windows' own view trees
+    /// and sets public properties — but it is best-effort by nature: if AppKit
+    /// ever stops using an effect view here, or renames the window class, the
+    /// menu simply stays translucent.
+    private func makeMenuWindowsOpaque() {
+        for window in NSApp.windows where window.className.contains("MenuWindow") {
+            window.backgroundColor = .windowBackgroundColor
+            window.isOpaque = true
+            for effectView in Self.visualEffectViews(in: window.contentView) {
+                effectView.blendingMode = .withinWindow
+                effectView.material = .menu
+                effectView.state = .active
+            }
+        }
     }
 
-    /// Menus are translucent by default: the system draws them into an
-    /// `NSVisualEffectView` that samples the desktop behind. A calendar grid
-    /// read over whatever happens to be behind it is hard work, so the effect
-    /// view is switched to blend within the window and the window is given an
-    /// opaque background for it to blend with.
-    ///
-    /// Nothing private is touched — this walks the menu window's own view tree
-    /// and sets public properties — but it is best-effort by nature: if AppKit
-    /// ever stops using an effect view here, the menu simply stays translucent.
-    private func makeOpaque(_ menu: NSMenu) {
-        guard let window = calendarHostingView.window else { return }
-        window.isOpaque = true
-        window.backgroundColor = .windowBackgroundColor
-        for effectView in Self.visualEffectViews(in: window.contentView) {
-            effectView.blendingMode = .withinWindow
-            effectView.state = .active
+    /// A submenu's window does not exist yet when its `menuWillOpen` fires, so
+    /// the work is also queued for the next turn of the tracking run loop. It has
+    /// to be a `Timer` in `.common` mode: `NSMenu` tracking runs its own event
+    /// loop and never drains the main dispatch queue.
+    private func makeMenuWindowsOpaqueSoon() {
+        makeMenuWindowsOpaque()
+        let timer = Timer(timeInterval: 0, repeats: false) { _ in
+            MainActor.assumeIsolated { self.makeMenuWindowsOpaque() }
         }
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     private static func visualEffectViews(in view: NSView?) -> [NSVisualEffectView] {
@@ -204,7 +224,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return own + view.subviews.flatMap { visualEffectViews(in: $0) }
     }
 
+    func menuWillOpen(_ menu: NSMenu) {
+        makeMenuWindowsOpaqueSoon()
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
+        // The submenus share this delegate (only so their own windows get the
+        // opaque treatment) — they build with their parent and must not be
+        // refilled with the root menu's items.
+        guard menu === self.menu else { return }
         // Before `buildItems`, not in `menuWillOpen`: AppKit asks for the items
         // first, so resetting afterwards would leave the event rows describing
         // the previous open's selection.
@@ -371,6 +399,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         let sub = NSMenu(title: title)
         sub.autoenablesItems = false
+        // Only so `menuWillOpen` fires for the submenu's own window; submenus
+        // are built eagerly with their parent, not on demand.
+        sub.delegate = self
         for child in items { sub.addItem(child) }
         item.submenu = sub
         return item
@@ -447,3 +478,24 @@ extension MenuBarController {
     }
 }
 #endif
+
+/// An `NSHostingView` that says when it lands in a window.
+///
+/// A menu item's view has no window until AppKit is about to show the menu —
+/// after `menuWillOpen(_:)` — so this is the only reliable hook for anything
+/// that needs the menu's own window.
+final class MenuHostingView<Content: View>: NSHostingView<Content> {
+    var onMoveToWindow: (() -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil { onMoveToWindow?() }
+    }
+
+    required init(rootView: Content) {
+        super.init(rootView: rootView)
+    }
+
+    @available(*, unavailable)
+    required dynamic init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}

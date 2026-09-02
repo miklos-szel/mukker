@@ -348,10 +348,17 @@ Things that are load-bearing and easy to undo:
   `eventItemRange` in the live menu.
 - **The `EKEventStore` is created lazily and only once access is granted.** Instantiating and
   querying one is what raises the system prompt, and the prompt belongs to the Permissions pane.
-- **The menu is forced opaque** (`makeOpaque(_:)`): AppKit draws menus into an `NSVisualEffectView`
-  that samples the desktop, which makes a calendar grid hard to read. The fix walks the menu
-  window's own view tree and sets public properties, so it degrades to "translucent again" rather
-  than breaking if AppKit changes.
+- **The menu is forced opaque** (`makeMenuWindowsOpaque()`): AppKit draws menus into an
+  `NSVisualEffectView` that samples the desktop, which makes a calendar grid hard to read. It
+  treats *every* open menu window (`NSApp.windows` filtered by class name), because each submenu is
+  its own window, and it must run when the window actually exists — **not** in `menuWillOpen`,
+  which fires before AppKit has put the item views in a window. The hooks are
+  `MenuHostingView.viewDidMoveToWindow` for the root menu and a zero-delay `.common` `Timer` from
+  `menuWillOpen` for the submenus. It sets public properties on the menus' own view trees, so it
+  degrades to "translucent again" rather than breaking if AppKit changes.
+- **The submenus share this delegate** purely so that `menuWillOpen` fires for their windows —
+  which is why `menuNeedsUpdate(_:)` opens with a `guard menu === self.menu`, or a submenu would be
+  refilled with the root menu's items.
 - **The day number refreshes off an absolute deadline** — a timer armed on the next midnight, plus
   `.NSCalendarDayChanged`, `.NSSystemClockDidChange` and `didWakeNotification`. Same trap as Keep
   Awake: run-loop timers don't advance while the Mac sleeps. Never poll per second.

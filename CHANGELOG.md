@@ -21,7 +21,8 @@ All notable changes to Mukker are documented here. The format loosely follows
 
 ### Changed
 - **The menu is no longer translucent.** macOS draws menus over a blurred view of whatever is
-  behind them, which made the calendar grid hard to read; Mukker's menu is now opaque.
+  behind them, which made the calendar grid hard to read; Mukker's menu and its submenus are now
+  opaque.
 - **Keep Awake shows itself differently** while the date is on. The date has taken over the icon,
   so instead of swapping glyphs the calendar page fills in solid — with the day number showing
   through it — while the Mac is being held awake. Turn the date off in Settings and the old icon
