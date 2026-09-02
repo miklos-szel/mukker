@@ -90,4 +90,35 @@ extension KeyCombo {
         return result
     }
 
+    /// This combo's key as an `NSMenuItem.keyEquivalent` string. Lowercased so it
+    /// doesn't imply an extra Shift, and mapped explicitly for the keys whose
+    /// `description` is a glyph rather than the character AppKit expects.
+    /// Cosmetic — a status menu's key equivalents only fire while the menu is
+    /// open; the live hotkey is the Carbon one.
+    var nsKeyEquivalent: String {
+        guard let key else { return "" }
+        switch key {
+        case .leftArrow: return String(UnicodeScalar(NSLeftArrowFunctionKey)!)
+        case .rightArrow: return String(UnicodeScalar(NSRightArrowFunctionKey)!)
+        case .upArrow: return String(UnicodeScalar(NSUpArrowFunctionKey)!)
+        case .downArrow: return String(UnicodeScalar(NSDownArrowFunctionKey)!)
+        case .return, .keypadEnter: return "\r"
+        case .tab: return "\t"
+        case .space: return " "
+        case .delete: return String(UnicodeScalar(NSBackspaceCharacter)!)
+        case .forwardDelete: return String(UnicodeScalar(NSDeleteFunctionKey)!)
+        case .escape: return "\u{1b}"
+        case .home: return String(UnicodeScalar(NSHomeFunctionKey)!)
+        case .end: return String(UnicodeScalar(NSEndFunctionKey)!)
+        case .pageUp: return String(UnicodeScalar(NSPageUpFunctionKey)!)
+        case .pageDown: return String(UnicodeScalar(NSPageDownFunctionKey)!)
+        case .help: return String(UnicodeScalar(NSHelpFunctionKey)!)
+        case .f1, .f2, .f3, .f4, .f5, .f6, .f7, .f8, .f9, .f10, .f11, .f12,
+             .f13, .f14, .f15, .f16, .f17, .f18, .f19, .f20:
+            // "F5" would be a two-character key equivalent, which AppKit ignores.
+            let index = Int(key.description.dropFirst()) ?? 1
+            return String(UnicodeScalar(NSF1FunctionKey + index - 1)!)
+        default: return key.description.lowercased()
+        }
+    }
 }

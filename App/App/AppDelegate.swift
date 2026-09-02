@@ -9,6 +9,9 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var snippetsWindow: NSWindow?
     private var settingsWindow: NSWindow?
+    /// The menu bar item. Retained here for the life of the app — dropping it
+    /// removes the item from the menu bar.
+    private var menuBar: MenuBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Ensure DB is created early, then pre-warm the caches so the popup opens
@@ -71,10 +74,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .eraseToAnyPublisher()
         )
 
+        // The menu bar item, last so everything it can invoke already exists.
+        menuBar = MenuBarController(actions: menuBarActions())
+
+#if DEBUG
+        if ProcessInfo.processInfo.environment["MUKKER_DUMP_MENU"] == "1", let menuBar {
+            print(menuBar.debugDump())
+            exit(0)
+        }
+#endif
+
         // We hide the dock icon via LSUIElement; still set activation policy as a guard
         // so windows we open can come forward.
         NSApp.setActivationPolicy(.accessory)
         Log.app.info("\(Branding.name, privacy: .public) launched")
+    }
+
+    /// Everything the menu bar can invoke. Passing closures rather than `self`
+    /// keeps `MenuBarController` unaware of the delegate.
+    private func menuBarActions() -> MenuBarController.Actions {
+        var actions = MenuBarController.Actions(
+            showPopup: { [weak self] in self?.showPopup() },
+            openSnippetsManager: { [weak self] in self?.openSnippetsManager() },
+            captureArea: { [weak self] in self?.captureArea() },
+            captureScreen: { [weak self] in self?.captureScreen() },
+            captureScrolling: { [weak self] in self?.captureScrolling() },
+            openSettings: { [weak self] in self?.openSettings() })
+#if DEBUG
+        actions.openDebugSample = { [weak self] in self?.openDebugSample() }
+#endif
+        return actions
     }
 
     /// Release the power assertion promptly on a clean quit. (It is also

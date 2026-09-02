@@ -1,0 +1,202 @@
+import AppKit
+import Combine
+import HotKey
+
+/// Owns the app's single menu bar item.
+///
+/// This is a hand-built `NSStatusItem` rather than a SwiftUI `MenuBarExtra`
+/// because the menu's first item is a **calendar** — a `MenuBarExtra` in `.menu`
+/// style can only hold buttons and text, and offers no AppKit escape hatch. The
+/// rest of the menu is the same set of items it always was, so nothing about the
+/// clipboard, capture or keep-awake sides changed.
+///
+/// The menu is **rebuilt from scratch in `menuNeedsUpdate(_:)`**, i.e. every time
+/// it opens. That is what keeps the Keep Awake label, its remaining-time line and
+/// every shortcut glyph honest without observing a single publisher: they are all
+/// re-read from `KeepAwakeService`/`ShortcutSettings` at open time.
+@MainActor
+final class MenuBarController: NSObject, NSMenuDelegate {
+    /// Everything the menu can do, as closures, so the controller never reaches
+    /// back into `AppDelegate` (same shape as `HotKeyManager.Action`).
+    struct Actions {
+        var showPopup: () -> Void
+        var openSnippetsManager: () -> Void
+        var captureArea: () -> Void
+        var captureScreen: () -> Void
+        var captureScrolling: () -> Void
+        var openSettings: () -> Void
+#if DEBUG
+        /// Defaulted so the memberwise initialiser stays identical in both
+        /// configurations — the debug item is filled in by `AppDelegate`.
+        var openDebugSample: () -> Void = {}
+#endif
+    }
+
+    private let actions: Actions
+    private let statusItem: NSStatusItem
+    private let menu = NSMenu()
+    private var cancellables: Set<AnyCancellable> = []
+
+    init(actions: Actions) {
+        self.actions = actions
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        super.init()
+
+        // We validate items ourselves; nothing here is ever conditionally greyed
+        // out by the responder chain.
+        menu.autoenablesItems = false
+        menu.delegate = self
+        statusItem.menu = menu
+        statusItem.behavior = .terminationOnRemoval
+
+        refreshStatusItem()
+
+        // The icon carries the Keep Awake state. The service publishes on toggle
+        // and once a minute while counting down — exactly the cadence we want,
+        // and the reason it is deliberately throttled (see KeepAwakeService).
+        KeepAwakeService.shared.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.refreshStatusItem() }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - Status item
+
+    /// Re-applies the button's icon and title. Cheap enough to call freely.
+    func refreshStatusItem() {
+        guard let button = statusItem.button else { return }
+        let awake = KeepAwakeService.shared.isActive
+        button.image = NSImage(named: awake ? "MenuBarIconAwake" : "MenuBarIcon")
+        button.imagePosition = .imageLeading
+        button.title = ""
+        button.toolTip = Branding.name
+    }
+
+    // MARK: - NSMenuDelegate
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        for item in buildItems() { menu.addItem(item) }
+    }
+
+    // MARK: - Menu contents
+
+    private func buildItems() -> [NSMenuItem] {
+        let shortcuts = ShortcutSettings.shared
+        var items: [NSMenuItem] = []
+
+        items.append(submenu("Clipboard & Snippets", of: [
+            ActionMenuItem("Show Clipboard & Snippets", combo: shortcuts.popupCombo,
+                           handler: actions.showPopup),
+            .separator(),
+            ActionMenuItem("Snippets Manager…", handler: actions.openSnippetsManager)
+        ]))
+
+        var captureItems: [NSMenuItem] = [
+            ActionMenuItem("Capture Area", combo: shortcuts.areaCombo, handler: actions.captureArea),
+            ActionMenuItem("Capture Screen", combo: shortcuts.fullscreenCombo, handler: actions.captureScreen),
+            ActionMenuItem("Scrolling Capture", combo: shortcuts.scrollCombo, handler: actions.captureScrolling)
+        ]
+#if DEBUG
+        if CaptureSettings.shared.enableDebugMenu {
+            captureItems.append(.separator())
+            captureItems.append(ActionMenuItem("Open Sample Editor (debug)",
+                                               handler: actions.openDebugSample))
+        }
+#endif
+        items.append(submenu("Capture", of: captureItems))
+
+        items.append(submenu("Keep Awake", of: keepAwakeItems()))
+
+        items.append(.separator())
+        items.append(ActionMenuItem("Settings…", keyEquivalent: ",", modifiers: .command,
+                                    handler: actions.openSettings))
+        items.append(.separator())
+        items.append(ActionMenuItem("Quit \(Branding.name)", keyEquivalent: "q", modifiers: .command,
+                                    handler: { NSApp.terminate(nil) }))
+        return items
+    }
+
+    private func keepAwakeItems() -> [NSMenuItem] {
+        let service = KeepAwakeService.shared
+        var items: [NSMenuItem] = [
+            ActionMenuItem(service.isActive ? "Turn Off" : "Turn On",
+                           handler: { KeepAwakeService.shared.toggle() })
+        ]
+        if service.isActive {
+            items.append(disabled(service.statusText))
+        }
+        items.append(.separator())
+        for duration in KeepAwakeDuration.allCases {
+            items.append(ActionMenuItem(duration.label,
+                                        handler: { KeepAwakeService.shared.activate(for: duration) }))
+        }
+        return items
+    }
+
+    // MARK: - Item helpers
+
+    private func submenu(_ title: String, of items: [NSMenuItem]) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let sub = NSMenu(title: title)
+        sub.autoenablesItems = false
+        for child in items { sub.addItem(child) }
+        item.submenu = sub
+        return item
+    }
+
+    /// A greyed-out informational row (the Keep Awake countdown).
+    private func disabled(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
+    }
+}
+
+/// An `NSMenuItem` that runs a closure. AppKit menus are target/action only, so
+/// the item is its own target and holds the closure — that keeps the menu
+/// definition in `MenuBarController` readable as a list rather than a pile of
+/// `@objc` selectors.
+final class ActionMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(_ title: String, keyEquivalent: String = "",
+         modifiers: NSEvent.ModifierFlags = [], handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(fire), keyEquivalent: keyEquivalent)
+        keyEquivalentModifierMask = modifiers
+        target = self
+        isEnabled = true
+    }
+
+    /// Displays `combo`'s glyph. A status menu's key equivalents only fire while
+    /// the menu is open, so this advertises the *global* hotkey rather than
+    /// competing with it.
+    convenience init(_ title: String, combo: KeyCombo, handler: @escaping () -> Void) {
+        self.init(title, keyEquivalent: combo.nsKeyEquivalent,
+                  modifiers: combo.modifiers, handler: handler)
+    }
+
+    @available(*, unavailable)
+    required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    @objc private func fire() { handler() }
+}
+
+#if DEBUG
+extension MenuBarController {
+    /// Renders the menu the way opening it would, for the launch-time dump.
+    func debugDump() -> String {
+        menuNeedsUpdate(menu)
+        func describe(_ items: [NSMenuItem], indent: String) -> [String] {
+            items.flatMap { item -> [String] in
+                let key = item.keyEquivalent.isEmpty ? "" : "  [\(item.keyEquivalentModifierMask.rawValue):\(item.keyEquivalent)]"
+                let line = item.isSeparatorItem ? "\(indent)---"
+                    : "\(indent)\(item.title)\(item.isEnabled ? "" : " (disabled)")\(key)"
+                return [line] + (item.submenu.map { describe($0.items, indent: indent + "    ") } ?? [])
+            }
+        }
+        return describe(menu.items, indent: "").joined(separator: "\n")
+    }
+}
+#endif
