@@ -180,29 +180,29 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     // MARK: - NSMenuDelegate
 
-    /// Menus are translucent by default: AppKit draws them into an
-    /// `NSVisualEffectView` that samples the desktop behind, and a calendar grid
-    /// — or any menu — read over whatever happens to be back there is hard work.
-    /// Switching that view to blend within its window and giving the window an
-    /// opaque background to blend with makes the menu solid.
+    /// Menus are translucent by default: `NSPopupMenuWindow` is not opaque, so
+    /// the desktop shows through, and a calendar grid read over whatever happens
+    /// to be back there is hard work. Giving the window an opaque background is
+    /// the whole fix.
     ///
     /// Every open menu is treated, not just the one holding the calendar, so the
     /// submenus match: each is its own window, and they only exist once the user
     /// opens them.
     ///
-    /// Nothing private is called — this walks the menu windows' own view trees
-    /// and sets public properties — but it is best-effort by nature: if AppKit
-    /// ever stops using an effect view here, or renames the window class, the
-    /// menu simply stays translucent.
+    /// **Do not touch the window's `NSVisualEffectView`s.** There is no backdrop
+    /// effect view to flatten — the only one in the tree is the highlight behind
+    /// the selected row, and it reports `material == .menu` rather than
+    /// `.selection`, so it cannot be filtered out by material either. Setting its
+    /// blending mode turns the accent-coloured selection flat grey while AppKit
+    /// keeps drawing the label white on top of it: unreadable.
+    ///
+    /// Nothing private is called — this sets public properties on windows the app
+    /// owns — but identifying them by class name is best-effort: if AppKit
+    /// renames the class, the menu simply stays translucent.
     private func makeMenuWindowsOpaque() {
         for window in NSApp.windows where window.className.contains("MenuWindow") {
             window.backgroundColor = .windowBackgroundColor
             window.isOpaque = true
-            for effectView in Self.visualEffectViews(in: window.contentView) {
-                effectView.blendingMode = .withinWindow
-                effectView.material = .menu
-                effectView.state = .active
-            }
         }
     }
 
@@ -216,12 +216,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             MainActor.assumeIsolated { self.makeMenuWindowsOpaque() }
         }
         RunLoop.main.add(timer, forMode: .common)
-    }
-
-    private static func visualEffectViews(in view: NSView?) -> [NSVisualEffectView] {
-        guard let view else { return [] }
-        let own = (view as? NSVisualEffectView).map { [$0] } ?? []
-        return own + view.subviews.flatMap { visualEffectViews(in: $0) }
     }
 
     func menuWillOpen(_ menu: NSMenu) {

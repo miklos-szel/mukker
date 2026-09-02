@@ -348,14 +348,18 @@ Things that are load-bearing and easy to undo:
   `eventItemRange` in the live menu.
 - **The `EKEventStore` is created lazily and only once access is granted.** Instantiating and
   querying one is what raises the system prompt, and the prompt belongs to the Permissions pane.
-- **The menu is forced opaque** (`makeMenuWindowsOpaque()`): AppKit draws menus into an
-  `NSVisualEffectView` that samples the desktop, which makes a calendar grid hard to read. It
-  treats *every* open menu window (`NSApp.windows` filtered by class name), because each submenu is
-  its own window, and it must run when the window actually exists — **not** in `menuWillOpen`,
-  which fires before AppKit has put the item views in a window. The hooks are
-  `MenuHostingView.viewDidMoveToWindow` for the root menu and a zero-delay `.common` `Timer` from
-  `menuWillOpen` for the submenus. It sets public properties on the menus' own view trees, so it
-  degrades to "translucent again" rather than breaking if AppKit changes.
+- **The menu is forced opaque** (`makeMenuWindowsOpaque()`): `NSPopupMenuWindow` is translucent by
+  default, which makes a calendar grid hard to read over a busy desktop. Setting the window's
+  `isOpaque`/`backgroundColor` is the *whole* fix. It treats **every** open menu window
+  (`NSApp.windows` filtered by class name), because each submenu is its own window, and it must run
+  when the window actually exists — **not** in `menuWillOpen`, which fires before AppKit has put
+  the item views in a window. The hooks are `MenuHostingView.viewDidMoveToWindow` for the root menu
+  and a zero-delay `.common` `Timer` from `menuWillOpen` for the submenus.
+  **Never touch the window's `NSVisualEffectView`s.** There is no backdrop one to flatten: the only
+  effect view in the tree is the highlight behind the selected row, and it reports
+  `material == .menu`, not `.selection`, so it can't be filtered out by material either. Forcing
+  its blending mode turns the accent-coloured selection flat grey while AppKit keeps drawing the
+  label white on top — the exact "barely readable" bug this replaced.
 - **The submenus share this delegate** purely so that `menuWillOpen` fires for their windows —
   which is why `menuNeedsUpdate(_:)` opens with a `guard menu === self.menu`, or a submenu would be
   refilled with the root menu's items.
