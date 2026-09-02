@@ -1,12 +1,27 @@
 # Mukker
 
-A native macOS menu-bar utility that combines **clipboard history**, **text snippets**,
-**screen capture with annotation**, **window tiling**, and **keeping your Mac awake** in one app.
-A quick popup on a global shortcut pastes back into the app you were just using; a capture
-shortcut opens a screenshot in a full annotation editor; a ⌃⌘arrow snaps the frontmost window
-to half the screen.
+A native macOS menu-bar utility that combines a **calendar**, **clipboard history**, **text
+snippets**, **screen capture with annotation**, **window tiling**, and **keeping your Mac awake**
+in one app. The menu bar shows today's date and drops down a month calendar with the day's
+events; a quick popup on a global shortcut pastes back into the app you were just using; a
+capture shortcut opens a screenshot in a full annotation editor; a ⌃⌘arrow snaps the frontmost
+window to half the screen.
 
 ## Features
+
+### Calendar
+
+- **Today's date in the menu bar** — the icon is a calendar page carrying the day number, so the
+  date is readable at a glance without opening anything.
+- **Optionally more beside it** — weekday, month and day, `Sep 2., Wed`, or your own
+  `DateFormatter` pattern. Configured in **Settings → Calendar**, with a live preview.
+- **A month calendar in the menu** — page back and forward, jump back to today, and pick any day.
+  Days that have something scheduled are marked with a dot.
+- **The selected day's events** are listed underneath, in their calendar's colour, straight from
+  the system calendars. Read-only: Mukker never creates, changes or stores an event.
+- **Choose which calendars count** in **Settings → Calendar**; one you subscribe to later is
+  included automatically. Needs Calendar access, granted in **Settings → Permissions** — without
+  it the calendar still works, just without events.
 
 ### Clipboard & snippets
 
@@ -44,7 +59,8 @@ to half the screen.
   leave the Mac pinned awake by accident. Pick a different length from the *Keep Awake* menu
   (5 minutes through 5 hours, or until you turn it off), or change the default in
   **Settings → Keep Awake**.
-- **The menu-bar icon shows the state**, and the menu shows the time remaining.
+- **The menu-bar item shows the state** — it takes on your accent colour while Keep Awake is on —
+  and the menu shows the time remaining.
 - **Optionally let the display sleep** while the machine keeps running, turn it on automatically at
   launch, and have it stand down when you close the lid or sleep the Mac yourself.
 
@@ -68,7 +84,8 @@ five minutes ago is still one ⌘E away.
 | Esc | Close |
 
 The popup and capture shortcuts are configurable in **Settings → Hotkeys**; the four tiling
-shortcuts live in **Settings → Windows**, next to the switch that turns them on and off.
+shortcuts live in **Settings → Windows**, next to the switch that turns them on and off. The
+calendar has no shortcut — it is the menu bar item itself.
 
 ## Where your data lives
 

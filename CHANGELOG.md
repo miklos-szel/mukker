@@ -3,6 +3,29 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **Calendar in the menu bar.** The menu bar item now shows today's date — a calendar-page icon
+  carrying the day number, which is all it shows out of the box. Clicking it drops down a month
+  calendar you can page through, jump back to today from, and pick any day in; under it sits that
+  day's schedule, read from the system calendars in each calendar's own colour, and days with
+  something on them are marked with a dot in the grid. The rest of the menu is unchanged,
+  underneath. A new **Settings → Calendar** tab picks what shows next to the day number
+  (weekday, `Sep 2., Wed`, your own date pattern — with a live preview), which day the week starts
+  on, whether to show week numbers, and which calendars count; a calendar you subscribe to later
+  is included automatically.
+- **Calendar access** is a new permission, listed alongside the others in
+  **Settings → Permissions**. It is **read-only** — Mukker never creates, changes or stores an
+  event — and entirely optional: without it the calendar still works, just without the events.
+
+### Changed
+- **The menu is no longer translucent.** macOS draws menus over a blurred view of whatever is
+  behind them, which made the calendar grid hard to read; Mukker's menu is now opaque.
+- **Keep Awake shows itself differently** while the date is on. The date has taken over the icon,
+  so instead of swapping glyphs the whole menu bar item takes on your accent colour while the Mac
+  is being held awake. Turn the date off in Settings and the old icon swap comes back.
+
 ## [0.7.0] - 2026-09-02
 
 ### Added

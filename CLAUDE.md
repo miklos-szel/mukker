@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Mukker is a native macOS menu-bar utility combining four feature sets — two of which used to be
+Mukker is a native macOS menu-bar utility combining five feature sets — two of which used to be
 separate apps:
 
 - **Clipboard history + snippets** (with rich-text support; no auto-expansion). A global shortcut
@@ -19,13 +19,17 @@ separate apps:
 - **Keep Awake.** A menu-bar toggle that holds an IOKit power assertion so the Mac stops idling to
   sleep, for a configurable duration (**2 hours** by default) after which it releases itself. It
   needs no permissions and touches neither the database nor any other subsystem.
+- **Calendar.** The menu bar item *is* the date — a drawn calendar glyph carrying today's day
+  number, optionally with text beside it — and clicking it drops down a pageable month grid with
+  the selected day's events read from the system calendars, above the rest of the menu. Read-only
+  in both directions: it never writes an event and never stores one.
 - **Window tiling.** Four global shortcuts (⌃⌘←/→/↓/↑ by default) that snap the frontmost window
   to a half of whichever screen it is already on, via the Accessibility API. Stateless — it reads
   a window, moves it and forgets it; there is no window history and no restore.
 
 The sides are deliberately independent at runtime. The only things they share are
 `PermissionsService`, `HotKeyManager`/`ShortcutSettings`, `Log`, `AppPaths`, `Branding`, the
-`AppDelegate`, and the Settings window. Emergent integration: a capture copied to the clipboard
+`AppDelegate`, the menu bar item (`MenuBarController`) and the Settings window. Emergent integration: a capture copied to the clipboard
 is picked up by `ClipboardMonitor` like any other copy, so captures land in history for free.
 
 ## Naming
@@ -116,9 +120,11 @@ Higher layers may import lower; never the reverse.
 `FastAppendService`, `ActiveAppTracker`, `PermissionsService`, `LoginItemService`, `Paster`,
 `PopupWindowController`, `CaptureCoordinator`, `ScrollingCaptureService`,
 `EditorWindowController`, `AppIconCache`, `ClipThumbnailCache`, `KeepAwakeSettings`,
-`KeepAwakeService`, `WindowTilingSettings`, `WindowTiler`.
+`KeepAwakeService`, `WindowTilingSettings`, `WindowTiler`, `CalendarSettings`,
+`CalendarEventsService`.
 `AppDelegate.applicationDidFinishLaunching` wires them together — start there to follow runtime
-flow.
+flow. There is **no SwiftUI `App` type**: its only scene was the old `MenuBarExtra`, so the entry
+point is a plain AppKit `App/App/main.swift`.
 
 ### Shared plumbing
 
@@ -129,6 +135,9 @@ flow.
   Callers use the `ensure*` methods; the settings pane uses the raw checks plus a 1 s poll. One
   Accessibility grant serves four subsystems: `Paster` (⌘V), `FastAppendService` (global ⌘C
   monitor), `ScrollingCaptureService` (synthetic scroll) and `WindowTiler` (moving windows).
+  **Calendars** (`hasCalendarAccess` / `requestCalendarAccess` / `openCalendarSettings`) is
+  read-only and feeds the menu bar calendar's event rows; requesting it without
+  `NSCalendarsFullAccessUsageDescription` in `project.yml` terminates the app.
   Don't add a second permissions type.
 - **`ShortcutSettings`** holds all eight global combos (`popupCombo`, `areaCombo`,
   `fullscreenCombo`, `scrollCombo`, plus `tileLeftCombo`/`tileRightCombo`/`tileTopCombo`/
@@ -143,13 +152,20 @@ flow.
   `KeyCombo.swiftUIKeyEquivalent`, so menu, settings and live hotkey can never drift — note that
   helper takes the first character of the key's description and so yields a garbage glyph for
   arrow keys; special-case it before putting any arrow-bound action in the menu bar.
-- **Menu bar:** one `MenuBarExtra` (`App/App/AppMain.swift`) with a *Clipboard & Snippets*, a
-  *Capture* and a *Keep Awake* submenu; only Settings and Quit sit at the top level. Its icon is
-  the one piece of shared state — it swaps to `MenuBarIconAwake` while Keep Awake is on, which is
-  why `AppMain` observes `KeepAwakeService`.
+- **Menu bar:** one `NSStatusItem` owned by `MenuBarController` (`App/App/MenuBarController.swift`)
+  — *not* a SwiftUI `MenuBarExtra`, which in `.menu` style can only hold buttons and text and so
+  cannot host the calendar. Order: the calendar, the selected day's event rows, then a *Clipboard
+  & Snippets*, a *Capture* and a *Keep Awake* submenu, with only Settings and Quit at the top
+  level. The menu is **rebuilt from scratch in `menuNeedsUpdate(_:)`**, so the Keep Awake label,
+  its countdown line and every shortcut glyph are re-read from their settings objects on each open
+  rather than observed — and `calendarModel.reset()` belongs there too, *before* `buildItems()`,
+  because AppKit asks for the items before `menuWillOpen`. Items carry closures via
+  `ActionMenuItem`; glyphs come from `KeyCombo.nsKeyEquivalent`, and a status menu's key
+  equivalents only fire while the menu is open, so they advertise the global hotkey rather than
+  competing with it.
 - **Settings:** one `TabView` (`Features/Settings/SettingsWindow.swift`) — `ClipboardPane`,
-  `CapturePane`, `KeepAwakePane`, `WindowTilingPane`, `HotkeysPane`, `PermissionsPane`,
-  `AboutPane`. The first four are per-feature-set; the last three are shared. Add a
+  `CapturePane`, `KeepAwakePane`, `WindowTilingPane`, `CalendarPane`, `HotkeysPane`,
+  `PermissionsPane`, `AboutPane`. The first five are per-feature-set; the last three are shared. Add a
   feature-specific setting to its own pane, not to the shared ones. (`WindowTilingPane` keeps its
   four shortcut recorders next to its on/off switch rather than in `HotkeysPane`, since the switch
   is what decides whether they exist — but *not* the Accessibility grant it needs: permissions are
@@ -292,9 +308,10 @@ without migration, but exhaustive switches in `Paster`, `PreviewPane`, `PopupRow
   pair (fast user switching drops the assertion) are handled alongside it.
 
 `isActive` is the service's only stored `@Published` property; `remaining` is derived from the
-deadline on read. `AppMain` observes the service for both the icon and the menu's status line, so a
-value that changed every second would rebuild the whole `MenuBarExtra` body (and can close an open
-menu). Instead the object republishes **once a minute** while counting down, and
+deadline on read. `MenuBarController` observes the service for the status item's tint, and the
+menu's status line is read at open time, so a value that changed every second would repaint the
+menu bar item continuously for nothing. Instead the object republishes **once a minute** while
+counting down, and
 `format(remaining:)` hides seconds above a minute — the two granularities are matched on purpose,
 so the menu is never visibly stale. Anything wanting a per-second countdown polls `remaining`
 itself, as `KeepAwakePane` does. `KeepAwakeDuration` carries a
@@ -305,6 +322,43 @@ Assertion type follows `allowDisplaySleep`: `kIOPMAssertPreventUserIdleDisplaySl
 subscribes to that setting so flipping it re-asserts immediately instead of at the next refresh.
 Verify a change with `pmset -g assertions` — and check again 30 s later, or you have only proven
 the *first* assertion was created.
+
+### Calendar & menu bar
+
+`MenuBarController` (`App/App/`) owns the status item; `CalendarSettings` holds the preferences and
+`CalendarEventsService` (`Core/`) is the only thing in the app that talks to EventKit. The pure
+halves — `CalendarGrid` (month geometry) and `MenuBarDateText` (the bar label) — are `nonisolated
+static` and covered by `AppTests/CalendarTests.swift`; the EventKit and `NSStatusItem` halves need
+a real grant and a running UI and are verified by hand.
+
+Things that are load-bearing and easy to undo:
+
+- **Hosting SwiftUI in an `NSMenuItem` works, with one catch.** Clicks reach SwiftUI buttons and
+  the view re-renders while the menu is open, but **`NSMenu` tracking runs its own event loop that
+  never drains the main dispatch queue** — anything scheduled with `DispatchQueue.main.asyncAfter`
+  sits until the menu closes. Run-loop `Timer`s in `.common` mode do fire. The hosting view is also
+  **flipped** (y grows down), unlike a plain `NSView`.
+- **The grid is always six rows** (`CalendarGrid.rows`). Five would be enough for some months, but
+  a grid that changed height would resize the menu while paging. For the same reason
+  `sizeCalendarItem()` runs before the menu opens: a menu takes an item's height from its view's
+  frame once and never re-measures.
+- **Events are real `NSMenuItem`s**, not more SwiftUI, so the menu sizes itself to however many
+  there are and the rows highlight natively. They are *enabled* with no action — disabled rows
+  render too faint for what is the section's actual content. Changing the selected day swaps just
+  `eventItemRange` in the live menu.
+- **The `EKEventStore` is created lazily and only once access is granted.** Instantiating and
+  querying one is what raises the system prompt, and the prompt belongs to the Permissions pane.
+- **The menu is forced opaque** (`makeOpaque(_:)`): AppKit draws menus into an `NSVisualEffectView`
+  that samples the desktop, which makes a calendar grid hard to read. The fix walks the menu
+  window's own view tree and sets public properties, so it degrades to "translucent again" rather
+  than breaking if AppKit changes.
+- **The day number refreshes off an absolute deadline** — a timer armed on the next midnight, plus
+  `.NSCalendarDayChanged`, `.NSSystemClockDidChange` and `didWakeNotification`. Same trap as Keep
+  Awake: run-loop timers don't advance while the Mac sleeps. Never poll per second.
+- **Keep Awake lost its icon swap** while the date is on, because the date *is* the icon; it tints
+  the status item instead. Switching the date off restores the old glyph and the old swap.
+- `CalendarSettings.hiddenCalendarIDs` stores the calendars to **hide**, not to show, so one
+  subscribed to later appears by default instead of silently going missing.
 
 ### Window tiling
 
@@ -340,7 +394,10 @@ without a real window or a permission grant; the AX half is verified by hand.
 - **Concurrency:** `SWIFT_STRICT_CONCURRENCY: minimal`. UI/coordinator classes are `@MainActor`;
   background polling lives in `ClipboardMonitor` (RunLoop timer on `.common`).
 - **No Dock icon.** `Info.plist` sets `LSUIElement=true`; activation policy is `.accessory`.
-  Tests, screenshots and `osascript` are the only ways to interact when running headless.
+  Tests, screenshots and `osascript` are the only ways to interact when running headless — plus
+  two `#if DEBUG` env hooks in `AppDelegate`, `MUKKER_OPEN_MENU=1` (pops the menu open so it can be
+  screenshotted) and `MUKKER_DUMP_MENU=1` (prints the whole menu tree and exits), which exist
+  because there is no other way to reach the menu without a human clicking the status item.
 - **Windows are app-owned `NSWindow`/`NSPanel`s** hosting SwiftUI via `NSHostingView`. Snippets
   Manager and Settings are created in `AppDelegate` (`openSnippetsManager()` / `openSettings()`),
   not SwiftUI `WindowGroup`/`Settings` scenes — there is intentionally no `Settings { }` scene.
@@ -348,7 +405,8 @@ without a real window or a permission grant; the AX half is verified by hand.
   `KeyEventCatcher`, `ShortcutRecorderField`, `InlineTextField`). Follow these patterns rather than
   fighting SwiftUI.
 - **Logging:** use `Log.<category>` from `Support/Logger.swift` (categories: `app`, `hotkey`,
-  `keepAwake`, `window`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`, `export`). View with
+  `keepAwake`, `window`, `calendar`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`,
+  `export`). View with
   `log show --predicate 'subsystem == "com.mukker.Mukker"' --info --last 1m` (the subsystem is the
   bundle ID).
 - **Code signing:** ad-hoc only (`CODE_SIGN_IDENTITY: "-"`); hardened runtime auto-disabled. Don't
