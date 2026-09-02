@@ -1,9 +1,10 @@
 # Mukker
 
 A native macOS menu-bar utility that combines **clipboard history**, **text snippets**,
-**screen capture with annotation**, and **keeping your Mac awake** in one app. A quick popup on a
-global shortcut pastes back into the app you were just using; a capture shortcut opens a
-screenshot in a full annotation editor.
+**screen capture with annotation**, **window tiling**, and **keeping your Mac awake** in one app.
+A quick popup on a global shortcut pastes back into the app you were just using; a capture
+shortcut opens a screenshot in a full annotation editor; a ⌃⌘arrow snaps the frontmost window
+to half the screen.
 
 ## Features
 
@@ -25,6 +26,17 @@ screenshot in a full annotation editor.
 - **Crop, movable base image, wheel zoom**, and a checkerboard surround that exports white.
 - **Copy or save** as PNG/JPEG, with optional 1× downscaling, a configurable destination folder, and auto-close after copy/save.
 
+### Window tiling
+
+- **Snap the frontmost window to half the screen** with a global shortcut — no clicking, no
+  dragging, no animation.
+- **Four actions, four shortcuts:** ⌃⌘← left half, ⌃⌘→ right half, ⌃⌘↓ top half, ⌃⌘↑ bottom half.
+  All four are rebindable in **Settings → Windows**.
+- **Halves fill the space between the menu bar and the Dock**, on whichever display the window is
+  already on. An optional **gap** insets tiled windows if you prefer them not to touch.
+- **Needs Accessibility access** — the same permission Mukker already uses to paste. Switch tiling
+  off in Settings and the ⌃⌘arrow shortcuts are released back to other apps.
+
 ### Keep awake
 
 - **Stop the Mac idling to sleep** while a long job runs — one click in the menu bar, no Terminal.
@@ -45,6 +57,8 @@ five minutes ago is still one ⌘E away.
 | --- | --- |
 | ⌘E | Open / close the popup |
 | ⌃⇧⌘4 / ⌃⇧⌘3 / ⌃⇧⌘5 | Capture area / screen / scrolling |
+| ⌃⌘← / ⌃⌘→ | Tile the frontmost window to the left / right half |
+| ⌃⌘↓ / ⌃⌘↑ | Tile the frontmost window to the top / bottom half |
 | ↑ / ↓ | Move selection in the popup |
 | Return | Paste selected item (with formatting) |
 | ⌘⇧V | Paste **without** formatting (plain text) |
@@ -53,7 +67,8 @@ five minutes ago is still one ⌘E away.
 | ⌘, | Open Settings |
 | Esc | Close |
 
-All four global shortcuts are configurable in **Settings → Hotkeys**.
+The popup and capture shortcuts are configurable in **Settings → Hotkeys**; the four tiling
+shortcuts live in **Settings → Windows**, next to the switch that turns them on and off.
 
 ## Where your data lives
 

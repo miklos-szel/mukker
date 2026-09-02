@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Mukker is a native macOS menu-bar utility combining three feature sets — two of which used to be
+Mukker is a native macOS menu-bar utility combining four feature sets — two of which used to be
 separate apps:
 
 - **Clipboard history + snippets** (with rich-text support; no auto-expansion). A global shortcut
@@ -19,8 +19,11 @@ separate apps:
 - **Keep Awake.** A menu-bar toggle that holds an IOKit power assertion so the Mac stops idling to
   sleep, for a configurable duration (**2 hours** by default) after which it releases itself. It
   needs no permissions and touches neither the database nor any other subsystem.
+- **Window tiling.** Four global shortcuts (⌃⌘←/→/↓/↑ by default) that snap the frontmost window
+  to a half of whichever screen it is already on, via the Accessibility API. Stateless — it reads
+  a window, moves it and forgets it; there is no window history and no restore.
 
-The three sides are deliberately independent at runtime. The only things they share are
+The sides are deliberately independent at runtime. The only things they share are
 `PermissionsService`, `HotKeyManager`/`ShortcutSettings`, `Log`, `AppPaths`, `Branding`, the
 `AppDelegate`, and the Settings window. Emergent integration: a capture copied to the clipboard
 is picked up by `ClipboardMonitor` like any other copy, so captures land in history for free.
@@ -113,7 +116,7 @@ Higher layers may import lower; never the reverse.
 `FastAppendService`, `ActiveAppTracker`, `PermissionsService`, `LoginItemService`, `Paster`,
 `PopupWindowController`, `CaptureCoordinator`, `ScrollingCaptureService`,
 `EditorWindowController`, `AppIconCache`, `ClipThumbnailCache`, `KeepAwakeSettings`,
-`KeepAwakeService`.
+`KeepAwakeService`, `WindowTilingSettings`, `WindowTiler`.
 `AppDelegate.applicationDidFinishLaunching` wires them together — start there to follow runtime
 flow.
 
@@ -124,22 +127,32 @@ flow.
   and Accessibility (`hasAccessibilityPermission` / `requestAccessibilityPermission` /
   `ensureAccessibility(reason:)`), each with an "open System Settings" helper and a denied-alert.
   Callers use the `ensure*` methods; the settings pane uses the raw checks plus a 1 s poll. One
-  Accessibility grant serves three subsystems: `Paster` (⌘V), `FastAppendService` (global ⌘C
-  monitor) and `ScrollingCaptureService` (synthetic scroll). Don't add a second permissions type.
-- **`ShortcutSettings`** holds all four global combos (`popupCombo`, `areaCombo`,
-  `fullscreenCombo`, `scrollCombo`) as `HotKey.KeyCombo`s persisted to `UserDefaults`, and
-  publishes `comboChanges`. **`HotKeyManager`** subscribes to it and re-registers every hotkey on
-  change (the `HotKey` objects must be retained or the shortcuts die). The menu-bar glyphs derive
-  from the same object via `KeyCombo.swiftUIKeyEquivalent`, so menu, settings and live hotkey can
-  never drift.
+  Accessibility grant serves four subsystems: `Paster` (⌘V), `FastAppendService` (global ⌘C
+  monitor), `ScrollingCaptureService` (synthetic scroll) and `WindowTiler` (moving windows).
+  Don't add a second permissions type.
+- **`ShortcutSettings`** holds all eight global combos (`popupCombo`, `areaCombo`,
+  `fullscreenCombo`, `scrollCombo`, plus `tileLeftCombo`/`tileRightCombo`/`tileTopCombo`/
+  `tileBottomCombo`) as `HotKey.KeyCombo`s persisted to `UserDefaults`, and publishes
+  `comboChanges` — whose `dropFirst(n)` **must equal the number of merged publishers**, because
+  `@Published` replays on subscribe. **`HotKeyManager`** subscribes to it and re-registers every
+  hotkey on change (the `HotKey` objects must be retained or the shortcuts die). Each shortcut is
+  a `HotKeyManager.Action` carrying an `isEnabled` closure, so a switched-off feature's combos are
+  *not registered* rather than registered-and-ignored — that is what frees ⌃⌘arrows for other
+  apps; `start(…, reloadOn:)` takes an extra re-register trigger for a flag living outside
+  `ShortcutSettings`. The menu-bar glyphs derive from the same object via
+  `KeyCombo.swiftUIKeyEquivalent`, so menu, settings and live hotkey can never drift — note that
+  helper takes the first character of the key's description and so yields a garbage glyph for
+  arrow keys; special-case it before putting any arrow-bound action in the menu bar.
 - **Menu bar:** one `MenuBarExtra` (`App/App/AppMain.swift`) with a *Clipboard & Snippets*, a
   *Capture* and a *Keep Awake* submenu; only Settings and Quit sit at the top level. Its icon is
   the one piece of shared state — it swaps to `MenuBarIconAwake` while Keep Awake is on, which is
   why `AppMain` observes `KeepAwakeService`.
 - **Settings:** one `TabView` (`Features/Settings/SettingsWindow.swift`) — `ClipboardPane`,
-  `CapturePane`, `KeepAwakePane`, `HotkeysPane`, `PermissionsPane`, `AboutPane`. The first three
-  are per-feature-set; the last three are shared. Add a feature-specific setting to its own pane,
-  not to the shared ones.
+  `CapturePane`, `KeepAwakePane`, `WindowTilingPane`, `HotkeysPane`, `PermissionsPane`,
+  `AboutPane`. The first four are per-feature-set; the last three are shared. Add a
+  feature-specific setting to its own pane, not to the shared ones. (`WindowTilingPane` keeps its
+  four shortcut recorders next to its on/off switch rather than in `HotkeysPane`, since the switch
+  is what decides whether they exist.)
 
 ### Clipboard & snippets
 
@@ -292,6 +305,35 @@ subscribes to that setting so flipping it re-asserts immediately instead of at t
 Verify a change with `pmset -g assertions` — and check again 30 s later, or you have only proven
 the *first* assertion was created.
 
+### Window tiling
+
+`WindowTiler` (`Core/`) is the only thing in the app that talks to `AXUIElement`;
+`WindowTilingSettings` holds the on/off switch and the `gap`. Four details are load-bearing:
+
+- **AX and Cocoa disagree about which way is up.** AX window geometry is top-left-origin with Y
+  growing *down*, anchored at the top-left of the primary display; `NSScreen.frame`/`visibleFrame`
+  is bottom-left-origin with Y growing up. Everything crossing that boundary goes through
+  `axRect(fromCocoa:primaryHeight:)` / `cocoaRect(fromAX:primaryHeight:)`, and `primaryHeight` must
+  come from `NSScreen.screens.first` — the physical menu-bar display. `NSScreen.main` follows
+  keyboard focus and silently gives the wrong answer the moment a second display is attached.
+- **Position and size are written twice**, in the order position → size → position → size. Many
+  apps clamp a requested size against the window's *current* screen and position, so a single pass
+  lands short whenever the move crosses displays or grows the window.
+- **`AXUIElementSetMessagingTimeout(app, 0.5)`.** AX calls into a hung app block for six seconds by
+  default, which would freeze the main thread — and the menu bar — on every press. Nothing on the
+  tile path sleeps, animates or waits for an app to activate: the move is meant to be instant.
+- **The default Top/Bottom shortcuts are deliberately inverted** — top is ⌃⌘↓ and bottom is ⌃⌘↑,
+  matching what the user asked for. Both the constants and the tests say so; don't "fix" them.
+
+`tile(_:)` finds its target through the **system-wide** AX element
+(`AXUIElementCreateSystemWide()` → `kAXFocusedApplicationAttribute` → `kAXFocusedWindow`), not
+`NSWorkspace.shared.frontmostApplication` — the workspace answer is not trustworthy from an
+`LSUIElement` accessory process and was observed reporting `com.apple.loginwindow` while a normal
+app plainly had focus. The workspace is kept only as a fallback. Everything else that can go wrong — no focused window, a natively
+full-screen window, a fixed-size panel that refuses the new size — is a `Log.window` line, not an
+alert. The pure geometry is `nonisolated static` so `AppTests/WindowTilerTests.swift` can cover it
+without a real window or a permission grant; the AX half is verified by hand.
+
 ## Conventions
 
 - **Concurrency:** `SWIFT_STRICT_CONCURRENCY: minimal`. UI/coordinator classes are `@MainActor`;
@@ -305,7 +347,7 @@ the *first* assertion was created.
   `KeyEventCatcher`, `ShortcutRecorderField`, `InlineTextField`). Follow these patterns rather than
   fighting SwiftUI.
 - **Logging:** use `Log.<category>` from `Support/Logger.swift` (categories: `app`, `hotkey`,
-  `keepAwake`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`, `export`). View with
+  `keepAwake`, `window`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`, `export`). View with
   `log show --predicate 'subsystem == "com.mukker.Mukker"' --info --last 1m` (the subsystem is the
   bundle ID).
 - **Code signing:** ad-hoc only (`CODE_SIGN_IDENTITY: "-"`); hardened runtime auto-disabled. Don't

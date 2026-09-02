@@ -40,7 +40,7 @@ final class CoreSettingsTests: XCTestCase {
         XCTAssertFalse(settings.escCopiesAndCloses)
     }
 
-    // MARK: - ShortcutSettings (shared by the popup and the capture shortcuts)
+    // MARK: - ShortcutSettings (popup, capture and window-tiling shortcuts)
 
     @MainActor
     func testShortcutDefaults() {
@@ -49,6 +49,11 @@ final class CoreSettingsTests: XCTestCase {
         XCTAssertEqual(shortcuts.areaCombo, KeyCombo(key: .four, modifiers: [.command, .shift, .control]))
         XCTAssertEqual(shortcuts.fullscreenCombo, KeyCombo(key: .three, modifiers: [.command, .shift, .control]))
         XCTAssertEqual(shortcuts.scrollCombo, KeyCombo(key: .five, modifiers: [.command, .shift, .control]))
+        XCTAssertEqual(shortcuts.tileLeftCombo, KeyCombo(key: .leftArrow, modifiers: [.control, .command]))
+        XCTAssertEqual(shortcuts.tileRightCombo, KeyCombo(key: .rightArrow, modifiers: [.control, .command]))
+        // Deliberately inverted: top is ⌃⌘↓ and bottom is ⌃⌘↑, as asked for.
+        XCTAssertEqual(shortcuts.tileTopCombo, KeyCombo(key: .downArrow, modifiers: [.control, .command]))
+        XCTAssertEqual(shortcuts.tileBottomCombo, KeyCombo(key: .upArrow, modifiers: [.control, .command]))
     }
 
     @MainActor
@@ -57,10 +62,12 @@ final class CoreSettingsTests: XCTestCase {
         let first = ShortcutSettings(defaults: defaults)
         first.popupCombo = KeyCombo(key: .j, modifiers: [.command, .option])
         first.areaCombo = KeyCombo(key: .a, modifiers: [.command])
+        first.tileLeftCombo = KeyCombo(key: .h, modifiers: [.command, .option])
 
         let second = ShortcutSettings(defaults: defaults)
         XCTAssertEqual(second.popupCombo, KeyCombo(key: .j, modifiers: [.command, .option]))
         XCTAssertEqual(second.areaCombo, KeyCombo(key: .a, modifiers: [.command]))
+        XCTAssertEqual(second.tileLeftCombo, KeyCombo(key: .h, modifiers: [.command, .option]))
     }
 
     @MainActor
@@ -68,9 +75,36 @@ final class CoreSettingsTests: XCTestCase {
         let shortcuts = ShortcutSettings(defaults: makeDefaults())
         shortcuts.popupCombo = KeyCombo(key: .z, modifiers: [.control])
         shortcuts.scrollCombo = KeyCombo(key: .z, modifiers: [.control])
+        shortcuts.tileTopCombo = KeyCombo(key: .z, modifiers: [.control])
+        shortcuts.tileBottomCombo = KeyCombo(key: .z, modifiers: [.control])
         shortcuts.resetToDefaults()
         XCTAssertEqual(shortcuts.popupCombo, ShortcutSettings.defaultPopupCombo)
         XCTAssertEqual(shortcuts.scrollCombo, ShortcutSettings.defaultScrollCombo)
+        // The inverted vertical pair has to survive a reset too.
+        XCTAssertEqual(shortcuts.tileTopCombo, KeyCombo(key: .downArrow, modifiers: [.control, .command]))
+        XCTAssertEqual(shortcuts.tileBottomCombo, KeyCombo(key: .upArrow, modifiers: [.control, .command]))
+    }
+
+    // MARK: - WindowTilingSettings
+
+    @MainActor
+    func testWindowTilingDefaults() {
+        let settings = WindowTilingSettings(defaults: makeDefaults())
+        // Tiling is on out of the box; the gap is zero, so halves meet flush.
+        XCTAssertTrue(settings.isEnabled)
+        XCTAssertEqual(settings.gap, 0)
+    }
+
+    @MainActor
+    func testWindowTilingPersistsAcrossInstances() {
+        let defaults = makeDefaults()
+        let first = WindowTilingSettings(defaults: defaults)
+        first.isEnabled = false
+        first.gap = 12
+
+        let second = WindowTilingSettings(defaults: defaults)
+        XCTAssertFalse(second.isEnabled)
+        XCTAssertEqual(second.gap, 12)
     }
 
     @MainActor

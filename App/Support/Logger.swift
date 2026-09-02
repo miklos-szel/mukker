@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-/// Unified log categories across both feature sets. View with e.g.
+/// Unified log categories across every feature set. View with e.g.
 /// `log show --predicate 'subsystem == "com.mukker.Mukker"' --info --last 1m`.
 enum Log {
     static let subsystem = Branding.bundleID
@@ -10,6 +10,7 @@ enum Log {
     static let app = Logger(subsystem: subsystem, category: "app")
     static let hotkey = Logger(subsystem: subsystem, category: "hotkey")
     static let keepAwake = Logger(subsystem: subsystem, category: "keepAwake")
+    static let window = Logger(subsystem: subsystem, category: "window")
 
     // Clipboard / snippets
     static let clipboard = Logger(subsystem: subsystem, category: "clipboard")

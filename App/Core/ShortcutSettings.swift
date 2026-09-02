@@ -3,9 +3,10 @@ import Combine
 import HotKey
 
 /// Every global (system-wide) shortcut in one observable object: the popup from
-/// the clipboard/snippets side and the three capture shortcuts. `HotKeyManager`
-/// subscribes to all four, the Hotkeys settings tab edits them, and the menu-bar
-/// menu derives its glyphs from them — so the three never drift apart.
+/// the clipboard/snippets side, the three capture shortcuts and the four window
+/// tiling shortcuts. `HotKeyManager` subscribes to all of them, the settings
+/// panes edit them, and the menu-bar menu derives its glyphs from them — so the
+/// three never drift apart.
 @MainActor
 final class ShortcutSettings: ObservableObject {
     static let shared = ShortcutSettings()
@@ -18,10 +19,22 @@ final class ShortcutSettings: ObservableObject {
     @Published var fullscreenCombo: KeyCombo { didSet { defaults.set(fullscreenCombo.dictionary, forKey: K.full) } }
     @Published var scrollCombo: KeyCombo { didSet { defaults.set(scrollCombo.dictionary, forKey: K.scroll) } }
 
+    @Published var tileLeftCombo: KeyCombo { didSet { defaults.set(tileLeftCombo.dictionary, forKey: K.tileLeft) } }
+    @Published var tileRightCombo: KeyCombo { didSet { defaults.set(tileRightCombo.dictionary, forKey: K.tileRight) } }
+    @Published var tileTopCombo: KeyCombo { didSet { defaults.set(tileTopCombo.dictionary, forKey: K.tileTop) } }
+    @Published var tileBottomCombo: KeyCombo { didSet { defaults.set(tileBottomCombo.dictionary, forKey: K.tileBottom) } }
+
     static let defaultPopupCombo = KeyCombo(key: .e, modifiers: [.command])
     static let defaultAreaCombo = KeyCombo(key: .four, modifiers: [.command, .shift, .control])
     static let defaultFullscreenCombo = KeyCombo(key: .three, modifiers: [.command, .shift, .control])
     static let defaultScrollCombo = KeyCombo(key: .five, modifiers: [.command, .shift, .control])
+
+    static let defaultTileLeftCombo = KeyCombo(key: .leftArrow, modifiers: [.control, .command])
+    static let defaultTileRightCombo = KeyCombo(key: .rightArrow, modifiers: [.control, .command])
+    // The vertical pair is deliberately "inverted" — top is ⌃⌘↓ and bottom is
+    // ⌃⌘↑, matching the layout the user asked for. Do not "fix" it.
+    static let defaultTileTopCombo = KeyCombo(key: .downArrow, modifiers: [.control, .command])
+    static let defaultTileBottomCombo = KeyCombo(key: .upArrow, modifiers: [.control, .command])
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -30,15 +43,25 @@ final class ShortcutSettings: ObservableObject {
         areaCombo = Self.combo(from: defaults, key: K.area) ?? Self.defaultAreaCombo
         fullscreenCombo = Self.combo(from: defaults, key: K.full) ?? Self.defaultFullscreenCombo
         scrollCombo = Self.combo(from: defaults, key: K.scroll) ?? Self.defaultScrollCombo
+
+        tileLeftCombo = Self.combo(from: defaults, key: K.tileLeft) ?? Self.defaultTileLeftCombo
+        tileRightCombo = Self.combo(from: defaults, key: K.tileRight) ?? Self.defaultTileRightCombo
+        tileTopCombo = Self.combo(from: defaults, key: K.tileTop) ?? Self.defaultTileTopCombo
+        tileBottomCombo = Self.combo(from: defaults, key: K.tileBottom) ?? Self.defaultTileBottomCombo
     }
 
-    /// Emits whenever any of the four combos changes — the manager's re-register signal.
+    /// Emits whenever any combo changes — the manager's re-register signal.
+    ///
+    /// `dropFirst` has to match the number of merged publishers exactly, because
+    /// `@Published` replays its current value on subscribe: too low and the
+    /// manager re-registers spuriously at launch, too high and the first real
+    /// edit is swallowed. Keep the two in step when adding a combo.
     var comboChanges: AnyPublisher<Void, Never> {
-        Publishers.Merge4($popupCombo.map { _ in () },
-                          $areaCombo.map { _ in () },
-                          $fullscreenCombo.map { _ in () },
-                          $scrollCombo.map { _ in () })
-            .dropFirst(4)   // @Published emits the current value on subscribe
+        let publishers = [$popupCombo, $areaCombo, $fullscreenCombo, $scrollCombo,
+                          $tileLeftCombo, $tileRightCombo, $tileTopCombo, $tileBottomCombo]
+            .map { $0.map { _ in () }.eraseToAnyPublisher() }
+        return Publishers.MergeMany(publishers)
+            .dropFirst(publishers.count)
             .eraseToAnyPublisher()
     }
 
@@ -47,6 +70,10 @@ final class ShortcutSettings: ObservableObject {
         areaCombo = Self.defaultAreaCombo
         fullscreenCombo = Self.defaultFullscreenCombo
         scrollCombo = Self.defaultScrollCombo
+        tileLeftCombo = Self.defaultTileLeftCombo
+        tileRightCombo = Self.defaultTileRightCombo
+        tileTopCombo = Self.defaultTileTopCombo
+        tileBottomCombo = Self.defaultTileBottomCombo
     }
 
     private static func combo(from defaults: UserDefaults, key: String) -> KeyCombo? {
@@ -59,5 +86,9 @@ final class ShortcutSettings: ObservableObject {
         static let area = "areaCombo"
         static let full = "fullscreenCombo"
         static let scroll = "scrollCombo"
+        static let tileLeft = "tileLeftCombo"
+        static let tileRight = "tileRightCombo"
+        static let tileTop = "tileTopCombo"
+        static let tileBottom = "tileBottomCombo"
     }
 }

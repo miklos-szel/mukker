@@ -3,6 +3,17 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **Window tiling.** Four global shortcuts snap the frontmost window to half of the screen it is
+  already on, filling the space between the menu bar and the Dock: **⌃⌘←** left half, **⌃⌘→**
+  right half, **⌃⌘↓** top half, **⌃⌘↑** bottom half. The move is immediate — no animation and no
+  focus change. A new **Settings → Windows** tab holds the on/off switch, the four rebindable
+  shortcuts and an optional gap between tiled windows; switching tiling off releases the ⌃⌘arrow
+  combos back to other apps rather than swallowing them. Moving windows uses the Accessibility
+  permission Mukker already needs for pasting, so nothing new to grant on an existing install.
+
 ## [0.6.0] - 2026-08-21
 
 ### Fixed

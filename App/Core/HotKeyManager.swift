@@ -12,38 +12,60 @@ import SwiftUI
 final class HotKeyManager {
     static let shared = HotKeyManager()
 
+    /// One registerable shortcut: where its combo lives in `ShortcutSettings`,
+    /// whether it currently wants to be registered, and what it does. Actions
+    /// whose `isEnabled` returns false are skipped entirely rather than
+    /// registered-and-ignored, so their combo stays available to other apps.
+    struct Action {
+        let combo: KeyPath<ShortcutSettings, KeyCombo>
+        var isEnabled: () -> Bool = { true }
+        let handler: () -> Void
+
+        init(combo: KeyPath<ShortcutSettings, KeyCombo>,
+             isEnabled: @escaping () -> Bool = { true },
+             handler: @escaping () -> Void) {
+            self.combo = combo
+            self.isEnabled = isEnabled
+            self.handler = handler
+        }
+    }
+
     private var hotKeys: [HotKey] = []
     private var cancellables: Set<AnyCancellable> = []
     private var settings: ShortcutSettings?
-    private var handlers: [(KeyPath<ShortcutSettings, KeyCombo>, () -> Void)] = []
+    private var actions: [Action] = []
 
     /// Wires the action handlers and registers the current combos, then keeps the
-    /// registration in sync with `ShortcutSettings` changes.
+    /// registration in sync with `ShortcutSettings` changes. `reloadOn` is an
+    /// extra re-register trigger for anything outside `ShortcutSettings` that can
+    /// flip an action's `isEnabled` — the window-tiling on/off switch.
+    ///
+    /// Called exactly once, from `AppDelegate`: `actions` is assigned, not
+    /// appended, so a second call would silently drop the first set.
     func start(settings: ShortcutSettings,
-               popup: @escaping () -> Void,
-               area: @escaping () -> Void,
-               screen: @escaping () -> Void,
-               scroll: @escaping () -> Void) {
+               actions: [Action],
+               reloadOn: AnyPublisher<Void, Never>? = nil) {
         self.settings = settings
-        handlers = [
-            (\.popupCombo, popup),
-            (\.areaCombo, area),
-            (\.fullscreenCombo, screen),
-            (\.scrollCombo, scroll)
-        ]
+        self.actions = actions
         reload()
 
         settings.comboChanges
+            .sink { [weak self] in self?.reload() }
+            .store(in: &cancellables)
+
+        reloadOn?
             .sink { [weak self] in self?.reload() }
             .store(in: &cancellables)
     }
 
     func reload() {
         guard let settings else { return }
+        // Dropping a `HotKey` is what deregisters it — the object *is* the
+        // registration.
         hotKeys.removeAll()
-        for (combo, action) in handlers {
-            let key = HotKey(keyCombo: settings[keyPath: combo])
-            key.keyDownHandler = action
+        for action in actions where action.isEnabled() {
+            let key = HotKey(keyCombo: settings[keyPath: action.combo])
+            key.keyDownHandler = action.handler
             hotKeys.append(key)
         }
         Log.hotkey.info("registered \(self.hotKeys.count) global hotkeys")

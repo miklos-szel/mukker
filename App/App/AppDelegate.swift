@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// Wires every long-lived service in the app. Read this top-to-bottom to follow
@@ -44,12 +45,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // One manager owns all four system-wide shortcuts. The menu items carry
         // the same key equivalents for discoverability; CaptureCoordinator's
         // in-flight guard keeps a double-trigger from starting two captures.
+        // Window tiling registers only while it is switched on, so that its
+        // ⌃⌘arrow combos are free for other apps when the user doesn't want it.
+        let tilingEnabled = { WindowTilingSettings.shared.isEnabled }
         HotKeyManager.shared.start(
             settings: ShortcutSettings.shared,
-            popup: { PopupWindowController.shared.toggle() },   // toggles: press again to close
-            area: { [weak self] in self?.captureArea() },
-            screen: { [weak self] in self?.captureScreen() },
-            scroll: { [weak self] in self?.captureScrolling() }
+            actions: [
+                .init(combo: \.popupCombo,
+                      handler: { PopupWindowController.shared.toggle() }),  // toggles: press again to close
+                .init(combo: \.areaCombo, handler: { [weak self] in self?.captureArea() }),
+                .init(combo: \.fullscreenCombo, handler: { [weak self] in self?.captureScreen() }),
+                .init(combo: \.scrollCombo, handler: { [weak self] in self?.captureScrolling() }),
+                .init(combo: \.tileLeftCombo, isEnabled: tilingEnabled,
+                      handler: { [weak self] in self?.tileWindow(.left) }),
+                .init(combo: \.tileRightCombo, isEnabled: tilingEnabled,
+                      handler: { [weak self] in self?.tileWindow(.right) }),
+                .init(combo: \.tileTopCombo, isEnabled: tilingEnabled,
+                      handler: { [weak self] in self?.tileWindow(.top) }),
+                .init(combo: \.tileBottomCombo, isEnabled: tilingEnabled,
+                      handler: { [weak self] in self?.tileWindow(.bottom) })
+            ],
+            reloadOn: WindowTilingSettings.shared.$isEnabled
+                .dropFirst()
+                .map { _ in () }
+                .eraseToAnyPublisher()
         )
 
         // We hide the dock icon via LSUIElement; still set activation policy as a guard
@@ -100,6 +119,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func captureScrolling() {
         ScrollingCaptureService.shared.capture()
+    }
+
+    // MARK: - Window tiling entry point
+
+    func tileWindow(_ slot: TileSlot) {
+        WindowTiler.shared.tile(slot)
     }
 
     /// Routes a finished capture according to the user's "After screenshot" setting.
