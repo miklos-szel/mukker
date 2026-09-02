@@ -36,6 +36,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
     private var cancellables: Set<AnyCancellable> = []
+    /// The glyph is redrawn once a day, not once a menu open.
+    private var cachedIcon: (day: Int, image: NSImage)?
+    private var dayRolloverTimer: Timer?
 
     init(actions: Actions) {
         self.actions = actions
@@ -55,9 +58,16 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         // and once a minute while counting down — exactly the cadence we want,
         // and the reason it is deliberately throttled (see KeepAwakeService).
         KeepAwakeService.shared.objectWillChange
+            .merge(with: CalendarSettings.shared.objectWillChange)
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.refreshStatusItem() }
             .store(in: &cancellables)
+
+        observeDayRollover()
+    }
+
+    deinit {
+        dayRolloverTimer?.invalidate()
     }
 
     // MARK: - Status item
@@ -65,11 +75,75 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// Re-applies the button's icon and title. Cheap enough to call freely.
     func refreshStatusItem() {
         guard let button = statusItem.button else { return }
+        let settings = CalendarSettings.shared
         let awake = KeepAwakeService.shared.isActive
-        button.image = NSImage(named: awake ? "MenuBarIconAwake" : "MenuBarIcon")
-        button.imagePosition = .imageLeading
-        button.title = ""
+        let now = Date()
+
+        if settings.showsDateInMenuBar {
+            button.image = icon(for: settings.displayCalendar.component(.day, from: now))
+            button.title = MenuBarDateText.text(for: now,
+                                                format: settings.menuBarFormat,
+                                                custom: settings.customDateFormat)
+            // The date replaces the app glyph, so Keep Awake can no longer show
+            // itself by swapping icons — it tints the whole item instead.
+            button.contentTintColor = awake ? .controlAccentColor : nil
+        } else {
+            button.image = NSImage(named: awake ? "MenuBarIconAwake" : "MenuBarIcon")
+            button.title = ""
+            button.contentTintColor = nil
+        }
+
+        button.font = .menuBarFont(ofSize: 0)
+        button.imageHugsTitle = true
+        button.imagePosition = button.title.isEmpty ? .imageOnly : .imageLeading
         button.toolTip = Branding.name
+    }
+
+    private func icon(for day: Int) -> NSImage {
+        if let cachedIcon, cachedIcon.day == day { return cachedIcon.image }
+        let image = MenuBarDateIcon.image(day: day)
+        cachedIcon = (day, image)
+        return image
+    }
+
+    // MARK: - Day rollover
+
+    /// Keeps the date current without a ticking clock. Two independent halves,
+    /// because neither is sufficient alone: a timer armed on an **absolute**
+    /// midnight (run-loop timers don't advance while the Mac sleeps, the same
+    /// trap `KeepAwakeService` documents), plus the system's own day-changed,
+    /// clock-changed and wake notifications.
+    private func observeDayRollover() {
+        let workspace = NSWorkspace.shared.notificationCenter
+        Publishers.MergeMany(
+            NotificationCenter.default.publisher(for: .NSCalendarDayChanged).map { _ in () },
+            NotificationCenter.default.publisher(for: .NSSystemClockDidChange).map { _ in () },
+            workspace.publisher(for: NSWorkspace.didWakeNotification).map { _ in () }
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] in self?.dayDidChange() }
+        .store(in: &cancellables)
+
+        scheduleDayRolloverTimer()
+    }
+
+    private func scheduleDayRolloverTimer() {
+        dayRolloverTimer?.invalidate()
+        let calendar = Calendar.current
+        guard let midnight = calendar.nextDate(after: Date(),
+                                               matching: DateComponents(hour: 0, minute: 0, second: 2),
+                                               matchingPolicy: .nextTime) else { return }
+        let timer = Timer(fire: midnight, interval: 0, repeats: false) { _ in
+            MainActor.assumeIsolated { [weak self] in self?.dayDidChange() }
+        }
+        // `.common` so it still fires while a menu is open.
+        RunLoop.main.add(timer, forMode: .common)
+        dayRolloverTimer = timer
+    }
+
+    private func dayDidChange() {
+        refreshStatusItem()
+        scheduleDayRolloverTimer()
     }
 
     // MARK: - NSMenuDelegate
