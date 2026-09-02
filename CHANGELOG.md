@@ -3,7 +3,7 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.7.0] - 2026-09-02
 
 ### Added
 - **Window tiling.** Four global shortcuts snap the frontmost window to half of the screen it is
@@ -12,7 +12,9 @@ All notable changes to Mukker are documented here. The format loosely follows
   focus change. A new **Settings → Windows** tab holds the on/off switch, the four rebindable
   shortcuts and an optional gap between tiled windows; switching tiling off releases the ⌃⌘arrow
   combos back to other apps rather than swallowing them. Moving windows uses the Accessibility
-  permission Mukker already needs for pasting, so nothing new to grant on an existing install.
+  permission Mukker already needs for pasting, so nothing new to grant on an existing install —
+  **Settings → Permissions** now lists moving windows alongside pasting, double-⌘C merging and
+  scrolling capture, and stays the one place any permission is granted.
 
 ## [0.6.0] - 2026-08-21
 
