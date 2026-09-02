@@ -38,7 +38,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
     private var cancellables: Set<AnyCancellable> = []
     /// The glyph is redrawn once a day, not once a menu open.
-    private var cachedIcon: (day: Int, image: NSImage)?
+    private var cachedIcon: (day: Int, awake: Bool, image: NSImage)?
     private var dayRolloverTimer: Timer?
 
     /// The menu is rebuilt on every open, but the calendar is not: keeping the
@@ -106,17 +106,16 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let now = Date()
 
         if settings.showsDateInMenuBar {
-            button.image = icon(for: settings.displayCalendar.component(.day, from: now))
+            // The date replaces the app glyph, so Keep Awake's corner dot moves
+            // onto the calendar page rather than swapping the whole icon.
+            button.image = icon(for: settings.displayCalendar.component(.day, from: now),
+                                awake: awake)
             button.title = MenuBarDateText.text(for: now,
                                                 format: settings.menuBarFormat,
                                                 custom: settings.customDateFormat)
-            // The date replaces the app glyph, so Keep Awake can no longer show
-            // itself by swapping icons — it tints the whole item instead.
-            button.contentTintColor = awake ? .controlAccentColor : nil
         } else {
             button.image = NSImage(named: awake ? "MenuBarIconAwake" : "MenuBarIcon")
             button.title = ""
-            button.contentTintColor = nil
         }
 
         button.font = .menuBarFont(ofSize: 0)
@@ -125,10 +124,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         button.toolTip = Branding.name
     }
 
-    private func icon(for day: Int) -> NSImage {
-        if let cachedIcon, cachedIcon.day == day { return cachedIcon.image }
-        let image = MenuBarDateIcon.image(day: day)
-        cachedIcon = (day, image)
+    private func icon(for day: Int, awake: Bool) -> NSImage {
+        if let cachedIcon, cachedIcon.day == day, cachedIcon.awake == awake {
+            return cachedIcon.image
+        }
+        let image = MenuBarDateIcon.image(day: day, awake: awake)
+        cachedIcon = (day, awake, image)
         return image
     }
 

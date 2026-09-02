@@ -59,7 +59,7 @@ window to half the screen.
   leave the Mac pinned awake by accident. Pick a different length from the *Keep Awake* menu
   (5 minutes through 5 hours, or until you turn it off), or change the default in
   **Settings → Keep Awake**.
-- **The menu-bar item shows the state** — it takes on your accent colour while Keep Awake is on —
+- **The menu-bar item shows the state** — the calendar page fills in solid while Keep Awake is on —
   and the menu shows the time remaining.
 - **Optionally let the display sleep** while the machine keeps running, turn it on automatically at
   launch, and have it stand down when you close the lid or sleep the Mac yourself.

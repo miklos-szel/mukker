@@ -355,8 +355,11 @@ Things that are load-bearing and easy to undo:
 - **The day number refreshes off an absolute deadline** — a timer armed on the next midnight, plus
   `.NSCalendarDayChanged`, `.NSSystemClockDidChange` and `didWakeNotification`. Same trap as Keep
   Awake: run-loop timers don't advance while the Mac sleeps. Never poll per second.
-- **Keep Awake lost its icon swap** while the date is on, because the date *is* the icon; it tints
-  the status item instead. Switching the date off restores the old glyph and the old swap.
+- **Keep Awake lost its icon swap** while the date is on, because the date *is* the icon: the page
+  is drawn **filled** with the day number knocked out of it instead. Not a colour — a template
+  image only has an alpha channel, and `controlAccentColor` resolves near-black against the menu
+  bar — and not a corner badge either, because an 18 pt glyph has no room for one beside a
+  two-digit number. Switching the date off restores the old glyph and the old swap.
 - `CalendarSettings.hiddenCalendarIDs` stores the calendars to **hide**, not to show, so one
   subscribed to later appears by default instead of silently going missing.
 
