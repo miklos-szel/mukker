@@ -174,6 +174,35 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     // MARK: - NSMenuDelegate
 
+    func menuWillOpen(_ menu: NSMenu) {
+        makeOpaque(menu)
+    }
+
+    /// Menus are translucent by default: the system draws them into an
+    /// `NSVisualEffectView` that samples the desktop behind. A calendar grid
+    /// read over whatever happens to be behind it is hard work, so the effect
+    /// view is switched to blend within the window and the window is given an
+    /// opaque background for it to blend with.
+    ///
+    /// Nothing private is touched — this walks the menu window's own view tree
+    /// and sets public properties — but it is best-effort by nature: if AppKit
+    /// ever stops using an effect view here, the menu simply stays translucent.
+    private func makeOpaque(_ menu: NSMenu) {
+        guard let window = calendarHostingView.window else { return }
+        window.isOpaque = true
+        window.backgroundColor = .windowBackgroundColor
+        for effectView in Self.visualEffectViews(in: window.contentView) {
+            effectView.blendingMode = .withinWindow
+            effectView.state = .active
+        }
+    }
+
+    private static func visualEffectViews(in view: NSView?) -> [NSVisualEffectView] {
+        guard let view else { return [] }
+        let own = (view as? NSVisualEffectView).map { [$0] } ?? []
+        return own + view.subviews.flatMap { visualEffectViews(in: $0) }
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         // Before `buildItems`, not in `menuWillOpen`: AppKit asks for the items
         // first, so resetting afterwards would leave the event rows describing
