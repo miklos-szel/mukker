@@ -31,6 +31,8 @@ struct EditorView: View {
     /// Visual-only pan offset for the hand tool (never affects the exported image).
     @State private var viewPan: CGSize = .zero
     @State private var panStart: CGSize?
+    /// True while a hand-tool drag is in flight, so the cursor can close its hand.
+    @State private var isPanning = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -45,7 +47,8 @@ struct EditorView: View {
         })
         .overlay(alignment: .bottom) { statusHUD }
         .animation(.easeInOut(duration: 0.2), value: viewModel.statusMessage)
-        // Min width keeps the whole toolbar visible even when resized down.
+        // Min width keeps the whole toolbar visible even when resized down (the
+        // window also enforces it via `contentMinSize`).
         .frame(minWidth: EditorMetrics.minWindowWidth, minHeight: EditorMetrics.minWindowHeight)
         .background(Color(nsColor: .windowBackgroundColor))
         // Key handling lives at the root so it catches shortcuts regardless of which
@@ -80,6 +83,7 @@ struct EditorView: View {
                     // through the transparent surround; the white content region
                     // (FlatCanvas) shows exactly what will export.
                     FlatCanvas(baseImage: viewModel.baseImage,
+                               baseNSImage: viewModel.baseNSImage,
                                imageSize: viewModel.logicalSize,
                                contentBounds: draw,
                                imageOrigin: viewModel.imageOrigin,
@@ -91,11 +95,11 @@ struct EditorView: View {
                     ToolGestureHandler(viewModel: viewModel, bounds: work,
                                        onPan: { translation in
                                            let base = panStart ?? viewPan
-                                           if panStart == nil { panStart = base }
+                                           if panStart == nil { panStart = base; isPanning = true }
                                            viewPan = CGSize(width: base.width + translation.width,
                                                             height: base.height + translation.height)
                                        },
-                                       onPanEnded: { panStart = nil })
+                                       onPanEnded: { panStart = nil; isPanning = false })
                 }
                 .frame(width: work.width, height: work.height, alignment: .topLeading)
                 // Scale from the center: `scaleEffect` keeps the pre-scale layout size
@@ -109,6 +113,9 @@ struct EditorView: View {
                 .offset(viewPan)
             }
             .scrollIndicators(.visible)
+            // The pointer tells you what the next drag will do: crosshair to draw
+            // or crop, open/closed hand to pan, I-beam for text, arrow to select.
+            .editorCursor(tool: viewModel.activeTool, panning: isPanning)
             .background(Checkerboard())
             .onAppear { fitToWindow(proxy.size) }
             .onChange(of: proxy.size) { _, newSize in fitToWindow(newSize) }
@@ -159,6 +166,18 @@ struct EditorView: View {
             viewModel.requestClose?()
             return .handled
         }
+        // Undo/redo live here rather than as toolbar key equivalents: a button's
+        // key equivalent fires even while an inline text field has focus, so ⌘Z
+        // mid-typing used to undo the whole editor state instead of the edit.
+        // The `editingTextID` guard at the top of this method now covers them.
+        if press.modifiers == .command, press.characters == "z" {
+            viewModel.undo()
+            return .handled
+        }
+        if press.modifiers == [.command, .shift], press.characters.lowercased() == "z" {
+            viewModel.redo()
+            return .handled
+        }
         if press.modifiers.isEmpty {
             if press.key == .return {
                 // While a crop is pending, Return applies it (matches the toolbar's
@@ -186,6 +205,10 @@ struct EditorView: View {
             if let char = press.characters.first,
                let tool = EditorShortcuts.tool(forKey: char, CaptureSettings.shared) {
                 viewModel.activeTool = tool
+                // A keyboard tool switch had no feedback at all beyond the
+                // toolbar highlight, which is easy to miss while looking at the
+                // canvas. Name the tool in the HUD instead.
+                viewModel.flash(tool.help)
                 return .handled
             }
         }

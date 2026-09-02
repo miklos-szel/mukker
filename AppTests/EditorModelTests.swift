@@ -417,4 +417,77 @@ final class EditorModelTests: XCTestCase {
         XCTAssertFalse(vm.style.textBackground)
         XCTAssertFalse(vm.annotations[0].style.textBackground)
     }
+
+    // MARK: - Tool grouping / cursors
+
+    /// The toolbar renders `Tool.groups`, so a tool missing from it would silently
+    /// vanish from the palette while still being keyboard-reachable.
+    func testToolGroupsPartitionAllCases() {
+        let grouped = Tool.groups.flatMap { $0 }
+        XCTAssertEqual(grouped.count, Tool.allCases.count,
+                       "Tool.groups must contain every tool exactly once")
+        XCTAssertEqual(Set(grouped), Set(Tool.allCases))
+        XCTAssertEqual(Set(grouped).count, grouped.count, "no tool may appear twice")
+    }
+
+    func testCursorForEveryTool() {
+        XCTAssertEqual(EditorCursors.cursor(for: .select), NSCursor.arrow)
+        XCTAssertEqual(EditorCursors.cursor(for: .text), NSCursor.iBeam)
+        XCTAssertEqual(EditorCursors.cursor(for: .hand), NSCursor.openHand)
+        XCTAssertEqual(EditorCursors.cursor(for: .hand, panning: true), NSCursor.closedHand)
+        // Everything that draws (and crop) gets the crosshair.
+        for tool in Tool.allCases where tool != .select && tool != .text && tool != .hand {
+            XCTAssertEqual(EditorCursors.cursor(for: tool), NSCursor.crosshair,
+                           "\(tool) should use the crosshair")
+        }
+    }
+
+    /// Only the hand tool changes cursor mid-gesture; panning must not leak into
+    /// the others.
+    func testPanningOnlyAffectsHandTool() {
+        for tool in Tool.allCases where tool != .hand {
+            XCTAssertEqual(EditorCursors.cursor(for: tool, panning: true),
+                           EditorCursors.cursor(for: tool, panning: false),
+                           "\(tool) should ignore the panning flag")
+        }
+    }
+
+    func testEdgeHandlesUseDirectionalResizeCursors() {
+        XCTAssertEqual(EditorCursors.cursor(for: EditorViewModel.Handle.top), NSCursor.resizeUpDown)
+        XCTAssertEqual(EditorCursors.cursor(for: EditorViewModel.Handle.bottom), NSCursor.resizeUpDown)
+        XCTAssertEqual(EditorCursors.cursor(for: EditorViewModel.Handle.left), NSCursor.resizeLeftRight)
+        XCTAssertEqual(EditorCursors.cursor(for: EditorViewModel.Handle.right), NSCursor.resizeLeftRight)
+    }
+
+    // MARK: - Freehand point decimation
+
+    /// A drag emits an event per mouse-move regardless of distance; near-duplicate
+    /// points cost redraw time and buy no fidelity.
+    @MainActor
+    func testFreehandSkipsPointsBelowMinimumSpacing() {
+        let vm = EditorViewModel(image: solidImage(.white), sourceScale: 1.0)
+        vm.activeTool = .freehand
+        vm.dragChanged(start: CGPoint(x: 10, y: 10), current: CGPoint(x: 10, y: 10))
+        let seeded = vm.draft?.points.count ?? 0
+        // Well under the 1.5 pt threshold — dropped.
+        vm.dragChanged(start: CGPoint(x: 10, y: 10), current: CGPoint(x: 10.2, y: 10))
+        XCTAssertEqual(vm.draft?.points.count, seeded)
+        // Comfortably past it — kept.
+        vm.dragChanged(start: CGPoint(x: 10, y: 10), current: CGPoint(x: 40, y: 40))
+        XCTAssertEqual(vm.draft?.points.count, seeded + 1)
+    }
+
+    /// The cached wrapper must follow the image through a crop, or the canvas keeps
+    /// drawing the pre-crop bitmap.
+    @MainActor
+    func testBaseNSImageTracksBaseImage() {
+        let vm = EditorViewModel(image: solidImage(.white), sourceScale: 1.0)
+        let before = vm.baseNSImage
+        vm.activeTool = .crop
+        vm.dragChanged(start: CGPoint(x: 5, y: 5), current: CGPoint(x: 40, y: 40))
+        vm.dragEnded(start: CGPoint(x: 5, y: 5), current: CGPoint(x: 40, y: 40))
+        vm.applyCrop()
+        XCTAssertFalse(before === vm.baseNSImage, "the cached NSImage must be rebuilt on crop")
+        XCTAssertEqual(Int(vm.baseNSImage.size.width), vm.baseImage.width)
+    }
 }

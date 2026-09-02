@@ -95,6 +95,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             print(menuBar.debugDump())
             exit(0)
         }
+        // Same reason: the editor is only reachable by taking a real capture, so
+        // its chrome can't otherwise be screenshotted from a script. Reuses the
+        // existing `openDebugSample()` so both paths show the same test canvas.
+        if ProcessInfo.processInfo.environment["MUKKER_OPEN_EDITOR"] == "1" {
+            openDebugSample()
+        }
 #endif
 
         // We hide the dock icon via LSUIElement; still set activation policy as a guard
