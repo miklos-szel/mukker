@@ -11,6 +11,7 @@ enum Log {
     static let hotkey = Logger(subsystem: subsystem, category: "hotkey")
     static let keepAwake = Logger(subsystem: subsystem, category: "keepAwake")
     static let window = Logger(subsystem: subsystem, category: "window")
+    static let calendar = Logger(subsystem: subsystem, category: "calendar")
 
     // Clipboard / snippets
     static let clipboard = Logger(subsystem: subsystem, category: "clipboard")

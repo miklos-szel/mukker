@@ -1,14 +1,17 @@
 import AppKit
 import ApplicationServices
 import CoreGraphics
+import EventKit
 
 /// The single owner of every macOS privacy permission the app touches.
 ///
 /// - **Screen Recording** (TCC): required by ScreenCaptureKit — without it
 ///   `SCShareableContent.current` fails and captures produce nothing.
-/// - **Accessibility** (AX trust): required by three independent subsystems —
-///   pasting (synthetic ⌘V), the fast-append global ⌘C monitor, and scrolling
-///   capture (synthetic scroll events). One grant covers all three.
+/// - **Accessibility** (AX trust): required by four independent subsystems —
+///   pasting (synthetic ⌘V), the fast-append global ⌘C monitor, scrolling
+///   capture (synthetic scroll events) and window tiling. One grant covers all.
+/// - **Calendars** (TCC): read-only, so the menu bar calendar can list the
+///   selected day's events. Nothing else in the app touches EventKit.
 ///
 /// Status is read live (`AXIsProcessTrusted` / `CGPreflightScreenCaptureAccess`)
 /// rather than cached: the user can revoke either one in System Settings at any
@@ -80,6 +83,37 @@ final class PermissionsService {
         if requestAccessibilityPermission() { return true }
         presentAccessibilityDeniedAlert(reason: reason)
         return false
+    }
+
+    // MARK: - Calendars
+
+    /// Non-prompting check. `.fullAccess` is the only status that lets us read
+    /// events; write-only access (which macOS also offers) is no use here.
+    var hasCalendarAccess: Bool {
+        EKEventStore.authorizationStatus(for: .event) == .fullAccess
+    }
+
+    /// Triggers the system prompt the first time. Creating the store is itself
+    /// part of the prompt, so this is deliberately the only place one is made
+    /// before access exists.
+    @discardableResult
+    func requestCalendarAccess() async -> Bool {
+        guard !hasCalendarAccess else { return true }
+        do {
+            let granted = try await EKEventStore().requestFullAccessToEvents()
+            CalendarEventsService.shared.reset()
+            return granted
+        } catch {
+            Log.calendar.error("calendar access request failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    func openCalendarSettings() {
+        let urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
+        if let url = URL(string: urlString) {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     // MARK: - Alerts

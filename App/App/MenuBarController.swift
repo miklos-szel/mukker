@@ -52,6 +52,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         item.view = calendarHostingView
         return item
     }()
+    /// Where the selected day's event rows sit in the live menu, so selecting
+    /// another day can swap just those while the menu stays open.
+    private var eventItemRange: Range<Int> = 0..<0
 
     init(actions: Actions) {
         self.actions = actions
@@ -77,6 +80,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             .store(in: &cancellables)
 
         observeDayRollover()
+
+        calendarModel.onSelectionChanged = { [weak self] in self?.replaceEventItems() }
     }
 
     /// Sizes the hosted calendar to what SwiftUI wants. A menu takes the item's
@@ -189,6 +194,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         items.append(calendarItem)
         items.append(.separator())
 
+        let events = eventItems()
+        eventItemRange = items.count ..< (items.count + events.count)
+        items.append(contentsOf: events)
+        if !events.isEmpty { items.append(.separator()) }
+
         items.append(submenu("Clipboard & Snippets", of: [
             ActionMenuItem("Show Clipboard & Snippets", combo: shortcuts.popupCombo,
                            handler: actions.showPopup),
@@ -238,6 +248,93 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return items
     }
 
+    // MARK: - Events
+
+    /// The selected day's events as real menu items — free hover highlighting,
+    /// and the menu sizes itself to however many there are.
+    private func eventItems() -> [NSMenuItem] {
+        let settings = CalendarSettings.shared
+        guard settings.showsEvents else { return [] }
+
+        guard CalendarEventsService.shared.hasAccess else {
+            return [ActionMenuItem("Grant Calendar access…", handler: actions.openSettings)]
+        }
+
+        var items: [NSMenuItem] = [header(calendarModel.selectedDayTitle)]
+        let events = calendarModel.events
+        guard !events.isEmpty else {
+            items.append(disabled("No events"))
+            return items
+        }
+
+        let shown = events.prefix(max(1, settings.maxEventsShown))
+        items.append(contentsOf: shown.map(eventItem))
+        if events.count > shown.count {
+            items.append(disabled("\(events.count - shown.count) more"))
+        }
+        return items
+    }
+
+    private func eventItem(_ event: CalendarEvent) -> NSMenuItem {
+        let item = NSMenuItem()
+        // Disabled so the row stays informational, but with an attributed title
+        // so it is still rendered at full contrast rather than greyed out.
+        item.isEnabled = false
+        item.attributedTitle = Self.eventTitle(event)
+        item.image = Self.swatch(event.calendarColor)
+        return item
+    }
+
+    private static func eventTitle(_ event: CalendarEvent) -> NSAttributedString {
+        let text = NSMutableAttributedString()
+        let time = event.isAllDay ? "all-day" : Self.timeFormatter.string(from: event.start)
+        text.append(NSAttributedString(string: time, attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular),
+            .foregroundColor: NSColor.secondaryLabelColor
+        ]))
+        text.append(NSAttributedString(string: "  " + (event.title.isEmpty ? "(no title)" : event.title),
+                                       attributes: [
+            .font: NSFont.menuFont(ofSize: 0),
+            .foregroundColor: NSColor.labelColor
+        ]))
+        return text
+    }
+
+    /// The calendar's colour. Not a template image — the colour is the point.
+    private static func swatch(_ color: NSColor) -> NSImage {
+        let size = NSSize(width: 9, height: 9)
+        let image = NSImage(size: size, flipped: false) { rect in
+            color.setFill()
+            NSBezierPath(ovalIn: rect.insetBy(dx: 0.5, dy: 0.5)).fill()
+            return true
+        }
+        return image
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    /// Swaps the event rows in the open menu when the selected day changes.
+    private func replaceEventItems() {
+        guard menu.numberOfItems > eventItemRange.lowerBound else { return }
+        let start = eventItemRange.lowerBound
+        let hadSeparator = !eventItemRange.isEmpty
+        for _ in eventItemRange { menu.removeItem(at: start) }
+        // The trailing separator only exists when there were rows to separate.
+        if hadSeparator, menu.item(at: start)?.isSeparatorItem == true {
+            menu.removeItem(at: start)
+        }
+
+        let items = eventItems()
+        for (offset, item) in items.enumerated() { menu.insertItem(item, at: start + offset) }
+        if !items.isEmpty { menu.insertItem(.separator(), at: start + items.count) }
+        eventItemRange = start ..< (start + items.count)
+    }
+
     // MARK: - Item helpers
 
     private func submenu(_ title: String, of items: [NSMenuItem]) -> NSMenuItem {
@@ -249,10 +346,21 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return item
     }
 
-    /// A greyed-out informational row (the Keep Awake countdown).
+    /// A greyed-out informational row (the Keep Awake countdown, "No events").
     private func disabled(_ title: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         item.isEnabled = false
+        return item
+    }
+
+    /// A small-caps section label above the event rows.
+    private func header(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem()
+        item.isEnabled = false
+        item.attributedTitle = NSAttributedString(string: title, attributes: [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold),
+            .foregroundColor: NSColor.secondaryLabelColor
+        ])
         return item
     }
 }

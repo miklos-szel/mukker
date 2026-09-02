@@ -16,6 +16,9 @@ final class CalendarMenuModel: ObservableObject {
     @Published private(set) var days: [CalendarDay] = []
     /// Start-of-day dates in the visible grid that have at least one event.
     @Published private(set) var daysWithEvents: Set<Date> = []
+    /// The selected day's events. The menu renders these as real menu items, so
+    /// the view itself never draws them.
+    @Published private(set) var events: [CalendarEvent] = []
 
     /// Called whenever the selected day changes, so the controller can swap the
     /// event rows underneath while the menu is open.
@@ -30,8 +33,10 @@ final class CalendarMenuModel: ObservableObject {
         selectedDay = calendar.startOfDay(for: now)
         rebuild()
 
-        // The first-day-of-week override changes the grid's shape.
+        // The first-day-of-week override changes the grid's shape; hiding a
+        // calendar changes what the grid marks.
         settings.objectWillChange
+            .merge(with: CalendarEventsService.shared.objectWillChange)
             .receive(on: RunLoop.main)
             .sink { [weak self] in
                 self?.calendar = CalendarSettings.shared.displayCalendar
@@ -62,7 +67,7 @@ final class CalendarMenuModel: ObservableObject {
     func reset(now: Date = Date()) {
         calendar = CalendarSettings.shared.displayCalendar
         visibleMonth = now
-        select(calendar.startOfDay(for: now), notify: false)
+        selectedDay = calendar.startOfDay(for: now)
         rebuild()
     }
 
@@ -75,7 +80,20 @@ final class CalendarMenuModel: ObservableObject {
         let start = calendar.startOfDay(for: day)
         guard start != selectedDay else { return }
         selectedDay = start
+        reloadEvents()
         if notify { onSelectionChanged?() }
+    }
+
+    /// A label for the selected day: "Today" when it is, otherwise the date.
+    var selectedDayTitle: String {
+        if calendar.isDateInToday(selectedDay) { return "Today" }
+        if calendar.isDateInTomorrow(selectedDay) { return "Tomorrow" }
+        if calendar.isDateInYesterday(selectedDay) { return "Yesterday" }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = .current
+        formatter.setLocalizedDateFormatFromTemplate("EEEMMMd")
+        return formatter.string(from: selectedDay)
     }
 
     /// Selecting a day outside the visible month pages to it, the way the system
@@ -99,10 +117,23 @@ final class CalendarMenuModel: ObservableObject {
     private func rebuild() {
         days = CalendarGrid.days(inMonthOf: visibleMonth, calendar: calendar, today: Date())
         reloadEventMarks()
+        reloadEvents()
     }
 
-    /// Overridden in step with `CalendarEventsService`; a no-op without access.
-    func reloadEventMarks() {
-        daysWithEvents = []
+    private func reloadEventMarks() {
+        guard CalendarSettings.shared.showsEvents,
+              let interval = CalendarGrid.interval(for: days, calendar: calendar) else {
+            daysWithEvents = []
+            return
+        }
+        daysWithEvents = CalendarEventsService.shared.daysWithEvents(in: interval, calendar: calendar)
+    }
+
+    private func reloadEvents() {
+        guard CalendarSettings.shared.showsEvents else {
+            events = []
+            return
+        }
+        events = CalendarEventsService.shared.events(on: selectedDay, calendar: calendar)
     }
 }
