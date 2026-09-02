@@ -3,7 +3,7 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.8.0] - 2026-09-02
 
 ### Added
 - **Calendar in the menu bar.** The menu bar item now shows today's date — a calendar-page icon
