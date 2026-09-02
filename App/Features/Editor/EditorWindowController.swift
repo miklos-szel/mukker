@@ -47,6 +47,11 @@ final class EditorWindowController: NSObject {
                             EditorMetrics.minWindowHeight), maxSize.height)
         )
         window.setContentSize(contentSize)
+        // Enforce the floor on the *window*, not just in SwiftUI: a `.frame(minWidth:)`
+        // inside the hosting view doesn't stop a resize, so the toolbar could be
+        // dragged narrow enough to clip its leading and trailing controls.
+        window.contentMinSize = CGSize(width: EditorMetrics.minWindowWidth,
+                                       height: EditorMetrics.minWindowHeight)
         Self.centerOnMainScreen(window)
 
         // Let the editor close its own window after copy/save (settings-driven).

@@ -19,6 +19,17 @@ enum Tool: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// The tool palette split into related clusters, so the toolbar can render
+    /// them as separated groups instead of one undifferentiated run of 13 tiles.
+    /// Must stay a partition of `allCases` — `EditorModelTests` asserts it.
+    static let groups: [[Tool]] = [
+        [.select, .hand],
+        [.arrow, .line, .rectangle, .roundedRectangle, .ellipse],
+        [.freehand, .text, .counter],
+        [.highlight, .blur],
+        [.crop],
+    ]
+
     var systemImage: String {
         switch self {
         case .select:           return "cursorarrow"
