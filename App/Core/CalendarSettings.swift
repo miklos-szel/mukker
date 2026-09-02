@@ -104,6 +104,30 @@ final class CalendarSettings: ObservableObject {
         didSet { defaults.set(hiddenCalendarIDs, forKey: K.hiddenCalendars) }
     }
 
+    /// Play a sound at the top of every hour. Off by default — an app that
+    /// starts making noise on its own is a surprise nobody asked for.
+    @Published var hourlyChimeEnabled: Bool {
+        didSet { defaults.set(hourlyChimeEnabled, forKey: K.hourlyChime) }
+    }
+
+    /// Name of a system sound (`/System/Library/Sounds`), as `NSSound(named:)`
+    /// takes it. A name that no longer resolves falls back at play time rather
+    /// than here, so a macOS release dropping a sound doesn't rewrite the
+    /// user's choice behind their back.
+    @Published var hourlyChimeSound: String {
+        didSet { defaults.set(hourlyChimeSound, forKey: K.hourlyChimeSound) }
+    }
+
+    /// First and last hour that chime, inclusive. `start > end` wraps past
+    /// midnight — see `isChimeHour(_:start:end:)`.
+    @Published var chimeStartHour: Int {
+        didSet { defaults.set(chimeStartHour, forKey: K.chimeStart) }
+    }
+
+    @Published var chimeEndHour: Int {
+        didSet { defaults.set(chimeEndHour, forKey: K.chimeEnd) }
+    }
+
     static let maximumEventsShown = 20
 
     init(defaults: UserDefaults = .standard) {
@@ -119,6 +143,10 @@ final class CalendarSettings: ObservableObject {
         showsEvents = defaults.object(forKey: K.showsEvents) as? Bool ?? true
         maxEventsShown = (defaults.object(forKey: K.maxEvents) as? Int) ?? 8
         hiddenCalendarIDs = defaults.stringArray(forKey: K.hiddenCalendars) ?? []
+        hourlyChimeEnabled = defaults.bool(forKey: K.hourlyChime)
+        hourlyChimeSound = defaults.string(forKey: K.hourlyChimeSound) ?? Self.defaultChimeSound
+        chimeStartHour = Self.clampHour(defaults.object(forKey: K.chimeStart) as? Int ?? 9)
+        chimeEndHour = Self.clampHour(defaults.object(forKey: K.chimeEnd) as? Int ?? 22)
     }
 
     /// The calendar every date calculation in the feature goes through, so the
@@ -128,6 +156,26 @@ final class CalendarSettings: ObservableObject {
         if firstWeekday != .system { calendar.firstWeekday = firstWeekday.rawValue }
         return calendar
     }
+
+    /// Whether `hour` falls inside the active range. Inclusive at both ends, and
+    /// `start > end` means the range wraps past midnight (22…7 is the evening
+    /// *and* the small hours). Pure, so the schedule's one real decision is
+    /// testable without a clock.
+    nonisolated static func isChimeHour(_ hour: Int, start: Int, end: Int) -> Bool {
+        let hour = clampHour(hour), start = clampHour(start), end = clampHour(end)
+        return start <= end ? (hour >= start && hour <= end) : (hour >= start || hour <= end)
+    }
+
+    /// The whole gate `HourlyChimeService` applies when its timer fires.
+    func shouldChime(at date: Date) -> Bool {
+        guard hourlyChimeEnabled else { return false }
+        let hour = Calendar.current.component(.hour, from: date)
+        return Self.isChimeHour(hour, start: chimeStartHour, end: chimeEndHour)
+    }
+
+    nonisolated static func clampHour(_ hour: Int) -> Int { min(max(hour, 0), 23) }
+
+    static let defaultChimeSound = "Submarine"
 
     func isCalendarHidden(_ identifier: String) -> Bool {
         hiddenCalendarIDs.contains(identifier)
@@ -151,5 +199,9 @@ final class CalendarSettings: ObservableObject {
         static let showsEvents = "calendar.showsEvents"
         static let maxEvents = "calendar.maxEventsShown"
         static let hiddenCalendars = "calendar.hiddenCalendarIDs"
+        static let hourlyChime = "calendar.hourlyChime"
+        static let hourlyChimeSound = "calendar.hourlyChimeSound"
+        static let chimeStart = "calendar.hourlyChimeStartHour"
+        static let chimeEnd = "calendar.hourlyChimeEndHour"
     }
 }

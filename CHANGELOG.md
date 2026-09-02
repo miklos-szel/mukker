@@ -3,6 +3,14 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.1] - 2026-09-02
+
+### Added
+- **Hourly chime.** A new section in **Settings → Calendar** plays a sound at the top of every
+  hour, on whichever output device the Mac is currently using. Pick the sound from the built-in
+  system sounds (with a Test button), and limit it to a range of hours — 9:00 to 22:00 out of the
+  box, and a range that ends before it starts wraps past midnight. Off by default.
+
 ## [0.8.0] - 2026-09-02
 
 ### Added

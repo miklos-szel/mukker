@@ -22,6 +22,9 @@ window to half the screen.
 - **Choose which calendars count** in **Settings → Calendar**; one you subscribe to later is
   included automatically. Needs Calendar access, granted in **Settings → Permissions** — without
   it the calendar still works, just without events.
+- **An hourly chime** — a sound at the top of every hour, on whichever output device the Mac is
+  currently using. Pick the sound and the hours it runs between in **Settings → Calendar**; a
+  range that ends before it starts wraps past midnight. Off by default.
 
 ### Clipboard & snippets
 

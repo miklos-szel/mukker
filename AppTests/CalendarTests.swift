@@ -222,6 +222,10 @@ final class CalendarSettingsTests: XCTestCase {
         XCTAssertTrue(settings.showsEvents)
         XCTAssertEqual(settings.maxEventsShown, 8)
         XCTAssertTrue(settings.hiddenCalendarIDs.isEmpty)
+        XCTAssertFalse(settings.hourlyChimeEnabled)
+        XCTAssertEqual(settings.hourlyChimeSound, "Submarine")
+        XCTAssertEqual(settings.chimeStartHour, 9)
+        XCTAssertEqual(settings.chimeEndHour, 22)
     }
 
     func testSettingsPersistAcrossInstances() {
@@ -234,6 +238,10 @@ final class CalendarSettingsTests: XCTestCase {
         first.showsWeekNumbers = true
         first.showsEvents = false
         first.maxEventsShown = 3
+        first.hourlyChimeEnabled = true
+        first.hourlyChimeSound = "Glass"
+        first.chimeStartHour = 7
+        first.chimeEndHour = 19
 
         let second = CalendarSettings(defaults: defaults)
         XCTAssertFalse(second.showsDateInMenuBar)
@@ -243,6 +251,10 @@ final class CalendarSettingsTests: XCTestCase {
         XCTAssertTrue(second.showsWeekNumbers)
         XCTAssertFalse(second.showsEvents)
         XCTAssertEqual(second.maxEventsShown, 3)
+        XCTAssertTrue(second.hourlyChimeEnabled)
+        XCTAssertEqual(second.hourlyChimeSound, "Glass")
+        XCTAssertEqual(second.chimeStartHour, 7)
+        XCTAssertEqual(second.chimeEndHour, 19)
     }
 
     func testUnknownStoredFormatFallsBackToTheDefault() {
@@ -273,5 +285,112 @@ final class CalendarSettingsTests: XCTestCase {
 
         settings.firstWeekday = .system
         XCTAssertEqual(settings.displayCalendar.firstWeekday, Calendar.current.firstWeekday)
+    }
+}
+
+// MARK: -
+
+/// The pure halves of the hourly chime: which hours are in range, and when the
+/// next chime lands. Playback itself (CoreAudio's default output device, and
+/// `NSSound`) needs real hardware and is verified by hand.
+@MainActor
+final class HourlyChimeTests: XCTestCase {
+    private func makeCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        return calendar
+    }
+
+    // MARK: - Active hours
+
+    func testActiveHoursAreInclusiveAtBothEnds() {
+        XCTAssertTrue(CalendarSettings.isChimeHour(9, start: 9, end: 22))
+        XCTAssertTrue(CalendarSettings.isChimeHour(22, start: 9, end: 22))
+        XCTAssertTrue(CalendarSettings.isChimeHour(15, start: 9, end: 22))
+        XCTAssertFalse(CalendarSettings.isChimeHour(8, start: 9, end: 22))
+        XCTAssertFalse(CalendarSettings.isChimeHour(23, start: 9, end: 22))
+    }
+
+    /// A range whose end is before its start covers the night, not nothing.
+    func testActiveHoursWrapPastMidnight() {
+        for hour in [22, 23, 0, 3, 7] {
+            XCTAssertTrue(CalendarSettings.isChimeHour(hour, start: 22, end: 7),
+                          "\(hour):00 should be inside 22…7")
+        }
+        for hour in [8, 12, 21] {
+            XCTAssertFalse(CalendarSettings.isChimeHour(hour, start: 22, end: 7),
+                           "\(hour):00 should be outside 22…7")
+        }
+    }
+
+    func testSingleHourRange() {
+        XCTAssertTrue(CalendarSettings.isChimeHour(13, start: 13, end: 13))
+        XCTAssertFalse(CalendarSettings.isChimeHour(14, start: 13, end: 13))
+    }
+
+    func testOutOfRangeHoursClamp() {
+        XCTAssertEqual(CalendarSettings.clampHour(-3), 0)
+        XCTAssertEqual(CalendarSettings.clampHour(99), 23)
+        // A stored 24 clamps to 23 rather than making the range empty.
+        XCTAssertTrue(CalendarSettings.isChimeHour(23, start: 0, end: 24))
+    }
+
+    func testShouldChimeNeedsTheSwitchOn() {
+        let settings = CalendarSettings(defaults: UserDefaults(suiteName: "AppTests-\(UUID().uuidString)")!)
+        let hour = Calendar.current.component(.hour, from: Date())
+        settings.chimeStartHour = hour
+        settings.chimeEndHour = hour
+
+        XCTAssertFalse(settings.shouldChime(at: Date()), "off by default")
+        settings.hourlyChimeEnabled = true
+        XCTAssertTrue(settings.shouldChime(at: Date()))
+    }
+
+    // MARK: - Schedule
+
+    func testNextChimeIsTheTopOfTheComingHour() {
+        let calendar = makeCalendar()
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 2,
+                                                     hour: 14, minute: 37, second: 12))!
+        let next = HourlyChimeService.nextChime(after: now, calendar: calendar)
+        XCTAssertEqual(next, calendar.date(from: DateComponents(year: 2026, month: 9, day: 2,
+                                                                hour: 15, minute: 0, second: 1)))
+    }
+
+    /// The second-past-the-hour offset is what keeps a timer from firing a hair
+    /// early and reading the *previous* hour.
+    func testNextChimeSkipsTheHourItIsAlreadyPast() {
+        let calendar = makeCalendar()
+        let atTheHour = calendar.date(from: DateComponents(year: 2026, month: 9, day: 2,
+                                                           hour: 15, minute: 0, second: 1))!
+        let next = HourlyChimeService.nextChime(after: atTheHour, calendar: calendar)
+        XCTAssertEqual(next, calendar.date(from: DateComponents(year: 2026, month: 9, day: 2,
+                                                                hour: 16, minute: 0, second: 1)))
+    }
+
+    func testNextChimeCrossesMidnight() {
+        let calendar = makeCalendar()
+        let lateNight = calendar.date(from: DateComponents(year: 2026, month: 9, day: 2,
+                                                           hour: 23, minute: 59, second: 30))!
+        let next = HourlyChimeService.nextChime(after: lateNight, calendar: calendar)
+        XCTAssertEqual(next, calendar.date(from: DateComponents(year: 2026, month: 9, day: 3,
+                                                                hour: 0, minute: 0, second: 1)))
+    }
+
+    func testEveryMinuteIntervalIsDebugOnlyButComputesTheNextMinute() {
+        let calendar = makeCalendar()
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 2,
+                                                     hour: 14, minute: 37, second: 12))!
+        let next = HourlyChimeService.nextChime(after: now, calendar: calendar,
+                                                interval: .everyMinute)
+        XCTAssertEqual(next, calendar.date(from: DateComponents(year: 2026, month: 9, day: 2,
+                                                                hour: 14, minute: 38, second: 1)))
+    }
+
+    func testAvailableSoundsIncludeSomethingPlayable() {
+        let sounds = HourlyChimeService.availableSounds
+        XCTAssertFalse(sounds.isEmpty)
+        XCTAssertEqual(sounds, sounds.sorted())
     }
 }
