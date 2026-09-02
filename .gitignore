@@ -10,3 +10,6 @@ xcuserdata/
 *.xcuserstate
 # DMG build output
 dist/*.dmg
+
+# Code-coverage artifact dropped by test runs
+default.profraw
