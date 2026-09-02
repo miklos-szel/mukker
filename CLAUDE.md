@@ -152,7 +152,8 @@ flow.
   `AboutPane`. The first four are per-feature-set; the last three are shared. Add a
   feature-specific setting to its own pane, not to the shared ones. (`WindowTilingPane` keeps its
   four shortcut recorders next to its on/off switch rather than in `HotkeysPane`, since the switch
-  is what decides whether they exist.)
+  is what decides whether they exist — but *not* the Accessibility grant it needs: permissions are
+  granted and shown in `PermissionsPane` only, never duplicated into a feature pane.)
 
 ### Clipboard & snippets
 

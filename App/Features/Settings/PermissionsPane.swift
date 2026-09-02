@@ -22,7 +22,8 @@ struct PermissionsPane: View {
                 Text("Accessibility")
             } footer: {
                 Text("Needed to paste into the active app (⌘V), to merge with double-⌘C, "
-                     + "and to auto-scroll the target during scrolling capture.")
+                     + "to auto-scroll the target during scrolling capture, and to move "
+                     + "windows with the tiling shortcuts.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

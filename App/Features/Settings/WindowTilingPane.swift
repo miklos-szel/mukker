@@ -5,47 +5,25 @@ import SwiftUI
 ///
 /// The shortcuts live here rather than in the shared `HotkeysPane` so the whole
 /// feature is configurable from one place — the switch above them is what
-/// decides whether they are registered at all.
-///
-/// Accessibility status is not `@Published` (the user grants it outside the app),
-/// so it is mirrored into local state and polled once a second while the pane is
-/// visible — the same shape `PermissionsPane` uses.
+/// decides whether they are registered at all. The Accessibility grant tiling
+/// needs is *not* duplicated here: `PermissionsPane` is the single place every
+/// permission is granted and its status shown.
 struct WindowTilingPane: View {
     @ObservedObject private var settings = WindowTilingSettings.shared
     @ObservedObject private var shortcuts = ShortcutSettings.shared
-    @State private var hasAccessibility = false
-
-    private let pollTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         Form {
             Section {
                 Toggle("Enable window tiling", isOn: $settings.isEnabled)
-
-                LabeledContent {
-                    if hasAccessibility {
-                        Text("Granted").foregroundStyle(.secondary)
-                    } else {
-                        Button("Grant…") {
-                            PermissionsService.shared.requestAccessibilityPermission()
-                            refresh()
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(hasAccessibility ? Color.green : Color.secondary.opacity(0.4))
-                            .frame(width: 10, height: 10)
-                        Text("Accessibility access")
-                    }
-                }
             } header: {
                 Text("Window Tiling")
             } footer: {
                 Text("Snaps the frontmost window to half of the screen it is on, filling "
                      + "the space between the menu bar and the Dock. Moving windows needs "
                      + "Accessibility access — the same permission \(Branding.name) uses "
-                     + "to paste. Switching tiling off releases the shortcuts for other apps.")
+                     + "to paste; grant it under Settings → Permissions. Switching tiling "
+                     + "off releases the shortcuts for other apps.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -93,11 +71,5 @@ struct WindowTilingPane: View {
             .disabled(!settings.isEnabled)
         }
         .formStyle(.grouped)
-        .onAppear(perform: refresh)
-        .onReceive(pollTimer) { _ in refresh() }
-    }
-
-    private func refresh() {
-        hasAccessibility = PermissionsService.shared.hasAccessibilityPermission
     }
 }
