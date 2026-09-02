@@ -3,7 +3,7 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [0.8.1] - 2026-09-02
 
 ### Added
 - **Hourly chime.** A new section in **Settings → Calendar** plays a sound at the top of every
