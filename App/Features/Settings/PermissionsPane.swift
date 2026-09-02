@@ -7,6 +7,7 @@ import SwiftUI
 struct PermissionsPane: View {
     @State private var accessibility = false
     @State private var screenRecording = false
+    @State private var calendars = false
     @State private var launchAtLogin = false
 
     private let pollTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -42,6 +43,26 @@ struct PermissionsPane: View {
             }
 
             Section {
+                PermissionRow(
+                    granted: calendars,
+                    open: { PermissionsService.shared.openCalendarSettings(); refresh() },
+                    request: {
+                        Task {
+                            await PermissionsService.shared.requestCalendarAccess()
+                            refresh()
+                        }
+                    })
+            } header: {
+                Text("Calendars")
+            } footer: {
+                Text("Lets the menu bar calendar list the events on the day you pick. "
+                     + "Read-only — \(Branding.name) never changes or stores them. "
+                     + "Without it the calendar still works, just without events.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle("Launch \(Branding.name) at login", isOn: launchAtLoginBinding)
             } header: {
                 Text("Start at Login")
@@ -60,6 +81,7 @@ struct PermissionsPane: View {
     private func refresh() {
         accessibility = PermissionsService.shared.hasAccessibilityPermission
         screenRecording = PermissionsService.shared.hasScreenRecordingPermission
+        calendars = PermissionsService.shared.hasCalendarAccess
         launchAtLogin = LoginItemService.shared.isEnabled
     }
 

@@ -174,12 +174,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     // MARK: - NSMenuDelegate
 
-    func menuWillOpen(_ menu: NSMenu) {
-        // Every open starts on this month with today selected.
-        calendarModel.reset()
-    }
-
     func menuNeedsUpdate(_ menu: NSMenu) {
+        // Before `buildItems`, not in `menuWillOpen`: AppKit asks for the items
+        // first, so resetting afterwards would leave the event rows describing
+        // the previous open's selection.
+        calendarModel.reset()
         menu.removeAllItems()
         for item in buildItems() { menu.addItem(item) }
     }
@@ -277,9 +276,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private func eventItem(_ event: CalendarEvent) -> NSMenuItem {
         let item = NSMenuItem()
-        // Disabled so the row stays informational, but with an attributed title
-        // so it is still rendered at full contrast rather than greyed out.
-        item.isEnabled = false
+        // Enabled with no action: the events are the section's content, not an
+        // aside, so they read and highlight like every other row — but nothing
+        // happens on click, because the calendar is read-only.
+        item.isEnabled = true
         item.attributedTitle = Self.eventTitle(event)
         item.image = Self.swatch(event.calendarColor)
         return item

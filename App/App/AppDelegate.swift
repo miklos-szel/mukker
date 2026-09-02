@@ -77,6 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The menu bar item, last so everything it can invoke already exists.
         menuBar = MenuBarController(actions: menuBarActions())
 
+        // The app has no Dock icon and no main menu, so the menu bar menu can
+        // only be reached by clicking the status item. These two hooks are how a
+        // build gets screenshotted or diffed without a human doing that.
 #if DEBUG
         if ProcessInfo.processInfo.environment["MUKKER_OPEN_MENU"] == "1" {
             // A run-loop timer, not a dispatch block: NSMenu tracking does not
