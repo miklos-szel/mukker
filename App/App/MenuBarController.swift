@@ -38,7 +38,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
     private var cancellables: Set<AnyCancellable> = []
     /// The glyph is redrawn once a day, not once a menu open.
-    private var cachedIcon: (day: Int, awake: Bool, image: NSImage)?
+    private var cachedIcon: (day: Int, image: NSImage)?
     private var dayRolloverTimer: Timer?
 
     /// The menu is rebuilt on every open, but the calendar is not: keeping the
@@ -47,6 +47,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let calendarModel = CalendarMenuModel()
     private lazy var calendarHostingView: MenuHostingView<CalendarMenuView> = {
         let view = MenuHostingView(rootView: CalendarMenuView(model: calendarModel))
+        // The grid is narrower than the menu's text items, so let AppKit widen the
+        // item view to the menu's width; the view's own minimum keeps the grid at
+        // its size and the header spreads into whatever is left.
+        view.autoresizingMask = [.width]
         // The one moment the menu's window is known to exist: `menuWillOpen` is
         // too early — AppKit has not put the item views in a window yet.
         view.onMoveToWindow = { [weak self] in self?.makeMenuWindowsOpaque() }
@@ -111,10 +115,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let now = Date()
 
         if settings.showsDateInMenuBar {
-            // The date replaces the app glyph, so Keep Awake's corner dot moves
-            // onto the calendar page rather than swapping the whole icon.
-            button.image = icon(for: settings.displayCalendar.component(.day, from: now),
-                                awake: awake)
+            // The date *is* the glyph, and it doesn't carry the Keep Awake state:
+            // there is no room beside a two-digit number, and the menu's Keep
+            // Awake line reports it anyway.
+            button.image = icon(for: settings.displayCalendar.component(.day, from: now))
             button.title = MenuBarDateText.text(for: now,
                                                 format: settings.menuBarFormat,
                                                 custom: settings.customDateFormat)
@@ -129,12 +133,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         button.toolTip = Branding.name
     }
 
-    private func icon(for day: Int, awake: Bool) -> NSImage {
-        if let cachedIcon, cachedIcon.day == day, cachedIcon.awake == awake {
-            return cachedIcon.image
-        }
-        let image = MenuBarDateIcon.image(day: day, awake: awake)
-        cachedIcon = (day, awake, image)
+    private func icon(for day: Int) -> NSImage {
+        if let cachedIcon, cachedIcon.day == day { return cachedIcon.image }
+        let image = MenuBarDateIcon.image(day: day)
+        cachedIcon = (day, image)
         return image
     }
 
@@ -307,9 +309,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let settings = CalendarSettings.shared
         guard settings.showsEvents else { return [] }
 
-        guard CalendarEventsService.shared.hasAccess else {
-            return [ActionMenuItem("Grant Calendar access…", handler: actions.openSettings)]
-        }
+        // No row without access: permissions are granted in Settings → Permissions
+        // and nowhere else, and this one was also the menu's widest item — it set
+        // the whole menu's width for a state that is meant to be temporary.
+        guard CalendarEventsService.shared.hasAccess else { return [] }
 
         var items: [NSMenuItem] = [header(calendarModel.selectedDayTitle)]
         let events = calendarModel.events

@@ -158,6 +158,81 @@ final class CalendarGridTests: XCTestCase {
         // Exclusive end: one day past the last cell, so a query covers it fully.
         XCTAssertEqual(interval?.end, calendar.date(byAdding: .day, value: 1, to: days[41].date))
     }
+
+    // MARK: - Month outline
+
+    func testMonthSpanCoversExactlyTheAnchorMonth() {
+        // September 2026 starts on a Tuesday: one borrowed day Monday-first, two
+        // Sunday-first, and the span shifts by the same amount.
+        let monday = makeCalendar(firstWeekday: 2)
+        let mondayGrid = CalendarGrid.days(inMonthOf: date(2026, 9, 1, in: monday),
+                                           calendar: monday,
+                                           today: date(2026, 9, 2, in: monday))
+        XCTAssertEqual(CalendarGrid.monthSpan(in: mondayGrid), 1...30)
+
+        let sunday = makeCalendar(firstWeekday: 1)
+        let sundayGrid = CalendarGrid.days(inMonthOf: date(2026, 9, 1, in: sunday),
+                                           calendar: sunday,
+                                           today: date(2026, 9, 2, in: sunday))
+        XCTAssertEqual(CalendarGrid.monthSpan(in: sundayGrid), 2...31)
+
+        // February 2026 starts on the grid's first day and is exactly four weeks.
+        let february = CalendarGrid.days(inMonthOf: date(2026, 2, 1, in: sunday),
+                                         calendar: sunday,
+                                         today: date(2026, 2, 2, in: sunday))
+        XCTAssertEqual(CalendarGrid.monthSpan(in: february), 0...27)
+
+        XCTAssertNil(CalendarGrid.monthSpan(in: []))
+    }
+
+    /// The eight-corner case: both the first and the last row are partial, so the
+    /// outline steps in at the top left and out at the bottom right.
+    func testMonthOutlineStepsAroundAPartialFirstAndLastRow() {
+        let cell = CGSize(width: 10, height: 10)
+        let corners = MonthOutlineShape.corners(span: 1...30, cell: cell)
+        XCTAssertEqual(corners, [CGPoint(x: 10, y: 0),
+                                 CGPoint(x: 70, y: 0),
+                                 CGPoint(x: 70, y: 40),
+                                 CGPoint(x: 30, y: 40),
+                                 CGPoint(x: 30, y: 50),
+                                 CGPoint(x: 0, y: 50),
+                                 CGPoint(x: 0, y: 10),
+                                 CGPoint(x: 10, y: 10)])
+    }
+
+    func testMonthOutlineCollapsesWhenARowIsFull() {
+        let cell = CGSize(width: 10, height: 10)
+        // Four whole weeks: a plain rectangle, no steps.
+        XCTAssertEqual(MonthOutlineShape.corners(span: 0...27, cell: cell),
+                       [CGPoint(x: 0, y: 0), CGPoint(x: 70, y: 0),
+                        CGPoint(x: 70, y: 40), CGPoint(x: 0, y: 40)])
+        // Starts on the first column, ends mid-row: one step, six corners.
+        XCTAssertEqual(MonthOutlineShape.corners(span: 0...30, cell: cell),
+                       [CGPoint(x: 0, y: 0), CGPoint(x: 70, y: 0),
+                        CGPoint(x: 70, y: 40), CGPoint(x: 30, y: 40),
+                        CGPoint(x: 30, y: 50), CGPoint(x: 0, y: 50)])
+    }
+
+    /// Every corner has to land on a cell boundary, or the frame would cut
+    /// through a day number.
+    func testMonthOutlineCornersLandOnCellBoundaries() {
+        let calendar = makeCalendar(firstWeekday: 2)
+        let cell = CGSize(width: 23, height: 23)
+        for month in 1...12 {
+            let days = CalendarGrid.days(inMonthOf: date(2026, month, 15, in: calendar),
+                                         calendar: calendar,
+                                         today: date(2026, month, 15, in: calendar))
+            guard let span = CalendarGrid.monthSpan(in: days) else {
+                return XCTFail("month \(month) has no in-month days")
+            }
+            for corner in MonthOutlineShape.corners(span: span, cell: cell) {
+                XCTAssertEqual(corner.x.truncatingRemainder(dividingBy: cell.width), 0,
+                               "month \(month) corner \(corner) is off the column grid")
+                XCTAssertEqual(corner.y.truncatingRemainder(dividingBy: cell.height), 0,
+                               "month \(month) corner \(corner) is off the row grid")
+            }
+        }
+    }
 }
 
 // MARK: -

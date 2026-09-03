@@ -342,10 +342,18 @@ Things that are load-bearing and easy to undo:
   a grid that changed height would resize the menu while paging. For the same reason
   `sizeCalendarItem()` runs before the menu opens: a menu takes an item's height from its view's
   frame once and never re-measures.
+- **The calendar sets the menu's width.** Its cells are sized so the item (~208 pt) comes out wider
+  than the widest text row, so the grid fills the menu instead of floating in it — a menu is as wide
+  as its widest item and there is no way to ask it for that width before it opens, so this is the
+  only way round. Shrink the cells and a text row takes over: the hosted view carries
+  `autoresizingMask = [.width]` and a **fixed-width** SwiftUI root for exactly that case, so AppKit
+  widens the view and the calendar sits centred in it rather than pinned to the left edge.
 - **Events are real `NSMenuItem`s**, not more SwiftUI, so the menu sizes itself to however many
   there are and the rows highlight natively. They are *enabled* with no action — disabled rows
   render too faint for what is the section's actual content. Changing the selected day swaps just
-  `eventItemRange` in the live menu.
+  `eventItemRange` in the live menu. Without the grant there are **no rows at all** — no "grant
+  access" row either: permissions live in the Permissions pane, and that row was the menu's widest
+  item, so a temporary state was setting the width of the whole menu.
 - **The `EKEventStore` is created lazily and only once access is granted.** Instantiating and
   querying one is what raises the system prompt, and the prompt belongs to the Permissions pane.
 - **The menu is forced opaque** (`makeMenuWindowsOpaque()`): `NSPopupMenuWindow` is translucent by
@@ -366,11 +374,25 @@ Things that are load-bearing and easy to undo:
 - **The day number refreshes off an absolute deadline** — a timer armed on the next midnight, plus
   `.NSCalendarDayChanged`, `.NSSystemClockDidChange` and `didWakeNotification`. Same trap as Keep
   Awake: run-loop timers don't advance while the Mac sleeps. Never poll per second.
-- **Keep Awake lost its icon swap** while the date is on, because the date *is* the icon: the page
-  is drawn **filled** with the day number knocked out of it instead. Not a colour — a template
-  image only has an alpha channel, and `controlAccentColor` resolves near-black against the menu
-  bar — and not a corner badge either, because an 18 pt glyph has no room for one beside a
-  two-digit number. Switching the date off restores the old glyph and the old swap.
+- **The date glyph is state-independent** (`MenuBarDateIcon`): a filled rounded square with the day
+  number knocked out of it, and nothing else. It does **not** signal Keep Awake — an 18 pt glyph has
+  no room for a badge beside a two-digit number, and the state cannot be a colour either, since a
+  template image only has an alpha channel. Keep Awake is reported by the menu's own line instead;
+  switching the date off restores the app glyph *and* its `MenuBarIcon`/`MenuBarIconAwake` swap.
+  The number is sized and placed by measuring **ink** (`CTLineGetBoundsWithOptions` with
+  `.useGlyphPathBounds`), not the line box: the box carries ascender, descender and leading the
+  digits never fill, so centring on it leaves the number sitting visibly high, and fitting on
+  advance width rather than ink makes it a size smaller than the system glyphs beside it. The fit
+  is measured once against **two** digits so every day renders at the same size and the bar doesn't
+  resize on the 10th.
+- **The month is framed, not just tinted** — `MonthOutlineShape` strokes a rounded staircase around
+  exactly the anchor month's cells, so the borrowed neighbour days fall outside it. Its corners come
+  from `CalendarGrid.monthSpan` (the in-month days are contiguous, so a range is the whole shape)
+  and are walked with `addArc(tangent1End:tangent2End:radius:)`, which rounds the two *concave*
+  steps just like the convex corners. Both halves are `nonisolated static` and covered by
+  `AppTests/CalendarTests.swift`. The week rows carry **zero spacing** for this: the shape derives
+  every corner from `row * cell.height`, and a gap between rows would put its steps in the wrong
+  place.
 - `CalendarSettings.hiddenCalendarIDs` stores the calendars to **hide**, not to show, so one
   subscribed to later appears by default instead of silently going missing.
 - **The hourly chime** (`HourlyChimeService`, `Core/`) is the app's only sound and its only

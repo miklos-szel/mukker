@@ -10,8 +10,13 @@ struct CalendarMenuView: View {
     @ObservedObject var model: CalendarMenuModel
     @ObservedObject private var settings = CalendarSettings.shared
 
-    private let cell = CGSize(width: 30, height: 25)
-    private let weekNumberWidth: CGFloat = 22
+    /// Square cells, and the week rows carry **no** spacing: `MonthOutlineShape`
+    /// assumes a uniform grid, and a gap between rows would break its steps.
+    /// Wide enough that the calendar, not a text row, is the menu's widest item —
+    /// so the grid fills the menu instead of floating in it.
+    private let cell = CGSize(width: 26, height: 24)
+    private let weekNumberWidth: CGFloat = 18
+    private let horizontalPadding: CGFloat = 13
 
     init(model: CalendarMenuModel) {
         self.model = model
@@ -22,10 +27,13 @@ struct CalendarMenuView: View {
             header
             grid
         }
-        .padding(.horizontal, 13)
+        .padding(.horizontal, horizontalPadding)
         .padding(.top, 6)
         .padding(.bottom, 9)
-        .frame(width: 13 * 2 + cell.width * CGFloat(CalendarGrid.columns)
+        // A fixed width inside a hosting view AppKit stretches to the menu's own
+        // (the menu is as wide as its widest text item), so the calendar sits
+        // centred in whatever is left over rather than pinned to one edge.
+        .frame(width: horizontalPadding * 2 + cell.width * CGFloat(CalendarGrid.columns)
                + (settings.showsWeekNumbers ? weekNumberWidth : 0),
                alignment: .leading)
     }
@@ -38,19 +46,19 @@ struct CalendarMenuView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .lineLimit(1)
             Spacer(minLength: 8)
-            pager("chevron.left", help: "Previous month") { model.showPreviousMonth() }
-            pager("circle.fill", size: 7, help: "Today") { model.goToToday() }
+            pager("arrowtriangle.left.fill", help: "Previous month") { model.showPreviousMonth() }
+            pager("circle.fill", size: 6, help: "Today") { model.goToToday() }
                 .opacity(model.isShowingOtherMonth ? 1 : 0.35)
-            pager("chevron.right", help: "Next month") { model.showNextMonth() }
+            pager("arrowtriangle.right.fill", help: "Next month") { model.showNextMonth() }
         }
     }
 
-    private func pager(_ symbol: String, size: CGFloat = 10,
+    private func pager(_ symbol: String, size: CGFloat = 9,
                        help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
-                .frame(width: 20, height: 18)
+                .frame(width: 18, height: 16)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -60,25 +68,34 @@ struct CalendarMenuView: View {
     // MARK: - Grid
 
     private var grid: some View {
-        VStack(spacing: 1) {
-            HStack(spacing: 0) {
-                if settings.showsWeekNumbers {
-                    Color.clear.frame(width: weekNumberWidth, height: 1)
-                }
-                ForEach(Array(model.weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
-                    Text(symbol)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: cell.width)
-                }
-            }
-            .padding(.bottom, 2)
+        VStack(spacing: 0) {
+            weekdayHeader
+                .padding(.bottom, 2)
+            weeks
+                .overlay(alignment: .topLeading) { monthOutline }
+        }
+    }
 
+    private var weekdayHeader: some View {
+        HStack(spacing: 0) {
+            if settings.showsWeekNumbers {
+                Color.clear.frame(width: weekNumberWidth, height: 1)
+            }
+            ForEach(Array(model.weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
+                Text(symbol)
+                    .font(.system(size: 11, weight: .medium))
+                    .frame(width: cell.width)
+            }
+        }
+    }
+
+    private var weeks: some View {
+        VStack(spacing: 0) {
             ForEach(0..<CalendarGrid.rows, id: \.self) { row in
                 HStack(spacing: 0) {
                     if settings.showsWeekNumbers {
                         Text(weekNumber(row))
-                            .font(.system(size: 9))
+                            .font(.system(size: 8.5))
                             .foregroundStyle(.tertiary)
                             .frame(width: weekNumberWidth)
                     }
@@ -87,6 +104,20 @@ struct CalendarMenuView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// The frame around the month itself. Sized to the week rows and offset past
+    /// the week-number gutter, so it lands exactly on the day cells' boundaries.
+    @ViewBuilder private var monthOutline: some View {
+        if let span = CalendarGrid.monthSpan(in: model.days) {
+            MonthOutlineShape(span: span, cell: cell)
+                .stroke(Color.primary.opacity(0.8), lineWidth: 1.5)
+                .frame(width: cell.width * CGFloat(CalendarGrid.columns),
+                       height: cell.height * CGFloat(CalendarGrid.rows))
+                .offset(x: settings.showsWeekNumbers ? weekNumberWidth : 0)
+                // The day cells underneath are buttons; the frame is decoration.
+                .allowsHitTesting(false)
         }
     }
 
@@ -123,7 +154,7 @@ struct CalendarMenuView: View {
                 Circle()
                     .fill(day.isToday ? Color.white : Color.accentColor)
                     .frame(width: 3, height: 3)
-                    .offset(y: cell.height / 2 - 5)
+                    .offset(y: cell.height / 2 - 4.5)
                     .opacity(hasEvents ? 1 : 0)
             }
             .frame(width: cell.width, height: cell.height)
