@@ -7,7 +7,9 @@ import SwiftUI
 /// a two-line readout and four zoom controls — wide enough that the window had a
 /// 1080 pt minimum width purely to keep it visible. Splitting it separates
 /// *window chrome* (undo/zoom/size/copy/save) from *the work* (tools + style), and
-/// lets the style controls be contextual instead of always-on.
+/// lets the style controls be contextual instead of always-on. Copy/Save live at
+/// the leading edge of row 2 rather than row 1, so they start at the window's own
+/// left edge instead of behind the traffic-light gap.
 struct EditorToolbar: View {
     @ObservedObject var viewModel: EditorViewModel
 
@@ -31,8 +33,6 @@ struct EditorToolbar: View {
             // Leave room for the window traffic lights (top-left).
             Spacer().frame(width: EditorMetrics.trafficLightGap)
 
-            primaryActions
-            separator
             historyControls
             separator
             zoomControls
@@ -42,8 +42,7 @@ struct EditorToolbar: View {
             Spacer(minLength: 12)
         }
         .labelStyle(.iconOnly)
-        // No leading padding: `trafficLightGap` already reserves the space, and
-        // Copy/Save lead the row — every extra point here pushes them off the edge.
+        // No leading padding: `trafficLightGap` already reserves the space.
         .padding(.trailing, 12)
         .frame(height: EditorMetrics.chromeRowHeight)
     }
@@ -134,6 +133,12 @@ struct EditorToolbar: View {
 
     private var workRow: some View {
         HStack(spacing: 8) {
+            // Copy/Save lead the second row, sitting directly *under* the traffic
+            // lights: row 1 has to reserve 68 pt for them, so nothing there can
+            // reach the window's leading edge.
+            primaryActions
+            separator
+
             toolPalette
 
             Spacer(minLength: 12)
