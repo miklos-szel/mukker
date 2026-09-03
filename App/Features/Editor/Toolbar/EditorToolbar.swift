@@ -7,7 +7,9 @@ import SwiftUI
 /// a two-line readout and four zoom controls — wide enough that the window had a
 /// 1080 pt minimum width purely to keep it visible. Splitting it separates
 /// *window chrome* (undo/zoom/size/copy/save) from *the work* (tools + style), and
-/// lets the style controls be contextual instead of always-on.
+/// lets the style controls be contextual instead of always-on. Copy/Save live at
+/// the leading edge of row 2 rather than row 1, so they start at the window's own
+/// left edge instead of behind the traffic-light gap.
 struct EditorToolbar: View {
     @ObservedObject var viewModel: EditorViewModel
 
@@ -38,11 +40,10 @@ struct EditorToolbar: View {
             sizeReadout
 
             Spacer(minLength: 12)
-
-            primaryActions
         }
         .labelStyle(.iconOnly)
-        .padding(.horizontal, 12)
+        // No leading padding: `trafficLightGap` already reserves the space.
+        .padding(.trailing, 12)
         .frame(height: EditorMetrics.chromeRowHeight)
     }
 
@@ -95,7 +96,7 @@ struct EditorToolbar: View {
 
     /// Copy and Save carry their labels (and a resting accent tint from
     /// `.toolbarProminent`) so the primary actions don't look like every other
-    /// icon in the bar.
+    /// icon in the bar. They lead the row, right after the traffic-light gap.
     private var primaryActions: some View {
         HStack(spacing: 8) {
             Button {
@@ -113,7 +114,10 @@ struct EditorToolbar: View {
             } label: {
                 HStack(spacing: 5) {
                     FloppyDisk()
-                        .fill(Color.primary, style: FillStyle(eoFill: true))
+                        // Explicit white: a filled `Shape` ignores the style's
+                        // `foregroundStyle`, and `Color.primary` goes black on the
+                        // accent capsule.
+                        .fill(Color.white, style: FillStyle(eoFill: true))
                         .frame(width: 13, height: 13)
                     Text("Save").font(.system(size: 12, weight: .medium))
                 }
@@ -129,12 +133,19 @@ struct EditorToolbar: View {
 
     private var workRow: some View {
         HStack(spacing: 8) {
+            // Copy/Save lead the second row, sitting directly *under* the traffic
+            // lights: row 1 has to reserve 68 pt for them, so nothing there can
+            // reach the window's leading edge.
+            primaryActions
+            separator
+
             toolPalette
 
             Spacer(minLength: 12)
 
-            // Crop takes over the trailing slot while it's armed, so arming it
-            // never shoves the primary actions in the row above sideways.
+            // Crop takes over the style controls' trailing slot while it's armed,
+            // so arming it swaps one trailing cluster for another instead of
+            // adding a third and reflowing the row.
             if viewModel.cropRect != nil {
                 cropActions
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
@@ -163,6 +174,13 @@ struct EditorToolbar: View {
                                  isOn: viewModel.activeTool == tool,
                                  help: toolHelp(tool)) {
                             viewModel.activeTool = tool
+                        }
+                        // The background toggle only means anything for text, so
+                        // it appears in the palette right beside the text tool
+                        // rather than at the far end of the style controls.
+                        if tool == .text, showsTextControls {
+                            textBackgroundToggle
+                                .transition(.opacity.combined(with: .scale(scale: 0.9)))
                         }
                     }
                 }
@@ -209,8 +227,6 @@ struct EditorToolbar: View {
 
             separator
             widthControl
-
-            if showsTextControls { textBackgroundToggle }
         }
     }
 

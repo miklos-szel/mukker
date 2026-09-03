@@ -23,11 +23,13 @@ enum EditorMetrics {
     /// float over the toolbar (the window uses `.fullSizeContentView`).
     static let trafficLightGap: CGFloat = 68
 
-    /// Minimum content width: what the *widest* toolbar state needs — the text
-    /// tool, which shows the swatches, the size slider and the background toggle
-    /// all at once. Measured, not guessed: below ~840 the leading tool tile and
-    /// the trailing toggle start to clip. The one-row toolbar needed 1080.
-    static let minWindowWidth: CGFloat = 860
+    /// Minimum content width: what the *widest* toolbar state needs — row 2 with
+    /// the text tool, which carries Copy/Save, the tool palette, the swatches, the
+    /// size slider and the background toggle all at once. Measured, not guessed:
+    /// below this the Copy/Save capsules and the trailing toggle start to clip.
+    /// Moving Copy/Save down from row 1 cost ~150 pt here; the one-row toolbar
+    /// still needed 1080.
+    static let minWindowWidth: CGFloat = 1010
     /// Minimum content height: toolbar plus a usable canvas.
     static let minWindowHeight: CGFloat = 420
 }

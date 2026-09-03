@@ -195,6 +195,9 @@ struct EditorView: View {
                     viewModel.cancelCrop()
                 case .deselect:
                     viewModel.deselect()
+                case .selectTool:
+                    viewModel.activeTool = .select
+                    viewModel.flash(Tool.select.help)
                 case .copyAndClose:
                     // Esc as "done": copy and close regardless of `closeAfterCopy`.
                     viewModel.copyToClipboard()

@@ -49,6 +49,8 @@ struct CapturePane: View {
                 Toggle("Close editor after copying", isOn: $settings.closeAfterCopy)
                 Toggle("Close editor after saving", isOn: $settings.closeAfterSave)
                 Toggle("Esc copies to clipboard and closes editor", isOn: $settings.escCopiesAndCloses)
+                    .help("Esc first cancels a crop, drops the selection and puts the "
+                          + "pointer tool back; it copies and closes only from that state.")
                 Toggle("Show magnifier loupe while selecting", isOn: $settings.showMagnifier)
 
 #if DEBUG
