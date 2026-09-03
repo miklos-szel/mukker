@@ -49,7 +49,10 @@ final class CalendarMenuModel: ObservableObject {
         let formatter = DateFormatter()
         formatter.calendar = calendar
         formatter.locale = .current
-        formatter.setLocalizedDateFormatFromTemplate("yMMMM")
+        // Pinned rather than templated: a localized "yMMM" puts the year first in
+        // some regions ("2026. Sep"), and the header is laid out for a short month
+        // followed by the year.
+        formatter.dateFormat = "MMM yyyy"
         return formatter.string(from: visibleMonth)
     }
 

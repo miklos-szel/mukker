@@ -69,6 +69,15 @@ enum CalendarGrid {
         }
     }
 
+    /// The first and last grid indices belonging to the anchor month — the two
+    /// numbers the month outline is drawn from. The in-month days are always
+    /// contiguous, so a range says everything about the shape.
+    nonisolated static func monthSpan(in days: [CalendarDay]) -> ClosedRange<Int>? {
+        guard let first = days.firstIndex(where: { $0.isInMonth }),
+              let last = days.lastIndex(where: { $0.isInMonth }) else { return nil }
+        return first...last
+    }
+
     /// The span the grid covers — one query's worth of range for event lookups.
     nonisolated static func interval(for days: [CalendarDay], calendar: Calendar) -> DateInterval? {
         guard let first = days.first, let last = days.last,

@@ -47,6 +47,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let calendarModel = CalendarMenuModel()
     private lazy var calendarHostingView: MenuHostingView<CalendarMenuView> = {
         let view = MenuHostingView(rootView: CalendarMenuView(model: calendarModel))
+        // The grid is narrower than the menu's text items, so let AppKit widen the
+        // item view to the menu's width; the view's own minimum keeps the grid at
+        // its size and the header spreads into whatever is left.
+        view.autoresizingMask = [.width]
         // The one moment the menu's window is known to exist: `menuWillOpen` is
         // too early — AppKit has not put the item views in a window yet.
         view.onMoveToWindow = { [weak self] in self?.makeMenuWindowsOpaque() }
