@@ -175,6 +175,13 @@ struct EditorToolbar: View {
                                  help: toolHelp(tool)) {
                             viewModel.activeTool = tool
                         }
+                        // The background toggle only means anything for text, so
+                        // it appears in the palette right beside the text tool
+                        // rather than at the far end of the style controls.
+                        if tool == .text, showsTextControls {
+                            textBackgroundToggle
+                                .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                        }
                     }
                 }
                 .padding(2)
@@ -220,8 +227,6 @@ struct EditorToolbar: View {
 
             separator
             widthControl
-
-            if showsTextControls { textBackgroundToggle }
         }
     }
 
