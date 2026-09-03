@@ -31,6 +31,8 @@ struct EditorToolbar: View {
             // Leave room for the window traffic lights (top-left).
             Spacer().frame(width: EditorMetrics.trafficLightGap)
 
+            primaryActions
+            separator
             historyControls
             separator
             zoomControls
@@ -38,11 +40,11 @@ struct EditorToolbar: View {
             sizeReadout
 
             Spacer(minLength: 12)
-
-            primaryActions
         }
         .labelStyle(.iconOnly)
-        .padding(.horizontal, 12)
+        // No leading padding: `trafficLightGap` already reserves the space, and
+        // Copy/Save lead the row — every extra point here pushes them off the edge.
+        .padding(.trailing, 12)
         .frame(height: EditorMetrics.chromeRowHeight)
     }
 
@@ -95,7 +97,7 @@ struct EditorToolbar: View {
 
     /// Copy and Save carry their labels (and a resting accent tint from
     /// `.toolbarProminent`) so the primary actions don't look like every other
-    /// icon in the bar.
+    /// icon in the bar. They lead the row, right after the traffic-light gap.
     private var primaryActions: some View {
         HStack(spacing: 8) {
             Button {
@@ -113,7 +115,10 @@ struct EditorToolbar: View {
             } label: {
                 HStack(spacing: 5) {
                     FloppyDisk()
-                        .fill(Color.primary, style: FillStyle(eoFill: true))
+                        // Explicit white: a filled `Shape` ignores the style's
+                        // `foregroundStyle`, and `Color.primary` goes black on the
+                        // accent capsule.
+                        .fill(Color.white, style: FillStyle(eoFill: true))
                         .frame(width: 13, height: 13)
                     Text("Save").font(.system(size: 12, weight: .medium))
                 }
@@ -133,8 +138,9 @@ struct EditorToolbar: View {
 
             Spacer(minLength: 12)
 
-            // Crop takes over the trailing slot while it's armed, so arming it
-            // never shoves the primary actions in the row above sideways.
+            // Crop takes over the style controls' trailing slot while it's armed,
+            // so arming it swaps one trailing cluster for another instead of
+            // adding a third and reflowing the row.
             if viewModel.cropRect != nil {
                 cropActions
                     .transition(.opacity.combined(with: .scale(scale: 0.96)))
