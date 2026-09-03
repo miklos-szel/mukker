@@ -94,8 +94,20 @@ final class EditorModelTests: XCTestCase {
     }
 
     @MainActor
+    func testEscapeDisarmsTheActiveToolBeforeClosing() {
+        let vm = EditorViewModel(image: solidImage(.white), sourceScale: 1.0)
+        // Nothing selected, nothing to crop — but a drawing tool is armed, so Esc
+        // puts the pointer back rather than closing the window.
+        vm.activeTool = .rectangle
+        XCTAssertEqual(vm.escapeAction(escCopiesAndCloses: true), .selectTool)
+        vm.activeTool = .select
+        XCTAssertEqual(vm.escapeAction(escCopiesAndCloses: true), .copyAndClose)
+    }
+
+    @MainActor
     func testEscapeCopiesAndClosesWhenIdleAndEnabled() {
         let vm = EditorViewModel(image: solidImage(.white), sourceScale: 1.0)
+        vm.activeTool = .select
         XCTAssertNil(vm.selectedID)
         XCTAssertNil(vm.cropRect)
         XCTAssertEqual(vm.escapeAction(escCopiesAndCloses: true), .copyAndClose)
@@ -104,6 +116,7 @@ final class EditorModelTests: XCTestCase {
     @MainActor
     func testEscapeIsNoOpWhenIdleAndDisabled() {
         let vm = EditorViewModel(image: solidImage(.white), sourceScale: 1.0)
+        vm.activeTool = .select
         // Setting off: idle Esc falls back to deselect (a no-op), never copy-and-close.
         XCTAssertEqual(vm.escapeAction(escCopiesAndCloses: false), .deselect)
     }

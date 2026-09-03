@@ -394,13 +394,17 @@ final class EditorViewModel: ObservableObject {
     }
 
     /// What the Esc key should do, given current editor state and the
-    /// `escCopiesAndCloses` setting. Cancelling a pending crop and deselecting take
-    /// priority; only when there's nothing to undo does Esc act as "copy and close".
-    enum EscapeAction: Equatable { case cancelCrop, deselect, copyAndClose }
+    /// `escCopiesAndCloses` setting. Esc walks a ladder from the most local state
+    /// outwards: cancel a pending crop, drop a selection, put the pointer tool
+    /// back, and only from that resting state does it act as "copy and close".
+    /// Disarming the tool has to sit *above* copy-and-close, or with the setting
+    /// on it could never be reached — Esc would close the window instead.
+    enum EscapeAction: Equatable { case cancelCrop, deselect, selectTool, copyAndClose }
 
     func escapeAction(escCopiesAndCloses: Bool) -> EscapeAction {
         if cropRect != nil { return .cancelCrop }
         if selectedID != nil { return .deselect }
+        if activeTool != .select { return .selectTool }
         return escCopiesAndCloses ? .copyAndClose : .deselect
     }
 
