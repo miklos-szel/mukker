@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 
 /// Draws the menu bar's date glyph: a filled rounded square with today's day
 /// number knocked out of it.
@@ -25,44 +26,48 @@ enum MenuBarDateIcon {
 
     nonisolated static func image(day: Int) -> NSImage {
         let image = NSImage(size: size, flipped: false) { _ in
+            guard let context = NSGraphicsContext.current?.cgContext else { return true }
             NSColor.black.setFill()
             NSBezierPath(roundedRect: page, xRadius: 4, yRadius: 4).fill()
 
-            let text = String(day) as NSString
-            let font = numberFont
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: font,
-                .foregroundColor: NSColor.black
-            ]
-            // Centred on the digits' cap height, not on the line box: the box
-            // carries ascender and descender room the digits don't fill, and
-            // centring by it leaves the number sitting visibly high.
-            let baseline = page.midY - font.capHeight / 2
-            let origin = NSPoint(
-                x: page.midX - text.size(withAttributes: attributes).width / 2,
-                y: baseline + font.descender)
-
-            NSGraphicsContext.current?.compositingOperation = .destinationOut
-            text.draw(at: origin, withAttributes: attributes)
-            NSGraphicsContext.current?.compositingOperation = .sourceOver
+            let line = CTLineCreateWithAttributedString(
+                NSAttributedString(string: String(day), attributes: [.font: numberFont]))
+            // Centred on the digits' **ink**, not on their line box: the box carries
+            // ascender, descender and leading the digits never fill, and centring on
+            // it leaves the number sitting visibly high in the square.
+            let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+            context.saveGState()
+            // The number is erased out of the square rather than drawn in a second
+            // colour — the image is a template, so only its alpha means anything.
+            context.setBlendMode(.destinationOut)
+            context.textPosition = CGPoint(x: page.midX - ink.midX, y: page.midY - ink.midY)
+            CTLineDraw(line, context)
+            context.restoreGState()
             return true
         }
         image.isTemplate = true
         return image
     }
 
-    /// One size for every day of the month: the largest that fits **two**
-    /// monospaced digits inside the square. Sizing per-day would make single
-    /// digits noticeably bigger and resize the glyph on the 10th.
+    /// One size for every day of the month: the largest whose **two** digits' ink
+    /// fits the square. Sizing per-day would make single digits noticeably bigger
+    /// and resize the glyph on the 10th; measuring ink rather than advance width
+    /// is what lets it run as large as the reference glyphs beside it.
     private static let numberFont: NSFont = {
         let available = page.insetBy(dx: margin, dy: margin)
-        var size: CGFloat = 12
+        var size: CGFloat = 13
         while size > 6 {
             let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .bold)
-            let width = ("00" as NSString).size(withAttributes: [.font: font]).width
-            if width <= available.width && font.capHeight <= available.height { return font }
+            let ink = inkBounds(of: "00", font: font)
+            if ink.width <= available.width && ink.height <= available.height { return font }
             size -= 0.25
         }
         return NSFont.monospacedDigitSystemFont(ofSize: size, weight: .bold)
     }()
+
+    private nonisolated static func inkBounds(of text: String, font: NSFont) -> CGRect {
+        let line = CTLineCreateWithAttributedString(
+            NSAttributedString(string: text, attributes: [.font: font]))
+        return CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
+    }
 }

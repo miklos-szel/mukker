@@ -309,9 +309,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let settings = CalendarSettings.shared
         guard settings.showsEvents else { return [] }
 
-        guard CalendarEventsService.shared.hasAccess else {
-            return [ActionMenuItem("Grant Calendar access…", handler: actions.openSettings)]
-        }
+        // No row without access: permissions are granted in Settings → Permissions
+        // and nowhere else, and this one was also the menu's widest item — it set
+        // the whole menu's width for a state that is meant to be temporary.
+        guard CalendarEventsService.shared.hasAccess else { return [] }
 
         var items: [NSMenuItem] = [header(calendarModel.selectedDayTitle)]
         let events = calendarModel.events

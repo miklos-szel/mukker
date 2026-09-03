@@ -12,9 +12,10 @@ struct CalendarMenuView: View {
 
     /// Square cells, and the week rows carry **no** spacing: `MonthOutlineShape`
     /// assumes a uniform grid, and a gap between rows would break its steps.
-    private let cell = CGSize(width: 23, height: 23)
+    /// Wide enough that the calendar, not a text row, is the menu's widest item —
+    /// so the grid fills the menu instead of floating in it.
+    private let cell = CGSize(width: 26, height: 24)
     private let weekNumberWidth: CGFloat = 18
-    /// Keeps the grid's left edge on the same inset as the menu's text items.
     private let horizontalPadding: CGFloat = 13
 
     init(model: CalendarMenuModel) {
@@ -29,11 +30,10 @@ struct CalendarMenuView: View {
         .padding(.horizontal, horizontalPadding)
         .padding(.top, 6)
         .padding(.bottom, 9)
-        // A minimum, not a fixed width: the menu is as wide as its widest text
-        // item, and AppKit stretches the hosted view to match — letting the header
-        // stretch with it puts the pagers on the menu's right edge instead of
-        // leaving them stranded mid-row. The grid keeps its own width regardless.
-        .frame(minWidth: horizontalPadding * 2 + cell.width * CGFloat(CalendarGrid.columns)
+        // A fixed width inside a hosting view AppKit stretches to the menu's own
+        // (the menu is as wide as its widest text item), so the calendar sits
+        // centred in whatever is left over rather than pinned to one edge.
+        .frame(width: horizontalPadding * 2 + cell.width * CGFloat(CalendarGrid.columns)
                + (settings.showsWeekNumbers ? weekNumberWidth : 0),
                alignment: .leading)
     }

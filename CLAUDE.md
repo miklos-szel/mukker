@@ -342,15 +342,18 @@ Things that are load-bearing and easy to undo:
   a grid that changed height would resize the menu while paging. For the same reason
   `sizeCalendarItem()` runs before the menu opens: a menu takes an item's height from its view's
   frame once and never re-measures.
-- **The calendar is narrower than the menu.** Its 23 pt cells make the item ~187 pt wide while the
-  menu is as wide as its widest text item, so the hosted view takes `autoresizingMask = [.width]`
-  and the SwiftUI root a `minWidth` (not a fixed `width`): AppKit widens it, the grid keeps its own
-  size on the left and the header's pagers land on the menu's right edge instead of stranded
-  mid-row. A fixed width strands them; there is no way to ask a menu its width before it opens.
+- **The calendar sets the menu's width.** Its cells are sized so the item (~208 pt) comes out wider
+  than the widest text row, so the grid fills the menu instead of floating in it — a menu is as wide
+  as its widest item and there is no way to ask it for that width before it opens, so this is the
+  only way round. Shrink the cells and a text row takes over: the hosted view carries
+  `autoresizingMask = [.width]` and a **fixed-width** SwiftUI root for exactly that case, so AppKit
+  widens the view and the calendar sits centred in it rather than pinned to the left edge.
 - **Events are real `NSMenuItem`s**, not more SwiftUI, so the menu sizes itself to however many
   there are and the rows highlight natively. They are *enabled* with no action — disabled rows
   render too faint for what is the section's actual content. Changing the selected day swaps just
-  `eventItemRange` in the live menu.
+  `eventItemRange` in the live menu. Without the grant there are **no rows at all** — no "grant
+  access" row either: permissions live in the Permissions pane, and that row was the menu's widest
+  item, so a temporary state was setting the width of the whole menu.
 - **The `EKEventStore` is created lazily and only once access is granted.** Instantiating and
   querying one is what raises the system prompt, and the prompt belongs to the Permissions pane.
 - **The menu is forced opaque** (`makeMenuWindowsOpaque()`): `NSPopupMenuWindow` is translucent by
@@ -376,10 +379,12 @@ Things that are load-bearing and easy to undo:
   no room for a badge beside a two-digit number, and the state cannot be a colour either, since a
   template image only has an alpha channel. Keep Awake is reported by the menu's own line instead;
   switching the date off restores the app glyph *and* its `MenuBarIcon`/`MenuBarIconAwake` swap.
-  The number is sized by measurement (the largest that fits the square, so one and two digits land
-  close enough that the 10th doesn't visibly resize the bar) and centred on its **cap height** —
-  centring on the line box leaves it sitting high, because the box carries descender room the
-  digits never fill.
+  The number is sized and placed by measuring **ink** (`CTLineGetBoundsWithOptions` with
+  `.useGlyphPathBounds`), not the line box: the box carries ascender, descender and leading the
+  digits never fill, so centring on it leaves the number sitting visibly high, and fitting on
+  advance width rather than ink makes it a size smaller than the system glyphs beside it. The fit
+  is measured once against **two** digits so every day renders at the same size and the bar doesn't
+  resize on the 10th.
 - **The month is framed, not just tinted** — `MonthOutlineShape` strokes a rounded staircase around
   exactly the anchor month's cells, so the borrowed neighbour days fall outside it. Its corners come
   from `CalendarGrid.monthSpan` (the in-month days are contiguous, so a range is the whole shape)
