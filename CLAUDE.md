@@ -342,6 +342,11 @@ Things that are load-bearing and easy to undo:
   a grid that changed height would resize the menu while paging. For the same reason
   `sizeCalendarItem()` runs before the menu opens: a menu takes an item's height from its view's
   frame once and never re-measures.
+- **The calendar is narrower than the menu.** Its 23 pt cells make the item ~187 pt wide while the
+  menu is as wide as its widest text item, so the hosted view takes `autoresizingMask = [.width]`
+  and the SwiftUI root a `minWidth` (not a fixed `width`): AppKit widens it, the grid keeps its own
+  size on the left and the header's pagers land on the menu's right edge instead of stranded
+  mid-row. A fixed width strands them; there is no way to ask a menu its width before it opens.
 - **Events are real `NSMenuItem`s**, not more SwiftUI, so the menu sizes itself to however many
   there are and the rows highlight natively. They are *enabled* with no action — disabled rows
   render too faint for what is the section's actual content. Changing the selected day swaps just
@@ -366,11 +371,23 @@ Things that are load-bearing and easy to undo:
 - **The day number refreshes off an absolute deadline** — a timer armed on the next midnight, plus
   `.NSCalendarDayChanged`, `.NSSystemClockDidChange` and `didWakeNotification`. Same trap as Keep
   Awake: run-loop timers don't advance while the Mac sleeps. Never poll per second.
-- **Keep Awake lost its icon swap** while the date is on, because the date *is* the icon: the page
-  is drawn **filled** with the day number knocked out of it instead. Not a colour — a template
-  image only has an alpha channel, and `controlAccentColor` resolves near-black against the menu
-  bar — and not a corner badge either, because an 18 pt glyph has no room for one beside a
-  two-digit number. Switching the date off restores the old glyph and the old swap.
+- **The date glyph is state-independent** (`MenuBarDateIcon`): a filled rounded square with the day
+  number knocked out of it, and nothing else. It does **not** signal Keep Awake — an 18 pt glyph has
+  no room for a badge beside a two-digit number, and the state cannot be a colour either, since a
+  template image only has an alpha channel. Keep Awake is reported by the menu's own line instead;
+  switching the date off restores the app glyph *and* its `MenuBarIcon`/`MenuBarIconAwake` swap.
+  The number is sized by measurement (the largest that fits the square, so one and two digits land
+  close enough that the 10th doesn't visibly resize the bar) and centred on its **cap height** —
+  centring on the line box leaves it sitting high, because the box carries descender room the
+  digits never fill.
+- **The month is framed, not just tinted** — `MonthOutlineShape` strokes a rounded staircase around
+  exactly the anchor month's cells, so the borrowed neighbour days fall outside it. Its corners come
+  from `CalendarGrid.monthSpan` (the in-month days are contiguous, so a range is the whole shape)
+  and are walked with `addArc(tangent1End:tangent2End:radius:)`, which rounds the two *concave*
+  steps just like the convex corners. Both halves are `nonisolated static` and covered by
+  `AppTests/CalendarTests.swift`. The week rows carry **zero spacing** for this: the shape derives
+  every corner from `row * cell.height`, and a gap between rows would put its steps in the wrong
+  place.
 - `CalendarSettings.hiddenCalendarIDs` stores the calendars to **hide**, not to show, so one
   subscribed to later appears by default instead of silently going missing.
 - **The hourly chime** (`HourlyChimeService`, `Core/`) is the app's only sound and its only
