@@ -134,26 +134,13 @@ struct CapturePane: View {
 }
 
 /// A row of selectable color swatches bound to an index into `AnnotationStyle.palette`.
+/// Renders the editor toolbar's `ColorSwatchRow`, so the two places that show the
+/// palette can't drift apart in size, ring weight or hover behaviour again.
 private struct PaletteSwatches: View {
     @Binding var index: Int
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(Array(AnnotationStyle.palette.enumerated()), id: \.offset) { i, color in
-                let name = AnnotationStyle.paletteNames[i]
-                Button { index = i } label: {
-                    Circle()
-                        .fill(color)
-                        .frame(width: 18, height: 18)
-                        .overlay(Circle().strokeBorder(
-                            Color.primary.opacity(index == i ? 0.9 : 0.25),
-                            lineWidth: index == i ? 2 : 1))
-                }
-                .buttonStyle(.plain)
-                .help(name)
-                .accessibilityLabel(name)
-            }
-        }
+        ColorSwatchRow(selectedIndex: index, size: 18, spacing: 4) { i, _ in index = i }
     }
 }
 

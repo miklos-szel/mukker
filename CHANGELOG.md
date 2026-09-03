@@ -3,6 +3,37 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Changed
+- **Editor toolbar is now two rows.** Window chrome (undo/redo, zoom, image size, Copy and Save)
+  sits on top; the tools and their style controls sit below. The thirteen tools are grouped into
+  related clusters instead of one undifferentiated run, and the color swatches and width slider
+  are **contextual** — they appear only for a tool that actually draws something. Copy and Save
+  now carry their labels and a resting tint, so the primary actions look like primary actions.
+- Editor: the active tool is filled with the accent color instead of a 25%-opacity tint that was
+  easy to miss at a glance, and every toolbar control answers the pointer with a hover highlight.
+- Editor: **the pointer now matches the tool** — a crosshair to draw or crop, an open hand (closed
+  while dragging) to pan, an I-beam for text. Previously every tool showed the plain arrow.
+- Editor: switching tools with the keyboard names the tool in the on-screen HUD, so a keypress is
+  confirmed even when you're looking at the canvas rather than the toolbar.
+- Editor: arming the crop tool no longer shoves the toolbar sideways — Apply/Cancel take over the
+  trailing slot of the second row, leaving Copy and Save where they were.
+- Editor: **the editor window can now be much narrower.** Its 1080 pt minimum width existed only to
+  keep the one-row toolbar visible; it is now 860 pt — what the widest toolbar state actually needs
+  — so a small capture opens in a correspondingly small window. The window enforces that floor
+  itself now, so it can no longer be dragged narrow enough to clip the toolbar.
+- Editor: drawing is smoother — the base image is no longer re-wrapped and resampled on every
+  frame of a drag, and freehand strokes drop points too close together to see instead of
+  accumulating one per mouse event.
+- Settings → Capture and the editor toolbar now render the same color-swatch component, so the
+  two palettes can't drift apart again.
+
+### Fixed
+- Editor: ⌘Z while typing in a text annotation undid the entire editor state instead of the text
+  edit. Undo/redo are now handled alongside the editor's other keys, which stand down while a text
+  field has focus.
+
 ## [0.8.1] - 2026-09-02
 
 ### Added
@@ -299,7 +330,6 @@ Everything below is the history of the two apps before they merged.
 
 ### Changed
 - Editor: zoom steps are now multiplicative (smoother feel at all zoom levels).
-- Editor: pan tool uses the correct open-hand / closed-hand cursor icons.
 - Capture: cursor is restored correctly while a scrolling capture is in progress.
 - Settings: the monolithic `SettingsView` has been split into per-tab source files —
   `GeneralSettingsView`, `HotkeysSettingsView`, `ToolsSettingsView`, `PermissionsSettingsView`,

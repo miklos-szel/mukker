@@ -6,7 +6,12 @@ import SwiftUI
 @MainActor
 final class EditorViewModel: ObservableObject {
     /// The base (captured/cropped/resized) image in pixels.
-    @Published var baseImage: CGImage
+    @Published var baseImage: CGImage { didSet { baseNSImage = ImageExporter.nsImage(from: baseImage) } }
+    /// `baseImage` wrapped for SwiftUI, rebuilt only when the image itself changes.
+    /// `FlatCanvas` renders on every drag frame, and building this inside its body
+    /// allocated a new `NSImage` each time — defeating SwiftUI's image caching and
+    /// forcing a full-resolution resample per frame.
+    @Published private(set) var baseNSImage: NSImage
     @Published var zoom: CGFloat = 1.0
 
     /// Most recent canvas viewport size in points, kept in sync by the view so the
@@ -97,6 +102,7 @@ final class EditorViewModel: ObservableObject {
 
     init(image: CGImage, sourceScale: CGFloat = 2.0, canvasPadding: CGFloat? = nil) {
         self.baseImage = image
+        self.baseNSImage = ImageExporter.nsImage(from: image)
         self.sourceScale = sourceScale
         // Seed the editor's style from the configured defaults.
         let settings = CaptureSettings.shared
@@ -255,20 +261,33 @@ final class EditorViewModel: ObservableObject {
         }
     }
 
+    /// Points closer together than this along a freehand stroke are dropped. A
+    /// drag emits an event per mouse-move regardless of distance, so drawing slowly
+    /// piled up near-duplicate points — each one re-stroking the whole path on every
+    /// later frame, and re-encoding on export, for no visible fidelity.
+    private static let freehandMinSpacing: CGFloat = 1.5
+
     private func updateDraft(start: CGPoint, current: CGPoint) {
         guard let kind = activeTool.annotationKind else { return }
         editingTextID = nil
-        guard var current_draft = draft else {
+        guard draft != nil else {
             draft = makeAnnotation(kind: kind, start: start, current: current)
             return
         }
+        // Mutated through the optional rather than copied out into a local and
+        // written back — same number of published writes, one less thing to keep
+        // in sync. The saving on long strokes comes from `freehandMinSpacing`.
         switch kind {
-        case .freehand:                current_draft.points.append(current)
-        case .line, .arrow:            current_draft.points = [start, current]
-        case .counter:                 current_draft.rect = Self.counterRect(at: current)
-        default:                       current_draft.rect = CGRect(corner: start, current)
+        case .freehand:
+            if let last = draft?.points.last,
+               hypot(current.x - last.x, current.y - last.y) < Self.freehandMinSpacing {
+                return
+            }
+            draft?.points.append(current)
+        case .line, .arrow:            draft?.points = [start, current]
+        case .counter:                 draft?.rect = Self.counterRect(at: current)
+        default:                       draft?.rect = CGRect(corner: start, current)
         }
-        draft = current_draft
     }
 
     private func makeAnnotation(kind: AnnotationKind, start: CGPoint, current: CGPoint) -> Annotation {
@@ -697,7 +716,8 @@ final class EditorViewModel: ObservableObject {
         guard !annotations.isEmpty else { return baseImage }
         let bounds = canvasBounds(for: annotations)
         let renderer = ImageRenderer(content:
-            FlatCanvas(baseImage: baseImage, imageSize: logicalSize, contentBounds: bounds,
+            FlatCanvas(baseImage: baseImage, baseNSImage: baseNSImage,
+                       imageSize: logicalSize, contentBounds: bounds,
                        imageOrigin: imageOrigin,
                        annotations: annotations))
         renderer.proposedSize = ProposedViewSize(bounds.size)
