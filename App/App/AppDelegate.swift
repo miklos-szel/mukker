@@ -105,6 +105,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if ProcessInfo.processInfo.environment["MUKKER_OPEN_EDITOR"] == "1" {
             openDebugSample()
         }
+        // Settings on a given tab (`MUKKER_OPEN_SETTINGS=network`) and the popup
+        // — again only reachable by a human otherwise. Used for README screenshots.
+        if let name = ProcessInfo.processInfo.environment["MUKKER_OPEN_SETTINGS"] {
+            openSettings(tab: SettingsTab(rawValue: name) ?? .clipboard)
+        }
+        if ProcessInfo.processInfo.environment["MUKKER_OPEN_POPUP"] == "1" {
+            let timer = Timer(timeInterval: 1.0, repeats: false) { _ in
+                MainActor.assumeIsolated { PopupWindowController.shared.show() }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+        }
 #endif
 
         // We hide the dock icon via LSUIElement; still set activation policy as a guard
@@ -198,13 +209,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Settings
 
-    func openSettings() {
+    func openSettings(tab: SettingsTab? = nil) {
         if let w = settingsWindow {
             NSApp.activate(ignoringOtherApps: true)
             w.makeKeyAndOrderFront(nil)
             return
         }
-        let host = NSHostingController(rootView: SettingsView())
+        let host = NSHostingController(rootView: SettingsView(selection: tab ?? .clipboard))
         let window = NSWindow(contentViewController: host)
         window.title = "\(Branding.name) Settings"
         window.styleMask = [.titled, .closable, .resizable, .miniaturizable]

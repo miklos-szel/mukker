@@ -427,8 +427,12 @@ and `refreshInterval`. The pure halves — `BandwidthFormat`, `NetworkCounters.d
   `if_data` is 32-bit and wraps every 4 GB. A counter that goes backwards was reset and counts in
   full (`delta(previous:current:)`), never underflows.
 - **Only interfaces `SCNetworkInterfaceCopyAll` lists are counted.** That excludes `lo0`, `awdl`,
-  `llw`, bridges and VPN `utun`s — tunnel traffic also crosses the physical interface, so counting
-  both doubles it. The list is re-read every 15 s and on menu open, so a new adapter appears.
+  `llw` and VPN `utun`s — tunnel traffic also crosses the physical interface, so counting both
+  doubles it. SystemConfiguration *does* list the Thunderbolt Bridge (`bridge0`), so bridges are
+  skipped by type (`"Bridge"` — the constant is private) for the same reason. The list is re-read
+  every 15 s and on menu open, so a new adapter appears. Display names are persisted
+  (`BandwidthUsageStore.knownNames`) because totals outlive the hardware: SystemConfiguration only
+  names what is attached now, and an unplugged dock's row would otherwise read `en6`.
 - **The rate is averaged over the whole interval** (5 s default, 1–30 s), measured on
   `systemUptime`. That clock stops during sleep, so a wake re-baselines the *rate* while still
   crediting the bytes — otherwise Power Nap traffic lands in one interval as a spike. The timer is
@@ -482,9 +486,18 @@ without a real window or a permission grant; the AX half is verified by hand.
   background polling lives in `ClipboardMonitor` (RunLoop timer on `.common`).
 - **No Dock icon.** `Info.plist` sets `LSUIElement=true`; activation policy is `.accessory`.
   Tests, screenshots and `osascript` are the only ways to interact when running headless — plus
-  two `#if DEBUG` env hooks in `AppDelegate`, `MUKKER_OPEN_MENU=1` (pops the menu open so it can be
-  screenshotted) and `MUKKER_DUMP_MENU=1` (prints the whole menu tree and exits), which exist
-  because there is no other way to reach the menu without a human clicking the status item.
+  `#if DEBUG` env hooks in `AppDelegate`: `MUKKER_OPEN_MENU=1` (pops the menu open so it can be
+  screenshotted), `MUKKER_DUMP_MENU=1` (prints the whole menu tree and exits),
+  `MUKKER_OPEN_EDITOR=1` (the editor on a sample canvas), `MUKKER_OPEN_SETTINGS=<tab>` (Settings
+  on a `SettingsTab` raw value, e.g. `network`) and `MUKKER_OPEN_POPUP=1`, which exist because
+  there is no other way to reach those surfaces without a human clicking.
+- **README screenshots** (`docs/screenshots/`) are taken from a demo run that never shows real
+  data: `CFFIXED_USER_HOME=<scratch dir>` gives the app an empty database to seed with sample
+  snippets/clips (UserDefaults are *not* redirected by it), and launch arguments override settings
+  for that run without writing them — e.g. `-saveDirectory /Users/you/Desktop`,
+  `-enableDebugMenu NO`, `-bandwidth.dailyTotals '<hex JSON>'`. A run fed sample bandwidth totals
+  must be killed with `kill -9` inside a minute, before the store flushes them over the real ones.
+  Window shots: `screencapture -o -l <CGWindowID>`.
 - **Windows are app-owned `NSWindow`/`NSPanel`s** hosting SwiftUI via `NSHostingView`. Snippets
   Manager and Settings are created in `AppDelegate` (`openSnippetsManager()` / `openSettings()`),
   not SwiftUI `WindowGroup`/`Settings` scenes — there is intentionally no `Settings { }` scene.

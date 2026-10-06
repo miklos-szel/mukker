@@ -3,6 +3,19 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- Network submenu: an adapter that has been unplugged (a dock, a USB Ethernet dongle) keeps its
+  name instead of showing as `en6`.
+- Network totals no longer count the Thunderbolt Bridge, whose traffic already crosses its
+  member ports.
+- The Homebrew cask uses `postflight_steps`, so installing or upgrading no longer prints a
+  deprecation warning.
+
+### Changed
+- The README now shows the menu bar, the menu, the popup, the editor and every Settings tab.
+
 ## [1.1.0] - 2026-10-06
 
 ### Added
