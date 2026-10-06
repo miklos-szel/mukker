@@ -3,7 +3,7 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.1.0] - 2026-10-06
 
 ### Added
 - **Bandwidth monitor.** The current download/upload rate sits in the menu bar to the left of the
