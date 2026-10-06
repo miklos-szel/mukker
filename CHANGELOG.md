@@ -3,6 +3,17 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **Bandwidth monitor.** The current download/upload rate sits in the menu bar to the left of the
+  date, as an inverted fixed-width badge (`↓1,1 ↑0,3 Mbps`) refreshed every 5 s by default. A new
+  *Network* submenu lists the data each interface transferred today — and optionally this week and
+  this month — with the active interface checked. Configured in the new **Settings → Network** tab.
+
+### Changed
+- The menu bar date glyph is taller (20 pt) with condensed digits, so the day number reads larger.
+
 ## [1.0.0] - 2026-09-03
 
 ### Changed

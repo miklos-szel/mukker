@@ -1,8 +1,8 @@
 # Mukker
 
 A native macOS menu-bar utility that combines a **calendar**, **clipboard history**, **text
-snippets**, **screen capture with annotation**, **window tiling**, and **keeping your Mac awake**
-in one app. The menu bar shows today's date and drops down a month calendar with the day's
+snippets**, **screen capture with annotation**, **window tiling**, a **bandwidth monitor** and
+**keeping your Mac awake** in one app. The menu bar shows today's date and drops down a month calendar with the day's
 events; a quick popup on a global shortcut pastes back into the app you were just using; a
 capture shortcut opens a screenshot in a full annotation editor; a ⌃⌘arrow snaps the frontmost
 window to half the screen.
@@ -54,6 +54,15 @@ window to half the screen.
   already on. An optional **gap** insets tiled windows if you prefer them not to touch.
 - **Needs Accessibility access** — the same permission Mukker already uses to paste. Switch tiling
   off in Settings and the ⌃⌘arrow shortcuts are released back to other apps.
+
+### Bandwidth monitor
+
+- **The current network speed in the menu bar**, left of the date — `↓1,1 ↑0,3 Mbps`, the unit
+  scaling between Kbps, Mbps and Gbps. A fixed-width badge, so the menu bar doesn't jump around.
+- **Refreshes every 5 seconds** by default (1–30 s in **Settings → Network**).
+- **Data transferred per interface** — Wi-Fi, Ethernet, Thunderbolt… — in the menu's *Network*
+  submenu, with the active interface checked. Today by default; this week and this month can be
+  switched on. VPN tunnels aren't counted twice, and only traffic while Mukker runs is recorded.
 
 ### Keep awake
 
