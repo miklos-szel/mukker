@@ -3,7 +3,7 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.1.1] - 2026-10-06
 
 ### Fixed
 - Network submenu: an adapter that has been unplugged (a dock, a USB Ethernet dongle) keeps its
