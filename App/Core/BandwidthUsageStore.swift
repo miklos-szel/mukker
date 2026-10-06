@@ -27,6 +27,12 @@ final class BandwidthUsageStore {
     private(set) var days: Days
     private var isDirty = false
 
+    /// Last display name seen for each BSD name. Totals outlive the hardware —
+    /// a dock unplugged this afternoon still has this morning's traffic — and
+    /// SystemConfiguration only names what is attached *now*, so without this
+    /// a detached adapter's row would read `en6`.
+    private(set) var knownNames: [String: String]
+
     /// Longest period the menu can show is a month; a margin past that keeps
     /// last month's tail around without growing forever.
     nonisolated static let retainedDays = 62
@@ -35,7 +41,19 @@ final class BandwidthUsageStore {
         self.defaults = defaults
         days = defaults.data(forKey: K.days)
             .flatMap { try? JSONDecoder().decode(Days.self, from: $0) } ?? [:]
+        knownNames = defaults.dictionary(forKey: K.names) as? [String: String] ?? [:]
     }
+
+    /// Merges freshly read names in; written straight away, since it changes
+    /// only when hardware is plugged in.
+    func remember(names: [String: String]) {
+        let merged = knownNames.merging(names) { _, new in new }
+        guard merged != knownNames else { return }
+        knownNames = merged
+        defaults.set(merged, forKey: K.names)
+    }
+
+    func displayName(for bsdName: String) -> String { knownNames[bsdName] ?? bsdName }
 
     func add(_ deltas: [String: InterfaceCounters], at date: Date, calendar: Calendar = .current) {
         guard !deltas.isEmpty else { return }
@@ -63,7 +81,9 @@ final class BandwidthUsageStore {
 
     func reset() {
         days = [:]
+        knownNames = [:]
         defaults.removeObject(forKey: K.days)
+        defaults.removeObject(forKey: K.names)
         isDirty = false
     }
 
@@ -104,5 +124,6 @@ final class BandwidthUsageStore {
 
     private enum K {
         static let days = "bandwidth.dailyTotals"
+        static let names = "bandwidth.interfaceNames"
     }
 }

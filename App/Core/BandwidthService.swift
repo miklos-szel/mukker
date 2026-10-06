@@ -83,6 +83,7 @@ final class BandwidthService: ObservableObject {
     /// just-plugged adapter shows up immediately.
     func refreshInterfaces() {
         interfaceNames = NetworkCounters.hardwareInterfaces()
+        store.remember(names: interfaceNames)
         lastInterfaceRefresh = ProcessInfo.processInfo.systemUptime
     }
 
