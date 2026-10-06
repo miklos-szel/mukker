@@ -379,8 +379,8 @@ Things that are load-bearing and easy to undo:
   `.NSCalendarDayChanged`, `.NSSystemClockDidChange` and `didWakeNotification`. Same trap as Keep
   Awake: run-loop timers don't advance while the Mac sleeps. Never poll per second.
 - **The date glyph is state-independent** (`MenuBarDateIcon`): a filled rounded square with the day
-  number knocked out of it, and nothing else. It is a 17×20 pt page in the full 22 pt bar, with
-  **condensed** bold digits (`MenuBarDateIcon.digitFont`, shared with the bandwidth badge) so the
+  number knocked out of it, and nothing else. It is a 19×20 pt page in the full 22 pt bar, with
+  slightly **condensed** bold digits (`MenuBarDateIcon.digitFont`, shared with the bandwidth badge) so the
   number runs tall at the width the page allows. It does **not** signal Keep Awake — the glyph has
   no room for a badge beside a two-digit number, and the state cannot be a colour either, since a
   template image only has an alpha channel. Keep Awake is reported by the menu's own line instead;

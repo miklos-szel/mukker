@@ -15,7 +15,7 @@ enum MenuBarBandwidthBadge {
     /// Same 20 pt box as the date glyph, inside the full 22 pt menu bar.
     private static let height: CGFloat = 22
     private static let boxInset: CGFloat = 1
-    private static let horizontalPadding: CGFloat = 4
+    private static let horizontalPadding: CGFloat = 5
     /// Space between the badge and the glyph after it — just enough to read
     /// as two elements.
     private static let gap: CGFloat = 3
@@ -23,7 +23,7 @@ enum MenuBarBandwidthBadge {
     /// Condensed, like the date glyph's day number, so the figures run tall
     /// without making the badge wide.
     private static let numberFont = MenuBarDateIcon.digitFont(ofSize: 16)
-    private static let unitFont = NSFont.systemFont(ofSize: 10, weight: .bold, width: .condensed)
+    private static let unitFont = NSFont.systemFont(ofSize: 10, weight: .bold, width: MenuBarDateIcon.digitWidth)
 
     /// Fixed columns, measured once against the widest value each can hold:
     /// `↓888` and `↑888` are right-aligned in their own column and the unit is
@@ -33,7 +33,7 @@ enum MenuBarBandwidthBadge {
         attributed("↓888", numberFont).size().width, attributed("↑888", numberFont).size().width))
     private static let unitColumn: CGFloat = ceil(["Kbps", "Mbps", "Gbps"]
         .map { attributed($0, unitFont).size().width }.max() ?? 0)
-    private static let columnGap: CGFloat = 3
+    private static let columnGap: CGFloat = 5
     private static let boxWidth: CGFloat =
         horizontalPadding * 2 + numberColumn * 2 + unitColumn + columnGap * 2
 

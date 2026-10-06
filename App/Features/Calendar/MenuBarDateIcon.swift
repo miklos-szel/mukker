@@ -16,11 +16,11 @@ import CoreText
 enum MenuBarDateIcon {
     /// The full height of the 22 pt menu bar, so the page can be as tall as the
     /// bar allows.
-    static let size = NSSize(width: 18, height: 22)
+    static let size = NSSize(width: 20, height: 22)
 
     /// Taller than it is wide: 20 of the bar's 22 points, so the day number
     /// reads large. Shares its height with `MenuBarBandwidthBadge`'s box.
-    private static let page = NSRect(x: 0.5, y: 1, width: 17, height: 20)
+    private static let page = NSRect(x: 0.5, y: 1, width: 19, height: 20)
     /// Keeps the knocked-out number clear of the square's rounded corners.
     private static let margin: CGFloat = 1.5
 
@@ -66,9 +66,13 @@ enum MenuBarDateIcon {
         return digitFont(ofSize: size)
     }()
 
-    /// Bold, condensed, tabular digits — shared with the bandwidth badge.
+    /// Bold, slightly condensed, tabular digits — shared with the bandwidth
+    /// badge. Halfway between standard and `.condensed` (-0.2): fully condensed
+    /// read as squeezed, standard width can't run as tall.
+    static let digitWidth = NSFont.Width(rawValue: -0.1)
+
     nonisolated static func digitFont(ofSize size: CGFloat) -> NSFont {
-        let font = NSFont.systemFont(ofSize: size, weight: .bold, width: .condensed)
+        let font = NSFont.systemFont(ofSize: size, weight: .bold, width: digitWidth)
         let descriptor = font.fontDescriptor.addingAttributes([.featureSettings: [[
             NSFontDescriptor.FeatureKey.typeIdentifier: kNumberSpacingType,
             NSFontDescriptor.FeatureKey.selectorIdentifier: kMonospacedNumbersSelector
