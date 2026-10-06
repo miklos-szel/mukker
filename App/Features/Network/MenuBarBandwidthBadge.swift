@@ -12,16 +12,18 @@ import CoreText
 /// Everything is laid out in fixed columns (see `numberColumn`), so the status
 /// item never changes width — or shifts internally — as the traffic does.
 enum MenuBarBandwidthBadge {
-    /// Same 16 pt box as the date glyph, inside the same 18 pt slot.
-    private static let height: CGFloat = 18
+    /// Same 20 pt box as the date glyph, inside the full 22 pt menu bar.
+    private static let height: CGFloat = 22
     private static let boxInset: CGFloat = 1
     private static let horizontalPadding: CGFloat = 4
     /// Space between the badge and the glyph after it — just enough to read
     /// as two elements.
     private static let gap: CGFloat = 3
 
-    private static let numberFont = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold)
-    private static let unitFont = NSFont.systemFont(ofSize: 9, weight: .bold)
+    /// Condensed, like the date glyph's day number, so the figures run tall
+    /// without making the badge wide.
+    private static let numberFont = MenuBarDateIcon.digitFont(ofSize: 16)
+    private static let unitFont = NSFont.systemFont(ofSize: 10, weight: .bold, width: .condensed)
 
     /// Fixed columns, measured once against the widest value each can hold:
     /// `↓888` and `↑888` are right-aligned in their own column and the unit is
