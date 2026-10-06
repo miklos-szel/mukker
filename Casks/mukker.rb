@@ -20,10 +20,10 @@ cask "mukker" do
 
   # The app is ad-hoc signed (no Developer ID / notarization), so strip the
   # quarantine flag on install to avoid the Gatekeeper "damaged/unverified" block.
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Mukker.app"],
-                   sudo: false
+  # Declarative install steps rather than a Ruby `postflight` block, which
+  # Homebrew deprecated.
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/Mukker.app"]
   end
 
   zap trash: [
