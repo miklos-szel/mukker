@@ -55,11 +55,17 @@ enum NetworkCounters {
 
     /// BSD name → user-facing name ("Wi-Fi", "Thunderbolt Ethernet Slot 1") for
     /// every interface SystemConfiguration knows as network hardware.
+    ///
+    /// Bridges are skipped even though SystemConfiguration lists them (the
+    /// Thunderbolt Bridge, `bridge0`): a bridge's traffic also crosses its member
+    /// ports, so counting it would count those bytes twice.
     static func hardwareInterfaces() -> [String: String] {
         guard let all = SCNetworkInterfaceCopyAll() as? [SCNetworkInterface] else { return [:] }
         var result: [String: String] = [:]
         for interface in all {
             guard let bsd = SCNetworkInterfaceGetBSDName(interface) as String? else { continue }
+            // "Bridge" — SystemConfiguration keeps its bridge type constant private.
+            if (SCNetworkInterfaceGetInterfaceType(interface) as String?) == "Bridge" { continue }
             let display = SCNetworkInterfaceGetLocalizedDisplayName(interface) as String?
             result[bsd] = display ?? bsd
         }

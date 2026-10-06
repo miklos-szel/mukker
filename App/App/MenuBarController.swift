@@ -373,7 +373,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func networkItems() -> [NSMenuItem] {
         let service = BandwidthService.shared
         service.refreshInterfaces()
-        let names = service.interfaceNames
         let primary = NetworkCounters.primaryInterface()
 
         let periods = BandwidthPeriod.allCases.filter(BandwidthSettings.shared.shows)
@@ -389,7 +388,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         let font = NSFont.menuFont(ofSize: 0)
         let widestName = tables.flatMap(\.1).map { name, _ in
-            (names[name] ?? name).size(withAttributes: [.font: font]).width
+            service.store.displayName(for: name).size(withAttributes: [.font: font]).width
         }.max() ?? 0
         let widestHeader = periods.map {
             $0.label.size(withAttributes: [.font: NSFont.menuFont(ofSize: 0)]).width
@@ -406,7 +405,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
                 let item = NSMenuItem()
                 item.isEnabled = true    // same rule as the event rows
                 item.state = interface == primary ? .on : .off
-                item.attributedTitle = networkRowTitle(names[interface] ?? interface, counters)
+                item.attributedTitle = networkRowTitle(service.store.displayName(for: interface), counters)
                 networkRows.append((item, period, interface))
                 items.append(item)
             }
@@ -423,7 +422,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         for row in networkRows {
             let totals = cache[row.period] ?? service.store.totals(for: row.period)
             cache[row.period] = totals
-            let name = service.interfaceNames[row.interface] ?? row.interface
+            let name = service.store.displayName(for: row.interface)
             row.item.attributedTitle = networkRowTitle(name, totals[row.interface] ?? .zero)
         }
     }

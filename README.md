@@ -7,6 +7,14 @@ events; a quick popup on a global shortcut pastes back into the app you were jus
 capture shortcut opens a screenshot in a full annotation editor; a ⌃⌘arrow snaps the frontmost
 window to half the screen.
 
+<p align="center">
+  <img src="docs/screenshots/menubar.png" alt="The menu bar item: the network speed badge next to the date" height="44">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/menu.png" alt="The menu: a month calendar, with the Network submenu listing data transferred per interface" width="640">
+</p>
+
 ## Features
 
 ### Calendar
@@ -28,6 +36,10 @@ window to half the screen.
 
 ### Clipboard & snippets
 
+<p align="center">
+  <img src="docs/screenshots/popup.png" alt="The clipboard popup: snippet collections above the clipboard history" width="720">
+</p>
+
 - **Clipboard history** — text (incl. **rich text**/formatting), images, and file lists, with per-kind retention and a max-items cap.
 - **Snippets** — organize reusable text into collections; import `.alfredsnippets` snippet bundles and export/import Mukker's own JSON.
 - **Fast popup** (⌘E) — a single searchable list of snippets + history; reads from an in-memory cache so it opens instantly. Press the shortcut again to close. History lazy-loads in pages of 50; search spans everything.
@@ -38,6 +50,10 @@ window to half the screen.
 - **Screen-relative popup size** (30%–90% of your display) and a **customizable popup appearance** — background color plus a colored bezel with adjustable width.
 
 ### Capture & annotation
+
+<p align="center">
+  <img src="docs/screenshots/editor.png" alt="The annotation editor with shapes, an arrow, a highlight, a blur and a counter" width="720">
+</p>
 
 - **Area** (⌃⇧⌘4), **fullscreen** (⌃⇧⌘3) and **scrolling** (⌃⇧⌘5) capture.
 - **Annotation editor** — arrow, line, rectangle, rounded rectangle, ellipse, text, highlight, blur/pixelate, freehand pen, and numbered counters, with configurable colors, line width and per-tool keys.
@@ -71,13 +87,24 @@ window to half the screen.
   leave the Mac pinned awake by accident. Pick a different length from the *Keep Awake* menu
   (5 minutes through 5 hours, or until you turn it off), or change the default in
   **Settings → Keep Awake**.
-- **The menu-bar item shows the state** — the calendar page fills in solid while Keep Awake is on —
-  and the menu shows the time remaining.
+- **The menu shows the state** and the time remaining; with the date switched off, the menu-bar
+  icon also fills in solid while Keep Awake is on.
 - **Optionally let the display sleep** while the machine keeps running, turn it on automatically at
   launch, and have it stand down when you close the lid or sleep the Mac yourself.
 
 Captures copied to the clipboard also land in your clipboard history, so a screenshot you took
 five minutes ago is still one ⌘E away.
+
+## Settings
+
+Every feature set has its own tab; Hotkeys, Permissions and About are shared.
+
+| | |
+| --- | --- |
+| <img src="docs/screenshots/settings-clipboard.png" alt="Clipboard settings" width="400"><br>**Clipboard** — popup size and look, history retention | <img src="docs/screenshots/settings-capture.png" alt="Capture settings" width="400"><br>**Capture** — output folder and format, editor behaviour |
+| <img src="docs/screenshots/settings-network.png" alt="Network settings" width="400"><br>**Network** — menu bar speed, refresh interval, periods | <img src="docs/screenshots/settings-calendar.png" alt="Calendar settings" width="400"><br>**Calendar** — menu bar date and size, week start, events |
+| <img src="docs/screenshots/settings-keepawake.png" alt="Keep Awake settings" width="400"><br>**Keep Awake** — default duration, sleep behaviour | <img src="docs/screenshots/settings-windows.png" alt="Window tiling settings" width="400"><br>**Windows** — tiling shortcuts and gap |
+| <img src="docs/screenshots/settings-hotkeys.png" alt="Hotkey settings" width="400"><br>**Hotkeys** — popup and capture shortcuts | |
 
 ## Shortcuts
 

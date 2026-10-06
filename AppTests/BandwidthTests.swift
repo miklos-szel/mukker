@@ -110,6 +110,17 @@ final class BandwidthTests: XCTestCase {
         XCTAssertTrue(BandwidthUsageStore(defaults: defaults).days.isEmpty)
     }
 
+    @MainActor
+    func testRemembersNamesOfDetachedInterfaces() {
+        let defaults = makeDefaults()
+        let store = BandwidthUsageStore(defaults: defaults)
+        store.remember(names: ["en0": "Wi-Fi", "en6": "USB 10/100/1000 LAN"])
+        store.remember(names: ["en0": "Wi-Fi"])            // en6 unplugged
+        let reloaded = BandwidthUsageStore(defaults: defaults)
+        XCTAssertEqual(reloaded.displayName(for: "en6"), "USB 10/100/1000 LAN")
+        XCTAssertEqual(reloaded.displayName(for: "en9"), "en9")
+    }
+
     // MARK: - Settings
 
     @MainActor
