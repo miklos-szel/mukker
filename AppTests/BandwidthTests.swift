@@ -113,9 +113,9 @@ final class BandwidthTests: XCTestCase {
     // MARK: - Settings
 
     @MainActor
-    func testMenuBarGlyphHeightDefaultsToLargestAndClamps() {
+    func testMenuBarGlyphHeightDefaultsTo19AndClamps() {
         let defaults = makeDefaults()
-        XCTAssertEqual(CalendarSettings(defaults: defaults).menuBarGlyphHeight, 20)
+        XCTAssertEqual(CalendarSettings(defaults: defaults).menuBarGlyphHeight, 19)
         defaults.set(40.0, forKey: "calendar.menuBarGlyphHeight")
         XCTAssertEqual(CalendarSettings(defaults: defaults).menuBarGlyphHeight, 20)
         defaults.set(13.0, forKey: "calendar.menuBarGlyphHeight")

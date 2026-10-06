@@ -14,7 +14,7 @@ All notable changes to Mukker are documented here. The format loosely follows
 ### Changed
 - The menu bar date glyph is taller (20 pt) with condensed digits, so the day number reads larger.
   A new **Menu bar size** slider (Settings → Calendar or Network) scales the date and the network
-  badge together, from 12 to 20 pt.
+  badge together, from 12 to 20 pt (19 pt by default).
 
 ## [1.0.0] - 2026-09-03
 

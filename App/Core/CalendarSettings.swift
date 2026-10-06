@@ -76,8 +76,8 @@ final class CalendarSettings: ObservableObject {
     }
 
     /// Height in points of the menu bar's boxed glyphs — the date page and the
-    /// bandwidth badge share it, so they always line up. 20 (the largest the
-    /// 22 pt bar holds) by default.
+    /// bandwidth badge share it, so they always line up. 19 pt by default — a
+    /// point under the largest the 22 pt bar holds.
     @Published var menuBarGlyphHeight: Double {
         didSet { defaults.set(menuBarGlyphHeight, forKey: K.glyphHeight) }
     }
@@ -140,7 +140,7 @@ final class CalendarSettings: ObservableObject {
     /// Glyph heights Settings offers. The largest is 20 of the bar's 22
     /// points; anything taller would be clipped by the bar.
     nonisolated static let glyphHeightRange: ClosedRange<Double> = 12...20
-    nonisolated static let defaultGlyphHeight: Double = 20
+    nonisolated static let defaultGlyphHeight: Double = 19
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
