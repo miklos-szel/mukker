@@ -38,7 +38,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
     private var cancellables: Set<AnyCancellable> = []
     /// The glyph is redrawn once a day, not once a menu open.
-    private var cachedIcon: (day: Int, image: NSImage)?
+    private var cachedIcon: (day: Int, height: Double, image: NSImage)?
     private var dayRolloverTimer: Timer?
 
     /// The menu is rebuilt on every open, but the calendar is not: keeping the
@@ -65,6 +65,19 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// another day can swap just those while the menu stays open.
     private var eventItemRange: Range<Int> = 0..<0
 
+    /// The date half of the status item's title, recomputed on the (rare)
+    /// date/settings refresh so the once-a-second bandwidth repaint does no
+    /// `DateFormatter` work.
+    private var dateTitle = ""
+    private var baseImage: NSImage?
+
+    /// The Network submenu and its interface rows, kept so the totals can be
+    /// rewritten in place on every sample while the submenu is open.
+    private weak var networkMenu: NSMenu?
+    private var isNetworkMenuOpen = false
+    private var networkRows: [(item: NSMenuItem, period: BandwidthPeriod, interface: String)] = []
+    private var networkColumns = NetworkColumns(name: 0)
+
     init(actions: Actions) {
         self.actions = actions
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -86,6 +99,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             .merge(with: CalendarSettings.shared.objectWillChange)
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.refreshStatusItem() }
+            .store(in: &cancellables)
+
+        // Once per sample (5 s by default): only the title is redrawn, plus the
+        // Network rows if that submenu happens to be open.
+        BandwidthService.shared.$rate
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                self?.applyTitle()
+                self?.updateNetworkRows()
+            }
+            .store(in: &cancellables)
+        BandwidthSettings.shared.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in self?.applyTitle() }
             .store(in: &cancellables)
 
         observeDayRollover()
@@ -118,25 +145,45 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             // The date *is* the glyph, and it doesn't carry the Keep Awake state:
             // there is no room beside a two-digit number, and the menu's Keep
             // Awake line reports it anyway.
-            button.image = icon(for: settings.displayCalendar.component(.day, from: now))
-            button.title = MenuBarDateText.text(for: now,
-                                                format: settings.menuBarFormat,
-                                                custom: settings.customDateFormat)
+            baseImage = icon(for: settings.displayCalendar.component(.day, from: now))
+            dateTitle = MenuBarDateText.text(for: now,
+                                             format: settings.menuBarFormat,
+                                             custom: settings.customDateFormat)
         } else {
-            button.image = NSImage(named: awake ? "MenuBarIconAwake" : "MenuBarIcon")
-            button.title = ""
+            baseImage = NSImage(named: awake ? "MenuBarIconAwake" : "MenuBarIcon")
+            dateTitle = ""
         }
 
         button.font = .menuBarFont(ofSize: 0)
         button.imageHugsTitle = true
-        button.imagePosition = button.title.isEmpty ? .imageOnly : .imageLeading
         button.toolTip = Branding.name
+        applyTitle()
+    }
+
+    /// The bandwidth badge, then the date glyph (or app glyph), then the date
+    /// text. The badge sits **left** of the date and is drawn into the image
+    /// rather than the title, so it renders inverted like the date glyph.
+    private func applyTitle() {
+        guard let button = statusItem.button else { return }
+        let bandwidth = BandwidthSettings.shared
+        if bandwidth.isEnabled, bandwidth.showsInMenuBar {
+            let rate = BandwidthService.shared.rate
+            let parts = BandwidthFormat.menuBarParts(down: rate.down, up: rate.up)
+            button.image = MenuBarBandwidthBadge.image(down: parts.down, up: parts.up, unit: parts.unit,
+                                                       trailing: baseImage,
+                                                       height: CGFloat(CalendarSettings.shared.menuBarGlyphHeight))
+        } else {
+            button.image = baseImage
+        }
+        button.title = dateTitle
+        button.imagePosition = dateTitle.isEmpty ? .imageOnly : .imageLeading
     }
 
     private func icon(for day: Int) -> NSImage {
-        if let cachedIcon, cachedIcon.day == day { return cachedIcon.image }
-        let image = MenuBarDateIcon.image(day: day)
-        cachedIcon = (day, image)
+        let height = CalendarSettings.shared.menuBarGlyphHeight
+        if let cachedIcon, cachedIcon.day == day, cachedIcon.height == height { return cachedIcon.image }
+        let image = MenuBarDateIcon.image(day: day, height: CGFloat(height))
+        cachedIcon = (day, height, image)
         return image
     }
 
@@ -222,6 +269,11 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         makeMenuWindowsOpaqueSoon()
+        if menu === networkMenu { isNetworkMenuOpen = true }
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        if menu === networkMenu { isNetworkMenuOpen = false }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -251,6 +303,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         eventItemRange = items.count ..< (items.count + events.count)
         items.append(contentsOf: events)
         if !events.isEmpty { items.append(.separator()) }
+
+        // Network leads the submenus: it is the one the menu bar badge points at.
+        if BandwidthSettings.shared.isEnabled {
+            let network = submenu("Network", of: networkItems())
+            networkMenu = network.submenu
+            isNetworkMenuOpen = false
+            items.append(network)
+        } else {
+            networkMenu = nil
+            networkRows = []
+        }
 
         items.append(submenu("Clipboard & Snippets", of: [
             ActionMenuItem("Show Clipboard & Snippets", combo: shortcuts.popupCombo,
@@ -299,6 +362,95 @@ final class MenuBarController: NSObject, NSMenuDelegate {
                                         handler: { KeepAwakeService.shared.activate(for: duration) }))
         }
         return items
+    }
+
+    // MARK: - Network
+
+    /// Per-period tables of what each interface moved: a header row
+    /// (`Today  ↓  ↑  ⇅`) then one row per interface with traffic, the primary
+    /// interface checkmarked. Columns are right-aligned tab stops, so the rows
+    /// stay native menu items — they highlight and size like every other row.
+    private func networkItems() -> [NSMenuItem] {
+        let service = BandwidthService.shared
+        service.refreshInterfaces()
+        let names = service.interfaceNames
+        let primary = NetworkCounters.primaryInterface()
+
+        let periods = BandwidthPeriod.allCases.filter(BandwidthSettings.shared.shows)
+        let tables = periods.map { period -> (BandwidthPeriod, [(String, InterfaceCounters)]) in
+            let rows = service.store.totals(for: period)
+                .filter { $0.value.total > 0 }
+                .sorted { a, b in
+                    if (a.key == primary) != (b.key == primary) { return a.key == primary }
+                    return a.value.total > b.value.total
+                }
+            return (period, rows.map { ($0.key, $0.value) })
+        }
+
+        let font = NSFont.menuFont(ofSize: 0)
+        let widestName = tables.flatMap(\.1).map { name, _ in
+            (names[name] ?? name).size(withAttributes: [.font: font]).width
+        }.max() ?? 0
+        let widestHeader = periods.map {
+            $0.label.size(withAttributes: [.font: NSFont.menuFont(ofSize: 0)]).width
+        }.max() ?? 0
+        networkColumns = NetworkColumns(name: max(widestName, widestHeader, 80))
+        networkRows = []
+
+        var items: [NSMenuItem] = []
+        for (index, (period, rows)) in tables.enumerated() {
+            if index > 0 { items.append(.separator()) }
+            items.append(networkHeader(period.label))
+            if rows.isEmpty { items.append(disabled("No traffic yet")) }
+            for (interface, counters) in rows {
+                let item = NSMenuItem()
+                item.isEnabled = true    // same rule as the event rows
+                item.state = interface == primary ? .on : .off
+                item.attributedTitle = networkRowTitle(names[interface] ?? interface, counters)
+                networkRows.append((item, period, interface))
+                items.append(item)
+            }
+        }
+        if periods.isEmpty { items.append(disabled("No periods selected in Settings")) }
+        return items
+    }
+
+    /// Rewrites the open submenu's rows from the latest totals.
+    private func updateNetworkRows() {
+        guard isNetworkMenuOpen, !networkRows.isEmpty else { return }
+        let service = BandwidthService.shared
+        var cache: [BandwidthPeriod: [String: InterfaceCounters]] = [:]
+        for row in networkRows {
+            let totals = cache[row.period] ?? service.store.totals(for: row.period)
+            cache[row.period] = totals
+            let name = service.interfaceNames[row.interface] ?? row.interface
+            row.item.attributedTitle = networkRowTitle(name, totals[row.interface] ?? .zero)
+        }
+    }
+
+    private func networkHeader(_ title: String) -> NSMenuItem {
+        let item = NSMenuItem()
+        item.isEnabled = false
+        item.attributedTitle = NSAttributedString(
+            string: "\(title)\t↓\t↑\t⇅",
+            attributes: [.font: NSFont.menuFont(ofSize: 0).withWeight(.semibold),
+                         .foregroundColor: NSColor.labelColor,
+                         .paragraphStyle: networkColumns.paragraphStyle])
+        return item
+    }
+
+    private func networkRowTitle(_ name: String, _ counters: InterfaceCounters) -> NSAttributedString {
+        let parts = BandwidthFormat.volumeParts(received: counters.received, sent: counters.sent)
+        let text = NSMutableAttributedString(string: name, attributes: [
+            .font: NSFont.menuFont(ofSize: 0),
+            .paragraphStyle: networkColumns.paragraphStyle
+        ])
+        text.append(NSAttributedString(string: "\t\(parts.received)\t\(parts.sent)\t\(parts.total)",
+                                       attributes: [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular),
+            .paragraphStyle: networkColumns.paragraphStyle
+        ]))
+        return text
     }
 
     // MARK: - Events
@@ -420,6 +572,25 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             .foregroundColor: NSColor.secondaryLabelColor
         ])
         return item
+    }
+}
+
+/// Right-aligned tab stops for the Network table, measured from the widest
+/// interface name so the number columns line up under their arrows.
+private struct NetworkColumns {
+    var name: CGFloat
+
+    var paragraphStyle: NSParagraphStyle {
+        let style = NSMutableParagraphStyle()
+        let down = name + 64, up = down + 56, total = up + 84
+        style.tabStops = [down, up, total].map { NSTextTab(textAlignment: .right, location: $0) }
+        return style
+    }
+}
+
+private extension NSFont {
+    func withWeight(_ weight: NSFont.Weight) -> NSFont {
+        .systemFont(ofSize: pointSize, weight: weight)
     }
 }
 

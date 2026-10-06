@@ -14,24 +14,35 @@ import CoreText
 /// menu's Keep Awake line instead. (With the date switched off the status item
 /// falls back to the app glyph, which does still swap.)
 enum MenuBarDateIcon {
-    /// Matches the 18 pt menu-bar glyphs the app already ships.
-    static let size = NSSize(width: 18, height: 18)
+    /// The full height of the 22 pt menu bar; the page sits centred in it at
+    /// whatever height the user picked.
+    static let slotHeight: CGFloat = 22
+    static let defaultHeight = CalendarSettings.defaultGlyphHeight
 
-    /// Sized off the system's own boxed menu-bar glyphs (the input-source badge),
-    /// which fill 16 pt of the 18 pt slot — a smaller square reads as an odd
-    /// runt beside them.
-    private static let page = NSRect(x: 0.5, y: 1, width: 17, height: 16)
     /// Keeps the knocked-out number clear of the square's rounded corners.
     private static let margin: CGFloat = 1.5
 
-    nonisolated static func image(day: Int) -> NSImage {
+    /// A page slightly taller than it is wide (19 × 20 at the default size), so
+    /// the day number reads large. Shares its height with
+    /// `MenuBarBandwidthBadge`'s box so the two always line up.
+    nonisolated static func page(height: CGFloat) -> NSRect {
+        let range = CalendarSettings.glyphHeightRange
+        let height = min(max(height, CGFloat(range.lowerBound)), CGFloat(range.upperBound))
+        return NSRect(x: 0.5, y: (slotHeight - height) / 2, width: (height * 0.95).rounded(), height: height)
+    }
+
+    nonisolated static func image(day: Int, height: CGFloat = CGFloat(defaultHeight)) -> NSImage {
+        let page = page(height: height)
+        let font = numberFont(for: page)
+        let size = NSSize(width: page.width + 1, height: slotHeight)
         let image = NSImage(size: size, flipped: false) { _ in
             guard let context = NSGraphicsContext.current?.cgContext else { return true }
             NSColor.black.setFill()
-            NSBezierPath(roundedRect: page, xRadius: 4, yRadius: 4).fill()
+            NSBezierPath(roundedRect: page, xRadius: cornerRadius(page.height),
+                         yRadius: cornerRadius(page.height)).fill()
 
             let line = CTLineCreateWithAttributedString(
-                NSAttributedString(string: String(day), attributes: [.font: numberFont]))
+                NSAttributedString(string: String(day), attributes: [.font: font]))
             // Centred on the digits' **ink**, not on their line box: the box carries
             // ascender, descender and leading the digits never fill, and centring on
             // it leaves the number sitting visibly high in the square.
@@ -49,21 +60,41 @@ enum MenuBarDateIcon {
         return image
     }
 
+    /// 4 pt at the default size, scaled with it.
+    nonisolated static func cornerRadius(_ height: CGFloat) -> CGFloat { (height / 5).rounded() }
+
     /// One size for every day of the month: the largest whose **two** digits' ink
-    /// fits the square. Sizing per-day would make single digits noticeably bigger
-    /// and resize the glyph on the 10th; measuring ink rather than advance width
-    /// is what lets it run as large as the reference glyphs beside it.
-    private static let numberFont: NSFont = {
+    /// fits the page. The page's width is what limits the size, which is why the
+    /// digits are slightly condensed — they can run taller in the same width.
+    /// Sizing per-day would make single digits noticeably bigger and resize the
+    /// glyph on the 10th; measuring ink rather than advance width is what lets
+    /// it run as large as the reference glyphs beside it. Recomputed per call —
+    /// the caller caches the finished image per day and size.
+    private nonisolated static func numberFont(for page: NSRect) -> NSFont {
         let available = page.insetBy(dx: margin, dy: margin)
-        var size: CGFloat = 13
+        var size: CGFloat = 20
         while size > 6 {
-            let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .bold)
+            let font = digitFont(ofSize: size)
             let ink = inkBounds(of: "00", font: font)
             if ink.width <= available.width && ink.height <= available.height { return font }
             size -= 0.25
         }
-        return NSFont.monospacedDigitSystemFont(ofSize: size, weight: .bold)
-    }()
+        return digitFont(ofSize: size)
+    }
+
+    /// Bold, slightly condensed, tabular digits — shared with the bandwidth
+    /// badge. Halfway between standard and `.condensed` (-0.2): fully condensed
+    /// read as squeezed, standard width can't run as tall.
+    static let digitWidth = NSFont.Width(rawValue: -0.1)
+
+    nonisolated static func digitFont(ofSize size: CGFloat) -> NSFont {
+        let font = NSFont.systemFont(ofSize: size, weight: .bold, width: digitWidth)
+        let descriptor = font.fontDescriptor.addingAttributes([.featureSettings: [[
+            NSFontDescriptor.FeatureKey.typeIdentifier: kNumberSpacingType,
+            NSFontDescriptor.FeatureKey.selectorIdentifier: kMonospacedNumbersSelector
+        ]]])
+        return NSFont(descriptor: descriptor, size: size) ?? font
+    }
 
     private nonisolated static func inkBounds(of text: String, font: NSFont) -> CGRect {
         let line = CTLineCreateWithAttributedString(

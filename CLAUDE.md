@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Mukker is a native macOS menu-bar utility combining five feature sets — two of which used to be
+Mukker is a native macOS menu-bar utility combining six feature sets — two of which used to be
 separate apps:
 
 - **Clipboard history + snippets** (with rich-text support; no auto-expansion). A global shortcut
@@ -26,6 +26,10 @@ separate apps:
 - **Window tiling.** Four global shortcuts (⌃⌘←/→/↓/↑ by default) that snap the frontmost window
   to a half of whichever screen it is already on, via the Accessibility API. Stateless — it reads
   a window, moves it and forgets it; there is no window history and no restore.
+- **Bandwidth monitor.** The current download/upload rate across the hardware network interfaces,
+  drawn as an inverted badge to the *left* of the date glyph (`↓1,1 ↑0,3 Mbps`), sampled every
+  **5 s** by default; plus per-interface transfer totals (today, optionally this week/month) in a
+  *Network* submenu. Needs no permissions and never touches the database.
 
 The sides are deliberately independent at runtime. The only things they share are
 `PermissionsService`, `HotKeyManager`/`ShortcutSettings`, `Log`, `AppPaths`, `Branding`, the
@@ -121,7 +125,7 @@ Higher layers may import lower; never the reverse.
 `PopupWindowController`, `CaptureCoordinator`, `ScrollingCaptureService`,
 `EditorWindowController`, `AppIconCache`, `ClipThumbnailCache`, `KeepAwakeSettings`,
 `KeepAwakeService`, `WindowTilingSettings`, `WindowTiler`, `CalendarSettings`,
-`CalendarEventsService`, `HourlyChimeService`.
+`CalendarEventsService`, `HourlyChimeService`, `BandwidthSettings`, `BandwidthService`.
 `AppDelegate.applicationDidFinishLaunching` wires them together — start there to follow runtime
 flow. There is **no SwiftUI `App` type**: its only scene was the old `MenuBarExtra`, so the entry
 point is a plain AppKit `App/App/main.swift`.
@@ -154,8 +158,8 @@ point is a plain AppKit `App/App/main.swift`.
   arrow keys; special-case it before putting any arrow-bound action in the menu bar.
 - **Menu bar:** one `NSStatusItem` owned by `MenuBarController` (`App/App/MenuBarController.swift`)
   — *not* a SwiftUI `MenuBarExtra`, which in `.menu` style can only hold buttons and text and so
-  cannot host the calendar. Order: the calendar, the selected day's event rows, then a *Clipboard
-  & Snippets*, a *Capture* and a *Keep Awake* submenu, with only Settings and Quit at the top
+  cannot host the calendar. Order: the calendar, the selected day's event rows, then (while enabled)
+  a *Network*, a *Clipboard & Snippets*, a *Capture* and a *Keep Awake* submenu, with only Settings and Quit at the top
   level. The menu is **rebuilt from scratch in `menuNeedsUpdate(_:)`**, so the Keep Awake label,
   its countdown line and every shortcut glyph are re-read from their settings objects on each open
   rather than observed — and `calendarModel.reset()` belongs there too, *before* `buildItems()`,
@@ -164,8 +168,8 @@ point is a plain AppKit `App/App/main.swift`.
   equivalents only fire while the menu is open, so they advertise the global hotkey rather than
   competing with it.
 - **Settings:** one `TabView` (`Features/Settings/SettingsWindow.swift`) — `ClipboardPane`,
-  `CapturePane`, `KeepAwakePane`, `WindowTilingPane`, `CalendarPane`, `HotkeysPane`,
-  `PermissionsPane`, `AboutPane`. The first five are per-feature-set; the last three are shared. Add a
+  `CapturePane`, `KeepAwakePane`, `WindowTilingPane`, `CalendarPane`, `NetworkPane`, `HotkeysPane`,
+  `PermissionsPane`, `AboutPane`. The first six are per-feature-set; the last three are shared. Add a
   feature-specific setting to its own pane, not to the shared ones. (`WindowTilingPane` keeps its
   four shortcut recorders next to its on/off switch rather than in `HotkeysPane`, since the switch
   is what decides whether they exist — but *not* the Accessibility grant it needs: permissions are
@@ -375,7 +379,11 @@ Things that are load-bearing and easy to undo:
   `.NSCalendarDayChanged`, `.NSSystemClockDidChange` and `didWakeNotification`. Same trap as Keep
   Awake: run-loop timers don't advance while the Mac sleeps. Never poll per second.
 - **The date glyph is state-independent** (`MenuBarDateIcon`): a filled rounded square with the day
-  number knocked out of it, and nothing else. It does **not** signal Keep Awake — an 18 pt glyph has
+  number knocked out of it, and nothing else. It is an 18×19 pt page (by default — the height is the user's
+  `CalendarSettings.menuBarGlyphHeight`, 12–20 pt, which the bandwidth badge's box shares; the
+  *Menu bar size* slider appears in both the Calendar and Network panes) in the full 22 pt bar, with
+  slightly **condensed** bold digits (`MenuBarDateIcon.digitFont`, shared with the bandwidth badge) so the
+  number runs tall at the width the page allows. It does **not** signal Keep Awake — the glyph has
   no room for a badge beside a two-digit number, and the state cannot be a colour either, since a
   template image only has an alpha channel. Keep Awake is reported by the menu's own line instead;
   switching the date off restores the app glyph *and* its `MenuBarIcon`/`MenuBarIconAwake` swap.
@@ -406,6 +414,38 @@ Things that are load-bearing and easy to undo:
   — left alone, `NSSound` follows "Play sound effects through", which is often not the device the
   user is listening to. `MUKKER_CHIME_EVERY_MINUTE=1` (DEBUG) moves the schedule to the top of
   every minute so it can be exercised without waiting an hour.
+
+### Bandwidth monitor
+
+`NetworkCounters` (`Core/`) is the only thing that talks to the routing sysctl and
+SystemConfiguration; `BandwidthService` samples it on a timer, publishes the combined `rate` and
+credits every byte to `BandwidthUsageStore`; `BandwidthSettings` holds the switches, the periods
+and `refreshInterval`. The pure halves — `BandwidthFormat`, `NetworkCounters.delta`, the store's
+`totals`/`pruned` — are covered by `AppTests/BandwidthTests.swift`.
+
+- **Counters come from `NET_RT_IFLIST2` (`if_data64`), never `getifaddrs`.** The latter's
+  `if_data` is 32-bit and wraps every 4 GB. A counter that goes backwards was reset and counts in
+  full (`delta(previous:current:)`), never underflows.
+- **Only interfaces `SCNetworkInterfaceCopyAll` lists are counted.** That excludes `lo0`, `awdl`,
+  `llw`, bridges and VPN `utun`s — tunnel traffic also crosses the physical interface, so counting
+  both doubles it. The list is re-read every 15 s and on menu open, so a new adapter appears.
+- **The rate is averaged over the whole interval** (5 s default, 1–30 s), measured on
+  `systemUptime`. That clock stops during sleep, so a wake re-baselines the *rate* while still
+  crediting the bytes — otherwise Power Nap traffic lands in one interval as a spike. The timer is
+  on `.common` so the badge and the open Network submenu keep updating while a menu tracks.
+- **Totals are accumulated, not read.** Kernel counters reset at boot and carry no timestamps, so
+  per-day totals (`[day: [bsdName: counters]]`, JSON in `UserDefaults`, 62 days kept) are summed
+  from deltas, flushed once a minute and in `applicationWillTerminate`. Traffic while the app isn't
+  running is not counted; the first sample after launch is a baseline only.
+- **The badge is part of the status item's *image*, not its title** (`MenuBarBandwidthBadge`): a
+  filled rounded box with the readout knocked out via `.destinationOut`, composed to the left of the
+  date/app glyph as one template image, so it inverts like the date glyph. Each figure is
+  right-aligned in a **fixed column** measured against `↓888`/`↑888` and the widest unit, so the
+  item never changes width or shifts internally. `BandwidthFormat` keeps numbers to three digits
+  (one decimal below 10) and picks one unit from the larger rate — keep both halves in step.
+- The Network rows are real `NSMenuItem`s aligned with right-aligned `NSTextTab`s; the primary
+  interface (`State:/Network/Global/IPv4` → `PrimaryInterface`) gets the native checkmark. While
+  the submenu is open their titles are rewritten on each sample.
 
 ### Window tiling
 
@@ -452,7 +492,7 @@ without a real window or a permission grant; the AX half is verified by hand.
   `KeyEventCatcher`, `ShortcutRecorderField`, `InlineTextField`). Follow these patterns rather than
   fighting SwiftUI.
 - **Logging:** use `Log.<category>` from `Support/Logger.swift` (categories: `app`, `hotkey`,
-  `keepAwake`, `window`, `calendar`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`,
+  `keepAwake`, `window`, `calendar`, `network`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`,
   `export`). View with
   `log show --predicate 'subsystem == "com.mukker.Mukker"' --info --last 1m` (the subsystem is the
   bundle ID).
