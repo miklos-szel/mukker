@@ -503,7 +503,9 @@ without a real window or a permission grant; the AX half is verified by hand.
 - **Commit regularly.** After every confirmed-working feature, make a focused commit.
 - **Releases are automated — never build/upload the DMG yourself.**
   `.github/workflows/release.yml` triggers on a pushed `v*` tag, runs `make dmg`, and publishes the
-  GitHub release with the DMG + SHA-256. To cut a release: bump `CFBundleShortVersionString`/
+  GitHub release with the DMG + SHA-256. **The release notes are that version's `CHANGELOG.md`
+  section** (`## [X.Y.Z] - date`) — every release must list its changes, and the workflow fails
+  before publishing if the section is missing. To cut a release: bump `CFBundleShortVersionString`/
   `CFBundleVersion` in `project.yml`, update `CHANGELOG.md`, commit, then
   `git tag vX.Y.Z && git push origin vX.Y.Z`. **This repo doubles as its own Homebrew tap**:
   `Casks/mukker.rb` is the live cask (it strips the quarantine flag on install because the build is

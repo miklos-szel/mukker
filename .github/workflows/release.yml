@@ -28,15 +28,38 @@ jobs:
           echo "dmg=$DMG" >> "$GITHUB_OUTPUT"
           echo "sha256=$(shasum -a 256 "$DMG" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
+      # Every release lists its changes: the notes are this version's section of
+      # CHANGELOG.md. A tag without one fails here, before anything is published,
+      # rather than shipping a release that says nothing about what changed.
+      - name: Write release notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > changes.md
+          if ! grep -q '[^[:space:]]' changes.md; then
+            echo "CHANGELOG.md has no section for ${VERSION}" >&2
+            exit 1
+          fi
+          {
+            echo "## What's changed"
+            cat changes.md
+            echo
+            echo "---"
+            echo
+            echo "Ad-hoc signed build. After installing via the DMG, the first launch may be blocked by Gatekeeper —"
+            echo "right-click the app and choose **Open**, or install through the Homebrew cask (which strips the quarantine flag)."
+            echo
+            echo "DMG SHA-256: \`${{ steps.sha.outputs.sha256 }}\`"
+          } > release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ steps.sha.outputs.dmg }}
-          body: |
-            Ad-hoc signed build. After installing via the DMG, the first launch may be blocked by Gatekeeper —
-            right-click the app and choose **Open**, or install through the Homebrew cask (which strips the quarantine flag).
-
-            DMG SHA-256: `${{ steps.sha.outputs.sha256 }}`
+          body_path: release-notes.md
 
       # This repo doubles as its own Homebrew tap, so the cask has to follow the
       # release it describes — otherwise `brew install` keeps serving the
