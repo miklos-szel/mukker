@@ -46,6 +46,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         KeepAwakeService.shared.start()
         HourlyChimeService.shared.start()
 
+        // Bandwidth monitor: samples the network interfaces once a second for
+        // the menu bar rate and the per-interface daily totals.
+        BandwidthService.shared.start()
+
         // One manager owns all four system-wide shortcuts. The menu items carry
         // the same key equivalents for discoverability; CaptureCoordinator's
         // in-flight guard keeps a double-trigger from starting two captures.
@@ -129,6 +133,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// self-expiring, so an unclean exit drains within the assertion timeout.)
     func applicationWillTerminate(_ notification: Notification) {
         KeepAwakeService.shared.deactivate()
+        // Totals are otherwise only written once a minute.
+        BandwidthService.shared.flush()
     }
 
     // MARK: - Clipboard & snippets entry points

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Tabbed Settings window. One tab per feature set — Clipboard & Snippets,
-/// Capture, Keep Awake, Windows, Calendar — while Hotkeys, Permissions and
+/// Capture, Keep Awake, Windows, Calendar, Network — while Hotkeys, Permissions and
 /// About are shared across all of them.
 struct SettingsView: View {
     var body: some View {
@@ -16,6 +16,8 @@ struct SettingsView: View {
                 .tabItem { Label("Windows", systemImage: "rectangle.split.2x1") }
             CalendarPane()
                 .tabItem { Label("Calendar", systemImage: "calendar") }
+            NetworkPane()
+                .tabItem { Label("Network", systemImage: "network") }
             HotkeysPane()
                 .tabItem { Label("Hotkeys", systemImage: "keyboard") }
             PermissionsPane()

@@ -12,6 +12,7 @@ enum Log {
     static let keepAwake = Logger(subsystem: subsystem, category: "keepAwake")
     static let window = Logger(subsystem: subsystem, category: "window")
     static let calendar = Logger(subsystem: subsystem, category: "calendar")
+    static let network = Logger(subsystem: subsystem, category: "network")
 
     // Clipboard / snippets
     static let clipboard = Logger(subsystem: subsystem, category: "clipboard")
