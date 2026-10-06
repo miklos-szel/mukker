@@ -304,6 +304,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         items.append(contentsOf: events)
         if !events.isEmpty { items.append(.separator()) }
 
+        // Network leads the submenus: it is the one the menu bar badge points at.
+        if BandwidthSettings.shared.isEnabled {
+            let network = submenu("Network", of: networkItems())
+            networkMenu = network.submenu
+            isNetworkMenuOpen = false
+            items.append(network)
+        } else {
+            networkMenu = nil
+            networkRows = []
+        }
+
         items.append(submenu("Clipboard & Snippets", of: [
             ActionMenuItem("Show Clipboard & Snippets", combo: shortcuts.popupCombo,
                            handler: actions.showPopup),
@@ -326,16 +337,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         items.append(submenu("Capture", of: captureItems))
 
         items.append(submenu("Keep Awake", of: keepAwakeItems()))
-
-        if BandwidthSettings.shared.isEnabled {
-            let network = submenu("Network", of: networkItems())
-            networkMenu = network.submenu
-            isNetworkMenuOpen = false
-            items.append(network)
-        } else {
-            networkMenu = nil
-            networkRows = []
-        }
 
         items.append(.separator())
         items.append(ActionMenuItem("Settings…", keyEquivalent: ",", modifiers: .command,
