@@ -75,6 +75,13 @@ final class CalendarSettings: ObservableObject {
         didSet { defaults.set(menuBarFormat.rawValue, forKey: K.format) }
     }
 
+    /// Height in points of the menu bar's boxed glyphs — the date page and the
+    /// bandwidth badge share it, so they always line up. 20 (the largest the
+    /// 22 pt bar holds) by default.
+    @Published var menuBarGlyphHeight: Double {
+        didSet { defaults.set(menuBarGlyphHeight, forKey: K.glyphHeight) }
+    }
+
     /// `DateFormatter` pattern used when `menuBarFormat` is `.custom`.
     @Published var customDateFormat: String {
         didSet { defaults.set(customDateFormat, forKey: K.customFormat) }
@@ -130,6 +137,11 @@ final class CalendarSettings: ObservableObject {
 
     static let maximumEventsShown = 20
 
+    /// Glyph heights Settings offers. The largest is 20 of the bar's 22
+    /// points; anything taller would be clipped by the bar.
+    nonisolated static let glyphHeightRange: ClosedRange<Double> = 12...20
+    nonisolated static let defaultGlyphHeight: Double = 20
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         // `defaults.bool(forKey:)` cannot express default-on, hence the casts.
@@ -137,6 +149,9 @@ final class CalendarSettings: ObservableObject {
         menuBarFormat = (defaults.string(forKey: K.format))
             .flatMap(MenuBarDateFormat.init(rawValue:)) ?? .dayNumberOnly
         customDateFormat = defaults.string(forKey: K.customFormat) ?? "E d MMM"
+        let range = Self.glyphHeightRange
+        menuBarGlyphHeight = min(max(defaults.object(forKey: K.glyphHeight) as? Double
+                                     ?? Self.defaultGlyphHeight, range.lowerBound), range.upperBound)
         firstWeekday = (defaults.object(forKey: K.firstWeekday) as? Int)
             .flatMap(FirstWeekdayOption.init(rawValue:)) ?? .system
         showsWeekNumbers = defaults.bool(forKey: K.weekNumbers)
@@ -194,6 +209,7 @@ final class CalendarSettings: ObservableObject {
         static let showsDate = "calendar.showsDateInMenuBar"
         static let format = "calendar.menuBarFormat"
         static let customFormat = "calendar.customDateFormat"
+        static let glyphHeight = "calendar.menuBarGlyphHeight"
         static let firstWeekday = "calendar.firstWeekday"
         static let weekNumbers = "calendar.showsWeekNumbers"
         static let showsEvents = "calendar.showsEvents"

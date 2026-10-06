@@ -38,7 +38,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let menu = NSMenu()
     private var cancellables: Set<AnyCancellable> = []
     /// The glyph is redrawn once a day, not once a menu open.
-    private var cachedIcon: (day: Int, image: NSImage)?
+    private var cachedIcon: (day: Int, height: Double, image: NSImage)?
     private var dayRolloverTimer: Timer?
 
     /// The menu is rebuilt on every open, but the calendar is not: keeping the
@@ -170,7 +170,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             let rate = BandwidthService.shared.rate
             let parts = BandwidthFormat.menuBarParts(down: rate.down, up: rate.up)
             button.image = MenuBarBandwidthBadge.image(down: parts.down, up: parts.up, unit: parts.unit,
-                                                       trailing: baseImage)
+                                                       trailing: baseImage,
+                                                       height: CGFloat(CalendarSettings.shared.menuBarGlyphHeight))
         } else {
             button.image = baseImage
         }
@@ -179,9 +180,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     private func icon(for day: Int) -> NSImage {
-        if let cachedIcon, cachedIcon.day == day { return cachedIcon.image }
-        let image = MenuBarDateIcon.image(day: day)
-        cachedIcon = (day, image)
+        let height = CalendarSettings.shared.menuBarGlyphHeight
+        if let cachedIcon, cachedIcon.day == day, cachedIcon.height == height { return cachedIcon.image }
+        let image = MenuBarDateIcon.image(day: day, height: CGFloat(height))
+        cachedIcon = (day, height, image)
         return image
     }
 

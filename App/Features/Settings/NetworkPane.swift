@@ -12,6 +12,8 @@ struct NetworkPane: View {
                 Toggle("Enable bandwidth monitor", isOn: $settings.isEnabled)
                 Toggle("Show current speed in the menu bar", isOn: $settings.showsInMenuBar)
                     .disabled(!settings.isEnabled)
+                MenuBarSizeSlider()
+                    .disabled(!settings.isEnabled || !settings.showsInMenuBar)
                 Picker("Refresh every", selection: $settings.refreshInterval) {
                     ForEach(BandwidthSettings.refreshIntervals, id: \.self) { seconds in
                         Text(seconds == 1 ? "1 second" : "\(seconds) seconds").tag(seconds)

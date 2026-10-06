@@ -12,66 +12,87 @@ import CoreText
 /// Everything is laid out in fixed columns (see `numberColumn`), so the status
 /// item never changes width — or shifts internally — as the traffic does.
 enum MenuBarBandwidthBadge {
-    /// Same 20 pt box as the date glyph, inside the full 22 pt menu bar.
-    private static let height: CGFloat = 22
-    private static let boxInset: CGFloat = 1
-    private static let horizontalPadding: CGFloat = 5
     /// Space between the badge and the glyph after it — just enough to read
     /// as two elements.
     private static let gap: CGFloat = 3
 
-    /// Condensed, like the date glyph's day number, so the figures run tall
-    /// without making the badge wide.
-    private static let numberFont = MenuBarDateIcon.digitFont(ofSize: 16)
-    private static let unitFont = NSFont.systemFont(ofSize: 10, weight: .bold, width: MenuBarDateIcon.digitWidth)
+    /// Every measurement the badge needs at one box height. All of it scales
+    /// with the box (the defaults below are the 20 pt sizes), so the
+    /// user-chosen menu bar size grows the badge and the date glyph together.
+    private struct Layout {
+        let box: CGFloat
+        let numberFont: NSFont
+        let unitFont: NSFont
+        let padding: CGFloat
+        let columnGap: CGFloat
+        /// Fixed columns, measured against the widest value each can hold:
+        /// `↓888` and `↑888` are right-aligned in their own column and the unit
+        /// is left-aligned after them, so neither the badge nor anything inside
+        /// it moves when the figures or the unit change.
+        let numberColumn: CGFloat
+        let unitColumn: CGFloat
 
-    /// Fixed columns, measured once against the widest value each can hold:
-    /// `↓888` and `↑888` are right-aligned in their own column and the unit is
-    /// left-aligned after them, so neither the badge nor anything inside it
-    /// moves when the figures or the unit change.
-    private static let numberColumn: CGFloat = ceil(max(
-        attributed("↓888", numberFont).size().width, attributed("↑888", numberFont).size().width))
-    private static let unitColumn: CGFloat = ceil(["Kbps", "Mbps", "Gbps"]
-        .map { attributed($0, unitFont).size().width }.max() ?? 0)
-    private static let columnGap: CGFloat = 5
-    private static let boxWidth: CGFloat =
-        horizontalPadding * 2 + numberColumn * 2 + unitColumn + columnGap * 2
+        var width: CGFloat { padding * 2 + numberColumn * 2 + unitColumn + columnGap * 2 }
+
+        init(box: CGFloat) {
+            let scale = box / 20
+            self.box = box
+            // Slightly condensed, like the date glyph's day number, so the
+            // figures run tall without making the badge wide.
+            let numbers = MenuBarDateIcon.digitFont(ofSize: 16 * scale)
+            let units = NSFont.systemFont(ofSize: 10 * scale, weight: .bold, width: MenuBarDateIcon.digitWidth)
+            numberFont = numbers
+            unitFont = units
+            padding = (5 * scale).rounded()
+            columnGap = (5 * scale).rounded()
+            numberColumn = ceil(max(attributed("↓888", numbers).size().width,
+                                    attributed("↑888", numbers).size().width))
+            unitColumn = ceil(["Kbps", "Mbps", "Gbps"]
+                .map { attributed($0, units).size().width }.max() ?? 0)
+        }
+    }
 
     /// The badge followed by `trailing` (the date glyph or the app glyph), as
-    /// one template image.
-    static func image(down: String, up: String, unit: String, trailing: NSImage?) -> NSImage {
+    /// one template image. `height` is the box height — the same value the date
+    /// glyph's page uses.
+    static func image(down: String, up: String, unit: String, trailing: NSImage?,
+                      height: CGFloat = CGFloat(MenuBarDateIcon.defaultHeight)) -> NSImage {
+        let slot = MenuBarDateIcon.slotHeight
+        let page = MenuBarDateIcon.page(height: height)
+        let layout = Layout(box: page.height)
         let trailingWidth = trailing.map { $0.size.width + gap } ?? 0
-        let size = NSSize(width: boxWidth + trailingWidth, height: height)
+        let size = NSSize(width: layout.width + trailingWidth, height: slot)
 
         let image = NSImage(size: size, flipped: false) { _ in
             guard let context = NSGraphicsContext.current?.cgContext else { return true }
-            let box = NSRect(x: 0, y: boxInset, width: boxWidth, height: height - boxInset * 2)
+            let box = NSRect(x: 0, y: page.minY, width: layout.width, height: page.height)
+            let radius = MenuBarDateIcon.cornerRadius(page.height)
             NSColor.black.setFill()
-            NSBezierPath(roundedRect: box, xRadius: 4, yRadius: 4).fill()
+            NSBezierPath(roundedRect: box, xRadius: radius, yRadius: radius).fill()
 
             // Vertical placement from the digits' ink, as the date glyph does,
             // so the text doesn't sit high in the box.
             let ink = CTLineGetBoundsWithOptions(
-                CTLineCreateWithAttributedString(attributed("↓888", numberFont)), .useGlyphPathBounds)
+                CTLineCreateWithAttributedString(attributed("↓888", layout.numberFont)), .useGlyphPathBounds)
             let baseline = box.midY - ink.midY
             context.saveGState()
             context.setBlendMode(.destinationOut)
-            var column = box.minX + horizontalPadding
+            var column = box.minX + layout.padding
             for value in [down, up] {
-                let line = CTLineCreateWithAttributedString(attributed(value, numberFont))
+                let line = CTLineCreateWithAttributedString(attributed(value, layout.numberFont))
                 let width = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
-                context.textPosition = CGPoint(x: column + numberColumn - width, y: baseline)
+                context.textPosition = CGPoint(x: column + layout.numberColumn - width, y: baseline)
                 CTLineDraw(line, context)
-                column += numberColumn + columnGap
+                column += layout.numberColumn + layout.columnGap
             }
             context.textPosition = CGPoint(x: column, y: baseline)
-            CTLineDraw(CTLineCreateWithAttributedString(attributed(unit, unitFont)), context)
+            CTLineDraw(CTLineCreateWithAttributedString(attributed(unit, layout.unitFont)), context)
             context.restoreGState()
 
-            let x = boxWidth + gap
-            trailing?.draw(in: NSRect(x: x, y: (height - (trailing?.size.height ?? 0)) / 2,
-                                      width: trailing?.size.width ?? 0,
-                                      height: trailing?.size.height ?? 0))
+            if let trailing {
+                trailing.draw(in: NSRect(x: layout.width + gap, y: (slot - trailing.size.height) / 2,
+                                         width: trailing.size.width, height: trailing.size.height))
+            }
             return true
         }
         image.isTemplate = true

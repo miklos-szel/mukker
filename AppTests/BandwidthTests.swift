@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 @testable import AppCore
 
 final class BandwidthTests: XCTestCase {
@@ -110,6 +111,24 @@ final class BandwidthTests: XCTestCase {
     }
 
     // MARK: - Settings
+
+    @MainActor
+    func testMenuBarGlyphHeightDefaultsToLargestAndClamps() {
+        let defaults = makeDefaults()
+        XCTAssertEqual(CalendarSettings(defaults: defaults).menuBarGlyphHeight, 20)
+        defaults.set(40.0, forKey: "calendar.menuBarGlyphHeight")
+        XCTAssertEqual(CalendarSettings(defaults: defaults).menuBarGlyphHeight, 20)
+        defaults.set(13.0, forKey: "calendar.menuBarGlyphHeight")
+        XCTAssertEqual(CalendarSettings(defaults: defaults).menuBarGlyphHeight, 13)
+    }
+
+    func testDatePageScalesWithHeight() {
+        XCTAssertEqual(MenuBarDateIcon.page(height: 20).size, NSSize(width: 19, height: 20))
+        let small = MenuBarDateIcon.page(height: 12)
+        XCTAssertEqual(small.height, 12)
+        XCTAssertEqual(small.midY, MenuBarDateIcon.slotHeight / 2)   // centred in the bar
+        XCTAssertEqual(MenuBarDateIcon.page(height: 30).height, 20)   // clamped
+    }
 
     @MainActor
     func testSettingsDefaultsAndPersistence() {

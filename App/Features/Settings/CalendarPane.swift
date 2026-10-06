@@ -19,6 +19,7 @@ struct CalendarPane: View {
         Form {
             Section {
                 Toggle("Show the date in the menu bar", isOn: $settings.showsDateInMenuBar)
+                MenuBarSizeSlider()
 
                 Group {
                     Picker("Next to the date", selection: $settings.menuBarFormat) {
@@ -45,7 +46,8 @@ struct CalendarPane: View {
                 Text("Menu Bar")
             } footer: {
                 Text("The icon always carries today's day number. Turning the date off "
-                     + "restores the plain \(Branding.name) icon. Custom formats use "
+                     + "restores the plain \(Branding.name) icon. The size applies to the date "
+                     + "and the network speed alike. Custom formats use "
                      + "Unicode date patterns — d, EEE, MMM, yyyy.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
