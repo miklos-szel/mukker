@@ -49,11 +49,18 @@ final class HotKeyManager {
         self.actions = actions
         reload()
 
+        // `@Published` emits from `willSet`, before the property changes, and
+        // `reload()` re-reads every combo and `isEnabled` — so both triggers are
+        // delivered on the next run-loop pass, once the new values are stored.
+        // Delivered synchronously, a recorded shortcut re-registered the old
+        // combo and the tiling switch worked backwards.
         settings.comboChanges
+            .receive(on: RunLoop.main)
             .sink { [weak self] in self?.reload() }
             .store(in: &cancellables)
 
         reloadOn?
+            .receive(on: RunLoop.main)
             .sink { [weak self] in self?.reload() }
             .store(in: &cancellables)
     }

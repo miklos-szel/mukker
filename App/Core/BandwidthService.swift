@@ -56,17 +56,26 @@ final class BandwidthService: ObservableObject {
         self.init(settings: .shared, store: BandwidthUsageStore())
     }
 
+    /// Whether the sampling timer is armed.
+    var isSampling: Bool { timer != nil }
+
     func start() {
+        // `@Published` emits from `willSet`: act on the emitted value, never on a
+        // re-read of `settings`, which still holds the old one at this point.
         settings.$isEnabled
             .removeDuplicates()
             .sink { [weak self] enabled in enabled ? self?.resume() : self?.pause() }
             .store(in: &cancellables)
 
-        // A new interval re-arms the timer; the counters' baseline is kept.
+        // A new interval re-arms a running timer; the counters' baseline is kept.
+        // While paused there is nothing to re-arm — `resume()` reads the interval.
         settings.$refreshInterval
             .dropFirst()
             .removeDuplicates()
-            .sink { [weak self] interval in self?.scheduleTimer(every: interval) }
+            .sink { [weak self] interval in
+                guard let self, self.timer != nil else { return }
+                self.scheduleTimer(every: interval)
+            }
             .store(in: &cancellables)
 
         NSWorkspace.shared.notificationCenter
@@ -101,11 +110,13 @@ final class BandwidthService: ObservableObject {
         Log.network.info("bandwidth sampling started (\(self.interfaceNames.count) interfaces)")
     }
 
+    /// (Re-)arms the sampling timer. Callers decide whether sampling is on —
+    /// this must not consult `settings.isEnabled`, which still reads the old
+    /// value while the `$isEnabled` sink runs.
     private func scheduleTimer(every seconds: Int) {
-        guard timer != nil || settings.isEnabled else { return }
         timer?.invalidate()
-        let timer = Timer(timeInterval: TimeInterval(seconds), repeats: true) { _ in
-            MainActor.assumeIsolated { BandwidthService.shared.tick() }
+        let timer = Timer(timeInterval: TimeInterval(seconds), repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
         }
         timer.tolerance = 0.1
         RunLoop.main.add(timer, forMode: .common)

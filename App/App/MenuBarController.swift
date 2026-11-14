@@ -102,11 +102,16 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             .store(in: &cancellables)
 
         // Once per sample (5 s by default): only the title is redrawn, plus the
-        // Network rows if that submenu happens to be open.
+        // Network rows if that submenu happens to be open. `@Published` emits
+        // before the property changes, so the emitted rate is handed straight
+        // to the badge — re-reading `rate` here would draw the previous sample.
+        // Synchronous on purpose: deferring it (e.g. via `receive(on:)`) risks
+        // the rows standing still while a menu tracks. The rows read the
+        // store's totals, which `tick()` has already credited by now.
         BandwidthService.shared.$rate
             .removeDuplicates()
-            .sink { [weak self] _ in
-                self?.applyTitle()
+            .sink { [weak self] rate in
+                self?.applyTitle(rate: rate)
                 self?.updateNetworkRows()
             }
             .store(in: &cancellables)
@@ -163,11 +168,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// The bandwidth badge, then the date glyph (or app glyph), then the date
     /// text. The badge sits **left** of the date and is drawn into the image
     /// rather than the title, so it renders inverted like the date glyph.
-    private func applyTitle() {
+    /// `rate` is the value just emitted by `$rate`; nil reads the current one.
+    private func applyTitle(rate newRate: BandwidthService.Rate? = nil) {
         guard let button = statusItem.button else { return }
         let bandwidth = BandwidthSettings.shared
         if bandwidth.isEnabled, bandwidth.showsInMenuBar {
-            let rate = BandwidthService.shared.rate
+            let rate = newRate ?? BandwidthService.shared.rate
             let parts = BandwidthFormat.menuBarParts(down: rate.down, up: rate.up)
             button.image = MenuBarBandwidthBadge.image(down: parts.down, up: parts.up, unit: parts.unit,
                                                        trailing: baseImage,

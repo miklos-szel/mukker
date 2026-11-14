@@ -68,9 +68,11 @@ final class KeepAwakeService: ObservableObject {
         // type, so re-assert immediately instead of waiting for the next refresh.
         settings.$allowDisplaySleep
             .dropFirst()
-            .sink { [weak self] _ in
+            .sink { [weak self] allowDisplaySleep in
                 guard let self, self.isActive else { return }
-                self.refreshAssertion()
+                // The emitted value: `settings` still holds the old one here
+                // (`@Published` emits from `willSet`).
+                self.refreshAssertion(allowDisplaySleep: allowDisplaySleep)
             }
             .store(in: &cancellables)
 
@@ -187,10 +189,12 @@ final class KeepAwakeService: ObservableObject {
 
     /// Creates a fresh assertion and drops the previous one. New before old, so
     /// the two overlap and there is no window in which the Mac may idle-sleep.
-    private func refreshAssertion() {
+    /// `allowDisplaySleep` overrides the setting for a caller that already
+    /// knows the new value before it is stored.
+    private func refreshAssertion(allowDisplaySleep: Bool? = nil) {
         guard isUserSessionActive else { return }
 
-        let type = settings.allowDisplaySleep
+        let type = (allowDisplaySleep ?? settings.allowDisplaySleep)
             ? kIOPMAssertPreventUserIdleSystemSleep
             : kIOPMAssertPreventUserIdleDisplaySleep
         let previous = assertionID
