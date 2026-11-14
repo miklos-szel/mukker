@@ -221,7 +221,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .save:
             let output = settings.downscaleRetina
                 ? ImageExporter.downscaled(image, by: scale) : image
-            ImageExporter.saveSilently(output, to: settings.saveDirectory, format: settings.saveFormat)
+            let directory = settings.saveDirectory
+            if case .failure(let error) = ImageExporter.saveSilently(output, to: directory,
+                                                                     format: settings.saveFormat) {
+                // Keep the capture: open it in the editor (full resolution, as for
+                // "show"), then say why the save didn't happen.
+                EditorWindowController.shared.open(image: image, sourceScale: scale)
+                let alert = NSAlert()
+                alert.alertStyle = .warning
+                alert.messageText = "Couldn't save the screenshot"
+                alert.informativeText = "\(Branding.name) couldn't save to “\(directory.path)”: "
+                    + "\(error.localizedDescription)\n\nThe capture is open in the editor instead."
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+            }
         }
     }
 

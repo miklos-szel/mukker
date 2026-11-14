@@ -7,12 +7,28 @@ struct MukkerImporter {
         self.repository = repository
     }
 
-    enum ImportError: Error {
+    enum ImportError: LocalizedError {
         case unsupportedFormat(String)
+        case fileTooLarge(maxBytes: Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .unsupportedFormat(let format):
+                return "Unsupported snippet file format “\(format)”."
+            case .fileTooLarge(let maxBytes):
+                let size = ByteCountFormatter.string(fromByteCount: Int64(maxBytes), countStyle: .file)
+                return "The snippet file is too large to import (more than \(size))."
+            }
+        }
     }
+
+    /// Exported snippet files are small JSON; refuse to read anything far bigger.
+    var maxFileBytes: Int = 20 * 1024 * 1024
 
     @discardableResult
     func importFile(at url: URL) throws -> [SnippetCollection] {
+        let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        guard size <= maxFileBytes else { throw ImportError.fileTooLarge(maxBytes: maxFileBytes) }
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601

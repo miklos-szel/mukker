@@ -742,8 +742,13 @@ final class EditorViewModel: ObservableObject {
         if settings.downscaleRetina {
             image = ImageExporter.downscaled(image, by: sourceScale)
         }
-        let url = ImageExporter.saveSilently(image, to: settings.saveDirectory, format: settings.saveFormat)
-        flash(url.map { "Saved \($0.lastPathComponent)" } ?? "Save failed")
-        if url != nil, settings.closeAfterSave { requestClose?() }
+        switch ImageExporter.saveSilently(image, to: settings.saveDirectory, format: settings.saveFormat) {
+        case .success(let url):
+            flash("Saved \(url.lastPathComponent)")
+            if settings.closeAfterSave { requestClose?() }
+        case .failure(let error):
+            // The editor stays open, so the capture isn't lost.
+            flash("Save failed: \(error.localizedDescription)")
+        }
     }
 }
