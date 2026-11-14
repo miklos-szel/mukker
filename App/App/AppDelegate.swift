@@ -20,6 +20,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SnippetCache.shared.loadAll()
         ClipboardCache.shared.loadAll()
 
+        // Launch housekeeping, off the main thread (it walks the support folder):
+        // owner-only permissions on the history, then delete sidecar files no row
+        // references. The sweep is safe against captures running meanwhile — see
+        // `ClipboardRepository.removeOrphanedSidecarFiles`.
+        DispatchQueue.global(qos: .utility).async {
+            let tightened = AppPaths.tightenPermissions(under: AppPaths.supportDirectory)
+            if tightened > 0 {
+                Log.clipboard.info("Restricted permissions on \(tightened) support item(s)")
+            }
+            do {
+                let removed = try ClipboardRepository().removeOrphanedSidecarFiles(
+                    in: [AppPaths.imagesDirectory, AppPaths.richTextDirectory])
+                Log.clipboard.info("Orphan sweep removed \(removed) sidecar file(s)")
+            } catch {
+                Log.clipboard.error("Orphan sweep failed: \(error.localizedDescription)")
+            }
+        }
+
         // The popup is a non-activating panel, so ⌘, never reaches the app menu —
         // let it open Settings directly.
         PopupWindowController.shared.onRequestSettings = { [weak self] in

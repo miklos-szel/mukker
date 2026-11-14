@@ -130,6 +130,55 @@ final class ClipboardRepositoryTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: rtfPath), "clearAll should remove the RTF")
     }
 
+    func testSetRichTextPathUpdatesExistingRow() throws {
+        let repo = try makeRepo()
+        let item = try XCTUnwrap(try repo.insertIfNew(textItem("plain first", createdAt: Date(), hash: "pf")))
+        let id = try XCTUnwrap(item.id)
+
+        try repo.setRichTextPath(id: id, path: "/tmp/pf.rtf")
+        XCTAssertEqual(try repo.fetchOne(id: id)?.richTextPath, "/tmp/pf.rtf")
+        XCTAssertEqual(try repo.fetchOne(id: id)?.textContent, "plain first", "only the path changes")
+
+        try repo.setRichTextPath(id: id, path: nil)
+        XCTAssertNil(try repo.fetchOne(id: id)?.richTextPath)
+    }
+
+    func testOrphanSweepDeletesOnlyUnreferencedFiles() throws {
+        let repo = try makeRepo()
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("mukker-test-\(UUID().uuidString)", isDirectory: true)
+        let images = root.appendingPathComponent("images", isDirectory: true)
+        let rich = root.appendingPathComponent("richtext", isDirectory: true)
+        try fm.createDirectory(at: images, withIntermediateDirectories: true)
+        try fm.createDirectory(at: rich, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: root) }
+
+        func file(_ dir: URL, _ name: String) throws -> URL {
+            let url = dir.appendingPathComponent(name)
+            try Data("x".utf8).write(to: url)
+            return url
+        }
+        let keptImage = try file(images, "aaa.png")
+        let keptRTF = try file(rich, "bbb.rtf")
+        let orphanImage = try file(images, "ccc.png")
+        let orphanRTF = try file(rich, "ddd.rtf")
+
+        var image = textItem("", kind: .image, createdAt: Date(), hash: "aaa")
+        image.imagePath = keptImage.path
+        var text = textItem("rich", createdAt: Date(), hash: "bbb")
+        text.richTextPath = keptRTF.path
+        _ = try repo.insertIfNew(image)
+        _ = try repo.insertIfNew(text)
+
+        let removed = try repo.removeOrphanedSidecarFiles(in: [images, rich])
+
+        XCTAssertEqual(removed, 2)
+        XCTAssertTrue(fm.fileExists(atPath: keptImage.path))
+        XCTAssertTrue(fm.fileExists(atPath: keptRTF.path))
+        XCTAssertFalse(fm.fileExists(atPath: orphanImage.path))
+        XCTAssertFalse(fm.fileExists(atPath: orphanRTF.path))
+    }
+
     func testFetchOneByContentHashFindsDuplicate() throws {
         let repo = try makeRepo()
         let first = try XCTUnwrap(try repo.insertIfNew(textItem("dup", createdAt: Date(), hash: "d")))
