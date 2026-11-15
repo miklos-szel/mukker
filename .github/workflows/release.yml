@@ -5,15 +5,38 @@ on:
     tags:
       - "v*"
 
+# Read-only by default; the one job that publishes asks for more itself.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
     runs-on: macos-latest
+    permissions:
+      # Creating the release and pushing the cask update back to main.
+      contents: write
     steps:
+      # The version goes into the release notes lookup and, via sed, into the
+      # cask file users install — so it must be a plain X.Y.Z before anything
+      # uses it. Later steps read it from this step's output, never from the
+      # raw tag name.
+      - name: Validate version
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          VERSION="${TAG#v}"
+          # [[ =~ ]] matches the whole string, embedded newlines included.
+          # The tag itself is not echoed: it is untrusted input.
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::The tag is not of the form vX.Y.Z (e.g. v1.2.0); refusing to release."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -32,8 +55,9 @@ jobs:
       # CHANGELOG.md. A tag without one fails here, before anything is published,
       # rather than shipping a release that says nothing about what changed.
       - name: Write release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           awk -v v="$VERSION" '
             index($0, "## [" v "]") == 1 { on = 1; next }
             on && /^## \[/ { exit }
@@ -56,7 +80,7 @@ jobs:
           } > release-notes.md
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           files: ${{ steps.sha.outputs.dmg }}
           body_path: release-notes.md
@@ -65,8 +89,9 @@ jobs:
       # release it describes — otherwise `brew install` keeps serving the
       # previous DMG.
       - name: Update the cask
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           SHA256="${{ steps.sha.outputs.sha256 }}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
