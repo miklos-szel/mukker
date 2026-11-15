@@ -35,7 +35,50 @@ struct TranslatePane: View {
             } footer: {
                 Text("Click a shortcut, then press the new key combination (Esc cancels). "
                      + "They work even when \(Branding.name) isn't focused; pressing one again "
-                     + "while the panel is open closes it.")
+                     + "while the panel is open closes it — or, once you've edited the text in "
+                     + "the panel, translates that instead.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(!settings.isEnabled)
+
+            Section {
+                LabeledContent("Width") {
+                    HStack {
+                        Slider(value: $settings.panelWidth, in: TranslationSettings.panelWidthRange)
+                        Text("\(Int(settings.panelWidth)) pt").monospacedDigit().frame(width: 56, alignment: .trailing)
+                    }
+                }
+                LabeledContent("Height") {
+                    HStack {
+                        Slider(value: $settings.panelHeight, in: TranslationSettings.panelHeightRange)
+                        Text("\(Int(settings.panelHeight)) pt").monospacedDigit().frame(width: 56, alignment: .trailing)
+                    }
+                }
+                Toggle("Border around panel", isOn: $settings.borderEnabled)
+                if settings.borderEnabled {
+                    LabeledContent("Border color") {
+                        BorderedColorWell(selection: $settings.borderColor)
+                    }
+                    LabeledContent("Border width") {
+                        HStack(spacing: 8) {
+                            Slider(value: $settings.borderWidth,
+                                   in: TranslationSettings.borderWidthRange, step: 1)
+                                .frame(width: 150)
+                                .accessibilityLabel("Border width")
+                            Text("\(Int(settings.borderWidth.rounded())) pt")
+                                .font(.system(size: 11).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            } header: {
+                Text("Panel")
+            } footer: {
+                Text("Drag the panel by its title bar or resize it by its edges; it reopens where "
+                     + "and as you left it. Esc closes "
+                     + "it unless you've typed into the source text — then use Close or ⌘W. "
+                     + "⌘↩ translates the source text again.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -93,8 +136,9 @@ struct TranslatePane: View {
             + "shows it in a small panel and copies the translation."
         let selection = "A selection is read without copying it, so it never enters the "
             + "clipboard or its history. Reading it needs the Accessibility permission "
-            + "(Settings → Permissions); apps that don't expose their selection, which includes "
-            + "many Chromium-based browsers and Electron apps, get the clipboard text instead."
+            + "(Settings → Permissions). Chromium-based browsers and Electron apps build their "
+            + "accessibility data only when asked, so the first press in such an app can take a "
+            + "second or two; apps that don't expose a selection at all get the clipboard text."
         let destination = "The text is sent to \(backend.provider) through the "
             + "\(backend.executableName) command-line tool, using the account it is signed in "
             + "with, and counts against that plan. Switching translation off releases the "

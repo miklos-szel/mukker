@@ -19,6 +19,18 @@ import Foundation
 /// - **Our own process is skipped**: answering an AX request is the main
 ///   thread's job, and that is the thread asking — it would only time out.
 ///
+/// **Chromium-based apps** (Chrome, Edge, Brave, Arc, and every Electron app)
+/// build their accessibility tree only once an assistive client asks for it,
+/// so until then they report no focused element at all. `read()` then asks
+/// the focused app to build it — `AXManualAccessibility` (Electron's switch)
+/// and `AXEnhancedUserInterface` (the only one Chrome honours; it answers the
+/// set with an error yet builds the tree) — and returns `.waking(pid:)`. The
+/// tree takes a second or two to appear, far too long to block the main
+/// thread for, so the caller polls `readFocused(inApp:)`, which asks that
+/// app's own element: its focus and selection survive our panel taking key.
+/// Once built the tree stays, so only the first press in each app process
+/// waits.
+///
 /// It never prompts: without the Accessibility grant it reports `.notTrusted`
 /// and the caller falls back to the history entry. Secure text fields expose
 /// no selection by design, and that is not worked around.
@@ -46,6 +58,9 @@ final class SelectedTextReader {
         case ownApp
         case nothingSelected
         case timedOut
+        /// No focused element; the focused app (`pid`) has been asked to build
+        /// its accessibility tree. Poll `readFocused(inApp:)`.
+        case waking(pid: pid_t)
     }
 
     private static let messagingTimeout: Float = 0.5
@@ -65,6 +80,10 @@ final class SelectedTextReader {
 
         var lookup = Lookup()
         guard let element = lookup.element(systemWide, kAXFocusedUIElementAttribute) else {
+            // A Chromium app without its tree answers "cannot complete" here,
+            // the same error as a hung app, so both get the wake attempt; the
+            // wake itself is bounded by the app element's own timeout.
+            if let pid = wakeFocusedApp(systemWide: systemWide) { return .waking(pid: pid) }
             return lookup.timedOut ? .timedOut : .noFocusedElement
         }
         var pid: pid_t = 0
@@ -72,6 +91,24 @@ final class SelectedTextReader {
            pid == ProcessInfo.processInfo.processIdentifier {
             return .ownApp
         }
+        return outcome(reading: element, pid: pid, lookup: &lookup)
+    }
+
+    /// The selection of `pid`'s own focused element — the poll after
+    /// `.waking`. Asks the app, not the system-wide element, so it keeps
+    /// working after our panel has taken keyboard focus.
+    func readFocused(inApp pid: pid_t) -> Outcome {
+        guard permissions.hasAccessibilityPermission else { return .notTrusted }
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, Self.messagingTimeout)
+        var lookup = Lookup()
+        guard let element = lookup.element(app, kAXFocusedUIElementAttribute) else {
+            return lookup.timedOut ? .timedOut : .noFocusedElement
+        }
+        return outcome(reading: element, pid: pid, lookup: &lookup)
+    }
+
+    private func outcome(reading element: AXUIElement, pid: pid_t, lookup: inout Lookup) -> Outcome {
         AXUIElementSetMessagingTimeout(element, Self.messagingTimeout)
 
         let text = selectedText(of: element, lookup: &lookup)
@@ -80,6 +117,55 @@ final class SelectedTextReader {
         let bundleID = pid == 0 ? nil : NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
         return .selection(Selection(text: text, bundleIdentifier: bundleID))
     }
+
+    /// Asks the focused app to build its accessibility tree; returns its pid,
+    /// or nil when there is no other app to ask or it doesn't answer at all.
+    /// Re-sent on every press that finds no focused element, since Chrome
+    /// can drop its tree again after a while without assistive clients.
+    private func wakeFocusedApp(systemWide: AXUIElement) -> pid_t? {
+        var lookup = Lookup()
+        var pid: pid_t = 0
+        if let app = lookup.element(systemWide, kAXFocusedApplicationAttribute) {
+            AXUIElementGetPid(app, &pid)
+        }
+        if pid == 0 { pid = NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0 }
+        guard pid > 0, pid != ProcessInfo.processInfo.processIdentifier,
+              let bundleURL = NSRunningApplication(processIdentifier: pid)?.bundleURL,
+              isChromiumBased(bundleURL) else { return nil }
+
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, Self.messagingTimeout)
+        let manual = AXUIElementSetAttributeValue(app, "AXManualAccessibility" as CFString,
+                                                  kCFBooleanTrue)
+        if manual == .cannotComplete { return nil }
+        if manual != .success {
+            AXUIElementSetAttributeValue(app, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
+        }
+        return pid
+    }
+
+    /// Only Chromium and Electron apps are woken: a native app with nothing
+    /// focused (Finder's desktop) has no tree to build, and waking it would
+    /// only make the user wait out the poll before the history fallback.
+    /// Recognised by the bundle — Electron's or CEF's framework, or a
+    /// `<Name> Framework.framework` carrying Chromium's `Helpers` directory
+    /// (Chrome, Brave, Edge, Arc, …). Cached per bundle path.
+    private func isChromiumBased(_ bundleURL: URL) -> Bool {
+        if let known = chromiumBundles[bundleURL.path] { return known }
+        let frameworks = bundleURL.appendingPathComponent("Contents/Frameworks")
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: frameworks.path)) ?? []
+        let result = names.contains { name in
+            name == "Electron Framework.framework"
+                || name == "Chromium Embedded Framework.framework"
+                || (name.hasSuffix(" Framework.framework")
+                    && FileManager.default.fileExists(
+                        atPath: frameworks.appendingPathComponent(name).appendingPathComponent("Helpers").path))
+        }
+        chromiumBundles[bundleURL.path] = result
+        return result
+    }
+
+    private var chromiumBundles: [String: Bool] = [:]
 
     /// The cheap attributes, in order: the plain selected-text attribute
     /// (native Cocoa text, most apps), then range + string-for-range (views

@@ -558,10 +558,20 @@ AX selection read are verified by hand (`MUKKER_TRANSLATE=en|hu`).
   copied selection would sit on the general pasteboard where other clipboard managers and
   Universal Clipboard see it, restoring a snapshot can't bring back promised/lazy types, and the
   synthetic ⌘C would reach `FastAppendService`'s global monitor. Apps that don't expose a
-  selection over AX (many Chromium/Electron apps, some terminals) and secure fields therefore get
-  the history entry. A blank selection is no selection; a selection from an app in
-  `ClipboardSettings.ignoredBundleIDs` is dropped, as history would drop its copy; one longer than
-  `maxClipSize.characterLimit` is refused with a message rather than swapped for history.
+  selection over AX (some terminals) and secure fields therefore get the history entry. A blank
+  selection is no selection; a selection from an app in `ClipboardSettings.ignoredBundleIDs` is
+  dropped, as history would drop its copy; one longer than `maxClipSize.characterLimit` is
+  refused with a message rather than swapped for history.
+- **Chromium and Electron apps build their AX tree only when asked** — until then the
+  system-wide element reports no focused element. `read()` recognises them by bundle (Electron's
+  or CEF's framework, or a `<Name> Framework.framework/Helpers`), sets `AXManualAccessibility`
+  (Electron) and, when that is refused, `AXEnhancedUserInterface` (the only switch Chrome honours —
+  it answers the set with an error yet builds the tree), and returns `.waking(pid:)`. The tree
+  takes ~2 s in a fresh Chrome, so it is **polled, never waited for**: `TranslationService` shows
+  "Reading the selection…" and asks `readFocused(inApp:)` every 150 ms on a `.common` timer for up
+  to 3 s, then falls back to history. It asks the *app's* element, whose focus and selection
+  survive our panel taking key. `WindowTiler` switches `AXEnhancedUserInterface` off around a move
+  and back on after, since an app with it on animates AX moves.
 - **The selection is read before the panel shows** (`TranslationPanelController.show`, right after
   the toggle check, before `present()`): showing and activating moves focus away from the
   element. The menu items take the same path — a status menu doesn't activate the app, so the
@@ -598,8 +608,17 @@ AX selection read are verified by hand (`MUKKER_TRANSLATE=en|hu`).
   "Translate to <other language>" button re-sends the *original* held in the state.
 - **The panel does not close on losing focus** (unlike the popup) — the user reads it while
   working elsewhere. It closes on Esc, ⌘W, Close, or the same language's hotkey again; the other
-  language's hotkey re-translates. It captures the frontmost app before activating and hands
-  focus back on close, as the popup does.
+  language's hotkey re-translates. **The source is editable** (`TranslationService.draft`): text
+  typed or pasted into it makes `isDraftEdited` true, and then Esc only beeps and either hotkey
+  translates the draft — only ⌘W/Close discard it. Esc and ⌘↩ are taken in
+  `TranslationPanel.sendEvent` before the text view sees them (it would turn Esc into `complete:`
+  and let ⌘↩ both fire a button shortcut and insert a newline). Size comes from
+  `TranslationSettings.panelWidth/Height` (Translate pane, applied live; the borderless panel is
+  `.resizable` and an edge drag writes back to them — the hosting view has `sizingOptions = []`); the header is the drag
+  handle and a user drag is remembered (`panelTopLeft`), our own placement is not. Its optional
+  border mirrors the popup bezel (on, orange, 7 pt by default) but has its own keys in
+  `TranslationSettings`. It captures
+  the frontmost app before activating and hands focus back on close, as the popup does.
 - Never log the text — `Log.translate` records the source used (selection/history, or why no
   selection was read), lengths and exit status only.
 

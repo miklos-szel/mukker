@@ -1,5 +1,7 @@
+import AppKit
 import Combine
 import Foundation
+import SwiftUI
 
 /// The languages the translate hotkeys aim at. The source language is never
 /// chosen — the model detects it — so this only names the *target*.
@@ -181,6 +183,51 @@ final class TranslationSettings: ObservableObject {
         didSet { defaults.set(claudeModel, forKey: K.claudeModel) }
     }
 
+    /// The result panel's size in points, set in the Translate pane.
+    @Published var panelWidth: Double {
+        didSet { defaults.set(panelWidth, forKey: K.panelWidth) }
+    }
+
+    @Published var panelHeight: Double {
+        didSet { defaults.set(panelHeight, forKey: K.panelHeight) }
+    }
+
+    /// A colored border around the panel — the same option, defaults and
+    /// 0…12 pt range as the clipboard popup's bezel, stored separately so the
+    /// two can differ.
+    @Published var borderEnabled: Bool {
+        didSet { defaults.set(borderEnabled, forKey: K.borderEnabled) }
+    }
+
+    @Published var borderColor: Color {
+        didSet { defaults.set(borderColor.hexRGBA, forKey: K.borderColor) }
+    }
+
+    @Published var borderWidth: Double {
+        didSet { defaults.set(borderWidth, forKey: K.borderWidth) }
+    }
+
+    nonisolated static let borderWidthRange: ClosedRange<Double> = 0...12
+
+    nonisolated static let panelWidthRange: ClosedRange<Double> = 380...1200
+    nonisolated static let panelHeightRange: ClosedRange<Double> = 260...1000
+    nonisolated static let defaultPanelSize = (width: 560.0, height: 380.0)
+
+    /// Where the user last dragged the panel (its top-left corner, in screen
+    /// coordinates), so it reopens there; nil until it has been moved, which
+    /// centres it on the screen holding the mouse.
+    var panelTopLeft: NSPoint? {
+        get {
+            guard let string = defaults.string(forKey: K.panelTopLeft) else { return nil }
+            let point = NSPointFromString(string)
+            return point == .zero ? nil : point
+        }
+        set {
+            if let newValue { defaults.set(NSStringFromPoint(newValue), forKey: K.panelTopLeft) }
+            else { defaults.removeObject(forKey: K.panelTopLeft) }
+        }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         // A plain `defaults.bool(forKey:)` cannot express default-on.
@@ -191,6 +238,19 @@ final class TranslationSettings: ObservableObject {
         codexModel = defaults.string(forKey: K.codexModel) ?? TranslationBackend.codex.defaultModel
         claudePath = defaults.string(forKey: K.claudePath) ?? ""
         claudeModel = defaults.string(forKey: K.claudeModel) ?? TranslationBackend.claude.defaultModel
+        let width = defaults.object(forKey: K.panelWidth) as? Double ?? Self.defaultPanelSize.width
+        let height = defaults.object(forKey: K.panelHeight) as? Double ?? Self.defaultPanelSize.height
+        borderEnabled = defaults.object(forKey: K.borderEnabled) as? Bool ?? true
+        borderColor = defaults.string(forKey: K.borderColor).flatMap(Color.init(hex:))
+            ?? ClipboardSettings.defaultPopupBezelColor
+        borderWidth = Self.clamp(defaults.object(forKey: K.borderWidth) as? Double ?? 7,
+                                 to: Self.borderWidthRange)
+        panelWidth = Self.clamp(width, to: Self.panelWidthRange)
+        panelHeight = Self.clamp(height, to: Self.panelHeightRange)
+    }
+
+    nonisolated static func clamp(_ value: Double, to range: ClosedRange<Double>) -> Double {
+        min(max(value, range.lowerBound), range.upperBound)
     }
 
     func path(for backend: TranslationBackend) -> String {
@@ -229,5 +289,11 @@ final class TranslationSettings: ObservableObject {
         static let codexModel = "translationCodexModel"
         static let claudePath = "translationClaudePath"
         static let claudeModel = "translationClaudeModel"
+        static let panelWidth = "translationPanelWidth"
+        static let panelHeight = "translationPanelHeight"
+        static let panelTopLeft = "translationPanelTopLeft"
+        static let borderEnabled = "translationBorderEnabled"
+        static let borderColor = "translationBorderColor"
+        static let borderWidth = "translationBorderWidth"
     }
 }
