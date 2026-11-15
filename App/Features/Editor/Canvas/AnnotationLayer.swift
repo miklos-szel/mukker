@@ -139,11 +139,21 @@ struct AnnotationLayer: View {
     /// Blurs everything beneath the annotation's rect — the base image and any
     /// annotations drawn before it — by redrawing them through a blur filter,
     /// clipped to the rect. So objects under a blur are scrambled, not erased.
+    ///
+    /// The source is additionally clipped to the rect grown by
+    /// `blurSourceMargin` × radius: pixels inside the rect only depend on source
+    /// within the kernel's reach, so the filter no longer processes the whole
+    /// image on every redraw. Measured against the unclipped version with
+    /// `ImageRenderer` on a noisy 3000×2000 image: identical outside the rect,
+    /// and inside it at most ±1/255 on some pixels (filter tiling/rounding — a
+    /// larger margin does not remove it), at about a fifth of the cost.
     private func drawBlur(_ a: Annotation, below: [Annotation], in ctx: inout GraphicsContext) {
         let radius = min(max(min(a.rect.width, a.rect.height) * 0.08, 6), 25)
         ctx.drawLayer { layer in
             layer.clip(to: Path(a.rect))
             layer.addFilter(.blur(radius: radius))
+            let margin = radius * Self.blurSourceMargin
+            layer.clip(to: Path(a.rect.insetBy(dx: -margin, dy: -margin)))
             if let baseImage {
                 layer.draw(Image(decorative: baseImage, scale: 1),
                            in: CGRect(origin: imageOrigin, size: imageSize))
@@ -155,6 +165,11 @@ struct AnnotationLayer: View {
             }
         }
     }
+
+    /// How far beyond the blur rect (in multiples of the blur radius) source is
+    /// still drawn: a Gaussian's weight past three standard deviations is
+    /// negligible.
+    static let blurSourceMargin: CGFloat = 3
 
     private func drawText(_ a: Annotation, in ctx: inout GraphicsContext) {
         let string = a.text.isEmpty ? " " : a.text
