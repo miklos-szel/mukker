@@ -2,7 +2,7 @@
 
 A native macOS menu-bar utility that combines a **calendar**, **clipboard history**, **text
 snippets**, **screen capture with annotation**, **window tiling**, a **bandwidth monitor**,
-**translation of what you just copied** and **keeping your Mac awake** in one app. The menu bar shows today's date and drops down a month calendar with the day's
+**translation of what you select or copy** and **keeping your Mac awake** in one app. The menu bar shows today's date and drops down a month calendar with the day's
 events; a quick popup on a global shortcut pastes back into the app you were just using; a
 capture shortcut opens a screenshot in a full annotation editor; a ⌃⌘arrow snaps the frontmost
 window to half the screen.
@@ -82,16 +82,23 @@ window to half the screen.
 
 ### Translate
 
-- **Translate what you just copied** — ⌘⇧E into English, ⌘⌥E into Hungarian. The newest text in
-  the clipboard history is translated (the source language is detected), shown in a small floating
-  panel next to the original, and copied so you can paste it straight away. A button in the panel
-  redoes it in the other language.
+- **Translate what you selected or just copied** — ⌘⇧E into English, ⌘⌥E into Hungarian. The
+  text selected in the frontmost app is translated; with nothing selected, the newest text in the
+  clipboard history is (the source language is detected either way). The result is shown in a
+  small floating panel next to the original, marked *from Selection* or *from Clipboard*, and
+  copied so you can paste it straight away. A button in the panel redoes it in the other language.
+- **A selection is never copied.** It is read through the Accessibility permission, so it doesn't
+  replace what is on your clipboard and doesn't appear in the history. Native Mac apps (TextEdit,
+  Notes, Mail, …) expose their selection, and Safari pages usually do; many Chromium-based browsers, Electron
+  apps and some terminals don't, and password fields never do — there the shortcut translates the
+  newest clipboard text instead. So does it without the Accessibility permission, and for apps
+  you excluded from the clipboard history.
 - **Uses the subscription you already have, no API key.** Mukker hands the text to a command-line
   tool signed in with your own account: the **Codex CLI** for ChatGPT (`brew install codex`, then
   `codex login`) or the **Claude Code CLI** for Claude. Pick the engine, and optionally a model or
   the tool's path, in **Settings → Translate**.
-- **Only what is in your history is ever sent**, and only when you press the shortcut — text from
-  ignored apps or marked as concealed never gets there. The text goes to OpenAI or Anthropic
+- **Only your selection or what is in your history is ever sent**, and only when you press the
+  shortcut — text from ignored apps or marked as concealed never gets there. The text goes to OpenAI or Anthropic
   through that tool and counts against that plan.
 - Switch it off in Settings and both shortcuts are released back to other apps.
 
@@ -129,7 +136,7 @@ Every feature set has its own tab; Hotkeys, Permissions and About are shared.
 | ⌃⇧⌘4 / ⌃⇧⌘3 / ⌃⇧⌘5 | Capture area / screen / scrolling |
 | ⌃⌘← / ⌃⌘→ | Tile the frontmost window to the left / right half |
 | ⌃⌘↓ / ⌃⌘↑ | Tile the frontmost window to the top / bottom half |
-| ⌘⇧E / ⌘⌥E | Translate the latest clipboard text into English / Hungarian |
+| ⌘⇧E / ⌘⌥E | Translate the selection (or the latest clipboard text) into English / Hungarian |
 | ↑ / ↓ | Move selection in the popup |
 | Return | Paste selected item (with formatting) |
 | ⌘⇧V | Paste **without** formatting (plain text) |
@@ -168,7 +175,8 @@ buttons for both).
 ## Permissions
 
 One **Accessibility** grant covers everything that needs it: pasting into the active app,
-double-⌘C merging, auto-scrolling during scrolling capture, and window tiling. **Screen Recording** is
+double-⌘C merging, auto-scrolling during scrolling capture, window tiling, and reading the selected
+text to translate (without it, translation uses the newest clipboard text). **Screen Recording** is
 additionally required for capture. Both are shown live, with grant buttons, in
 **Settings → Permissions**.
 

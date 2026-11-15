@@ -6,14 +6,18 @@ All notable changes to Mukker are documented here. The format loosely follows
 ## [1.3.0] - 2026-11-15
 
 ### Added
-- **Translate what you just copied.** ⌘⇧E translates the newest text in the clipboard history
-  into English and ⌘⌥E into Hungarian (the source language is detected). The result appears in a
+- **Translate what you selected or just copied.** ⌘⇧E translates into English and ⌘⌥E into
+  Hungarian (the source language is detected): the text selected in the frontmost app if there is
+  any, otherwise the newest text in the clipboard history. A selection is read through the
+  Accessibility permission without copying it, so it never lands on the clipboard or in history;
+  apps that don't expose their selection (many Chromium-based browsers and Electron apps) get the
+  clipboard text instead. The result appears in a
   small floating panel beside the original and is copied to the clipboard; a button redoes it in
   the other language. It works through a command-line tool signed in with your own subscription,
   so there is no API key: the **Codex CLI** for ChatGPT (the default) or the **Claude Code CLI**
   for Claude. Choose the engine, its model and path, and the two shortcuts in the new
-  **Settings → Translate** tab; switching the feature off releases the shortcuts. Only text
-  already in your history is sent, and only when you press a shortcut.
+  **Settings → Translate** tab; switching the feature off releases the shortcuts. Only your
+  selection or text already in your history is sent, and only when you press a shortcut.
 - **Name a snippet when you star a clip.** Picking a collection from the preview's star now asks
   for the snippet's name, prefilled with the clip's first line (selected, so Return accepts it).
   **New Collection** asks for the collection's name and the snippet's in one dialog, with Create

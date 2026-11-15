@@ -30,11 +30,13 @@ separate apps:
   drawn as an inverted badge to the *left* of the date glyph (`↓1,1 ↑0,3 Mbps`), sampled every
   **5 s** by default; plus per-interface transfer totals (today, optionally this week/month) in a
   *Network* submenu. Needs no permissions and never touches the database.
-- **Translate.** Two global shortcuts (⌘⇧E → English, ⌘⌥E → Hungarian by default) send the newest
-  text entry of the clipboard history to a command-line client signed in with the user's own
-  subscription — the Codex CLI (ChatGPT, the default) or the Claude Code CLI — and show the
-  result in a floating panel, copying it to the clipboard. No API key, no permissions; it is the
-  only feature that sends anything off the Mac and the only one that spawns a process.
+- **Translate.** Two global shortcuts (⌘⇧E → English, ⌘⌥E → Hungarian by default) send the text
+  selected in the frontmost app — read through Accessibility, never copied — or, with nothing
+  selected, the newest text entry of the clipboard history to a command-line client signed in with
+  the user's own subscription — the Codex CLI (ChatGPT, the default) or the Claude Code CLI — and
+  show the result in a floating panel, copying it to the clipboard. No API key; the Accessibility
+  grant is optional (without it only history is used). It is the only feature that sends anything
+  off the Mac and the only one that spawns a process.
 
 The sides are deliberately independent at runtime. The only things they share are
 `PermissionsService`, `HotKeyManager`/`ShortcutSettings`, `Log`, `AppPaths`, `Branding`, the
@@ -131,7 +133,7 @@ Higher layers may import lower; never the reverse.
 `ClipThumbnailCache`, `KeepAwakeSettings`, `KeepAwakeService`, `WindowTilingSettings`,
 `WindowTiler`, `CalendarSettings`, `CalendarEventsService`, `HourlyChimeService`,
 `BandwidthSettings`, `BandwidthService`, `TranslationSettings`, `TranslationService`,
-`TranslationPanelController`. Four are plain (non-isolated) classes: `AppDatabase`,
+`TranslationPanelController`, `SelectedTextReader`. Four are plain (non-isolated) classes: `AppDatabase`,
 `ClipboardMonitor` and `Paster` (whose entry points are individually `@MainActor`, and
 `ClipboardMonitor` hands work to a background queue) and `ActiveAppTracker`.
 `AppDelegate.applicationDidFinishLaunching` wires them together — start there to follow runtime
@@ -145,8 +147,10 @@ point is a plain AppKit `App/App/main.swift`.
   and Accessibility (`hasAccessibilityPermission` / `requestAccessibilityPermission` /
   `ensureAccessibility(reason:)`), each with an "open System Settings" helper and a denied-alert.
   Callers use the `ensure*` methods; the settings pane uses the raw checks plus a 1 s poll. One
-  Accessibility grant serves four subsystems: `Paster` (⌘V), `FastAppendService` (global ⌘C
-  monitor), `ScrollingCaptureService` (synthetic scroll) and `WindowTiler` (moving windows).
+  Accessibility grant serves five subsystems: `Paster` (⌘V), `FastAppendService` (global ⌘C
+  monitor), `ScrollingCaptureService` (synthetic scroll), `WindowTiler` (moving windows) and
+  `SelectedTextReader` (the selection the translate hotkeys send — read without prompting, and
+  silently skipped without the grant).
   **Calendars** (`hasCalendarAccess` / `requestCalendarAccess` / `openCalendarSettings`) is
   read-only and feeds the menu bar calendar's event rows; requesting it without
   `NSCalendarsFullAccessUsageDescription` in `project.yml` terminates the app.
@@ -539,14 +543,35 @@ and `refreshInterval`. The pure halves — `BandwidthFormat`, `NetworkCounters.d
 `.claude`) and a path override and model **per backend**; `TranslationPanelController` +
 `TranslationView` (`Features/Translation/`) are the floating result panel. The pure halves — prompt,
 argument lists, executable resolution, environment, error mapping, `latestTextItem` — are
-`nonisolated static` and covered by `AppTests/TranslationTests.swift`; the child process and the
-panel are verified by hand (`MUKKER_TRANSLATE=en|hu`).
+`nonisolated static` and covered by `AppTests/TranslationTests.swift`, as is `source(selection:
+history:characterLimit:)`, the selection-vs-history decision; the child process, the panel and the
+AX selection read are verified by hand (`MUKKER_TRANSLATE=en|hu`).
 
-- **The source is the clipboard history, never `NSPasteboard.general`.** History already honours
-  the capture policy (ignored apps, concealed/transient items), so a password that was never
-  recorded can never be sent by a stray hotkey. "Latest" is the newest **text** item by
-  `effectiveTimestamp`, not `items.first` — pinned items sort first. Full text comes from
-  `ClipboardCache.fullText(for:)` (the cache strips text above 3 KB).
+- **The source is the focused app's selection, else the clipboard history — never
+  `NSPasteboard.general`.** `SelectedTextReader` (`Core/`) reads the selection through AX:
+  system-wide `kAXFocusedUIElementAttribute` → `kAXSelectedText`, then
+  `kAXSelectedTextRange` + `kAXStringForRangeParameterizedAttribute`, then WebKit's
+  `AXSelectedTextMarkerRange` + `AXStringForTextMarkerRange` walking up to the `AXWebArea`. It
+  follows `WindowTiler`'s rules (system-wide element, 0.5 s messaging timeout, stop asking an app
+  that timed out, skip our own pid — the main thread can't answer its own AX request) and never
+  prompts: no grant means history. **There is no simulated-⌘C fallback, deliberately**: the
+  copied selection would sit on the general pasteboard where other clipboard managers and
+  Universal Clipboard see it, restoring a snapshot can't bring back promised/lazy types, and the
+  synthetic ⌘C would reach `FastAppendService`'s global monitor. Apps that don't expose a
+  selection over AX (many Chromium/Electron apps, some terminals) and secure fields therefore get
+  the history entry. A blank selection is no selection; a selection from an app in
+  `ClipboardSettings.ignoredBundleIDs` is dropped, as history would drop its copy; one longer than
+  `maxClipSize.characterLimit` is refused with a message rather than swapped for history.
+- **The selection is read before the panel shows** (`TranslationPanelController.show`, right after
+  the toggle check, before `present()`): showing and activating moves focus away from the
+  element. The menu items take the same path — a status menu doesn't activate the app, so the
+  focused element is still the user's.
+- History already honours the capture policy (ignored apps, concealed/transient items), so a
+  password that was never recorded can never be sent by a stray hotkey. "Latest" is the newest
+  **text** item by `effectiveTimestamp`, not `items.first` — pinned items sort first. Full text
+  comes from `ClipboardCache.fullText(for:)` (the cache strips text above 3 KB). The panel header
+  shows `TranslationService.origin` (*from Selection* / *from Clipboard*); the other-language
+  button keeps it.
 - **Both CLIs get the text on stdin and their arguments as an array** — never a shell string, so
   there is no argument-length limit and no quoting. Codex: `exec --skip-git-repo-check --sandbox
   read-only --ephemeral --color never --output-last-message <file> [-m model] -`, the answer read
@@ -575,11 +600,13 @@ panel are verified by hand (`MUKKER_TRANSLATE=en|hu`).
   working elsewhere. It closes on Esc, ⌘W, Close, or the same language's hotkey again; the other
   language's hotkey re-translates. It captures the frontmost app before activating and hands
   focus back on close, as the popup does.
-- Never log the text — `Log.translate` records lengths and exit status only.
+- Never log the text — `Log.translate` records the source used (selection/history, or why no
+  selection was read), lengths and exit status only.
 
 ### Window tiling
 
-`WindowTiler` (`Core/`) is the only thing in the app that talks to `AXUIElement`;
+`WindowTiler` (`Core/`) is the only thing in the app that *moves* anything through `AXUIElement`
+(`SelectedTextReader` only reads a selection, under the same rules);
 `WindowTilingSettings` holds the on/off switch and the `gap`. Four details are load-bearing:
 
 - **AX and Cocoa disagree about which way is up.** AX window geometry is top-left-origin with Y
