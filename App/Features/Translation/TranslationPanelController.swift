@@ -72,9 +72,14 @@ final class TranslationPanelController {
 
     var isVisible: Bool { panel?.isVisible == true }
 
-    /// Shows the panel and starts translating the newest history entry. A
-    /// second press of the same language's hotkey while the panel is up closes
-    /// it instead — the same toggle the popup hotkey has.
+    /// Shows the panel and starts translating the text selected in the focused
+    /// app, or the newest history entry when nothing is selected. A second
+    /// press of the same language's hotkey while the panel is up closes it
+    /// instead — the same toggle the popup hotkey has.
+    ///
+    /// The selection is read **before** `present()`: putting the panel up and
+    /// activating moves focus, and with it the element whose selection we
+    /// want — the same ordering rule as `ActiveAppTracker.captureFrontmost()`.
     func show(language: TranslationLanguage) {
         guard debounce.accept() else {
             Log.translate.debug("translate show ignored (duplicate request)")
@@ -85,8 +90,9 @@ final class TranslationPanelController {
             close()
             return
         }
+        let selection = service.readSelection()
         present()
-        service.translateLatest(to: language)
+        service.translateSelectionOrLatest(to: language, selection: selection)
     }
 
     /// Hides the panel and abandons a translation still in flight.

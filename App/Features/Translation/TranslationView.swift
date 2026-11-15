@@ -41,6 +41,11 @@ struct TranslationView: View {
                     .font(.subheadline)
                     .foregroundStyle(PopupTheme.tertiaryText)
             }
+            if let origin = service.origin, service.state.source?.isEmpty == false {
+                Text("· from \(origin.label)")
+                    .font(.subheadline)
+                    .foregroundStyle(PopupTheme.tertiaryText)
+            }
             Spacer()
             if service.state.isRunning {
                 ProgressView().controlSize(.small)
@@ -149,9 +154,9 @@ struct TranslationView: View {
     }
 
     /// Sends the *original* again — not the clipboard, whose newest entry is
-    /// by now the translation itself.
+    /// by now the translation itself — and keeps saying where it came from.
     private func retranslate(to language: TranslationLanguage) {
         guard let source = service.state.source, !source.isEmpty else { return }
-        service.translate(source, to: language)
+        service.translate(source, to: language, origin: service.origin ?? .history)
     }
 }

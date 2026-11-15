@@ -2,14 +2,33 @@ import AppKit
 import Combine
 import Foundation
 
-/// Translates clipboard text by handing it to a command-line client signed in
+/// Where the translated text came from — shown in the panel's header.
+enum TranslationOrigin: Equatable {
+    /// Text selected in the focused app, read through Accessibility.
+    case selection
+    /// The newest text entry of the clipboard history.
+    case history
+
+    var label: String {
+        switch self {
+        case .selection: return "Selection"
+        case .history: return "Clipboard"
+        }
+    }
+}
+
+/// Translates text by handing it to a command-line client signed in
 /// with the user's own subscription — the Codex CLI (`codex exec`, ChatGPT) or
 /// the Claude Code CLI (`claude -p`, Claude) — so the feature needs no API key.
 ///
-/// The source is always the clipboard *history* (`ClipboardCache`), never the
-/// live pasteboard: the history already honours the ignored-apps and
-/// concealed-item rules, so a password copied from a password manager can never
-/// be sent anywhere by a stray hotkey press.
+/// The source is the text selected in the focused app when there is one
+/// (`SelectedTextReader`, Accessibility only — it never goes through the
+/// pasteboard, so it lands neither on the clipboard nor in history), else the
+/// clipboard *history* (`ClipboardCache`), never the live pasteboard: the
+/// history already honours the ignored-apps and concealed-item rules, so a
+/// password copied from a password manager can never be sent anywhere by a
+/// stray hotkey press. A selection is subject to the same ignored-apps rule
+/// (applied by the caller) and secure fields expose no selection at all.
 ///
 /// Either CLI takes a few seconds and runs as a child process, so the work
 /// happens off the main thread and results come back tagged with a request
@@ -78,30 +97,82 @@ final class TranslationService: ObservableObject {
         self.settings = settings
     }
 
+    /// Where the text being translated came from, for the panel's header. Kept
+    /// beside `state` rather than in it: every state carries the same value.
+    @Published private(set) var origin: TranslationOrigin?
+
     // MARK: - Requests
 
-    /// Translates the newest text entry of the clipboard history.
-    func translateLatest(to language: TranslationLanguage) {
+    /// Translates `selection` — text selected in the focused app, read through
+    /// Accessibility by the caller *before* the panel took focus — or, when
+    /// there is none, the newest text entry of the clipboard history.
+    func translateSelectionOrLatest(to language: TranslationLanguage, selection: String?) {
         let cache = ClipboardCache.shared
-        guard let item = Self.latestTextItem(in: cache.items),
-              let text = cache.fullText(for: item),
-              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            cancel()
-            state = .failed(source: "", message: "There is no text in the clipboard history to translate.",
-                            language: language, backend: settings.backend)
-            Log.translate.info("translate: no text item in history")
-            return
+        let limit = ClipboardSettings.shared.maxClipSize.characterLimit
+        switch Self.source(selection: selection, history: cache.items, characterLimit: limit) {
+        case .selection(let text):
+            Log.translate.info("translate source: selection")
+            translate(text, to: language, origin: .selection)
+        case .history(let item):
+            if let text = cache.fullText(for: item), !SelectedTextReader.isBlank(text) {
+                Log.translate.info("translate source: clipboard history")
+                translate(text, to: language, origin: .history)
+            } else {
+                failNothingToTranslate(language)
+            }
+        case .nothing:
+            failNothingToTranslate(language)
+        case let .selectionTooLong(count, limit):
+            fail("The selection is too long to translate (\(count.formatted()) characters; "
+                 + "the limit is \(limit.formatted()), set by Maximum clip size in Settings → Clipboard).",
+                 language: language, origin: .selection)
+            Log.translate.info("translate: selection over the size limit (\(count) > \(limit))")
         }
-        translate(text, to: language)
+    }
+
+    /// The text selected in the focused app, or nil — no grant, nothing
+    /// selected, our own window focused, or an app the clipboard ignores (the
+    /// same rule history applies, so a password manager's text is never sent).
+    /// Must run before anything takes focus; never prompts. Logs why, never
+    /// the text.
+    func readSelection() -> String? {
+        let outcome = SelectedTextReader.shared.read()
+        switch outcome {
+        case .selection(let selection):
+            if let app = selection.bundleIdentifier,
+               ClipboardSettings.shared.ignoredBundleIDs.contains(app) {
+                Log.translate.info("translate: selection in ignored app \(app, privacy: .public) not used")
+                return nil
+            }
+            return selection.text
+        case .notTrusted:
+            Log.translate.info("translate: no Accessibility grant, selection not read")
+        case .noFocusedElement, .ownApp, .nothingSelected, .timedOut:
+            Log.translate.debug("translate: no selection (\(String(describing: outcome), privacy: .public))")
+        }
+        return nil
+    }
+
+    private func failNothingToTranslate(_ language: TranslationLanguage) {
+        fail("Nothing is selected and there is no text in the clipboard history to translate.",
+             language: language, origin: .history)
+        Log.translate.info("translate: no selection and no text item in history")
+    }
+
+    private func fail(_ message: String, language: TranslationLanguage, origin: TranslationOrigin) {
+        cancel()
+        self.origin = origin
+        state = .failed(source: "", message: message, language: language, backend: settings.backend)
     }
 
     /// Translates `text`. Also the entry point of the panel's other-language
     /// button, which passes the *original* source — by then the translation is
     /// the newest history entry, and re-translating that would be wrong.
-    func translate(_ text: String, to language: TranslationLanguage) {
+    func translate(_ text: String, to language: TranslationLanguage, origin: TranslationOrigin) {
         cancel()
         let token = generation
         let backend = settings.backend
+        self.origin = origin
         state = .running(source: text, language: language, backend: backend)
 
         guard let executable = resolvedExecutablePath(for: backend) else {
@@ -271,6 +342,32 @@ final class TranslationService: ObservableObject {
     nonisolated static func latestTextItem(in items: [ClipItem]) -> ClipItem? {
         items.filter { $0.kind == .text }
             .max { $0.effectiveTimestamp < $1.effectiveTimestamp }
+    }
+
+    /// What a translate request would send.
+    enum SourceDecision: Equatable {
+        case selection(String)
+        case history(ClipItem)
+        /// A selection over the history's own size limit — refused rather than
+        /// silently swapped for some unrelated history entry.
+        case selectionTooLong(count: Int, limit: Int)
+        case nothing
+    }
+
+    /// A non-blank selection wins; a blank or missing one falls back to the
+    /// newest text entry of the history. `characterLimit` is the clipboard's
+    /// `maxClipSize` — the most history text can ever hold — so a selection is
+    /// held to the same bound (nil = unlimited).
+    nonisolated static func source(selection: String?, history: [ClipItem],
+                                   characterLimit: Int?) -> SourceDecision {
+        if let selection, !SelectedTextReader.isBlank(selection) {
+            if let characterLimit, selection.count > characterLimit {
+                return .selectionTooLong(count: selection.count, limit: characterLimit)
+            }
+            return .selection(selection)
+        }
+        if let item = latestTextItem(in: history) { return .history(item) }
+        return .nothing
     }
 
     /// The translator instructions. The text is fenced and explicitly declared
