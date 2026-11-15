@@ -94,9 +94,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .init(combo: \.tileBottomCombo, isEnabled: tilingEnabled,
                       handler: { [weak self] in self?.tileWindow(.bottom) }),
                 .init(combo: \.translateEnglishCombo, isEnabled: translationEnabled,
-                      handler: { [weak self] in self?.translateLatest(.english) }),
+                      handler: { [weak self] in self?.translateSelectionOrLatest(.english) }),
                 .init(combo: \.translateHungarianCombo, isEnabled: translationEnabled,
-                      handler: { [weak self] in self?.translateLatest(.hungarian) })
+                      handler: { [weak self] in self?.translateSelectionOrLatest(.hungarian) })
             ],
             // Either switch re-registers. Each drops its subscribe-time replay;
             // the manager delivers on the run loop, after the new value is stored.
@@ -144,12 +144,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             RunLoop.main.add(timer, forMode: .common)
         }
-        // The translate panel on the newest history entry (`MUKKER_TRANSLATE=en|hu`),
+        // The translate panel on the selection or newest history entry (`MUKKER_TRANSLATE=en|hu`),
         // after the cache has loaded — the hotkey is otherwise the only way in.
         if let code = ProcessInfo.processInfo.environment["MUKKER_TRANSLATE"],
            let language = TranslationLanguage(shortCode: code) {
             let timer = Timer(timeInterval: 1.0, repeats: false) { _ in
-                MainActor.assumeIsolated { self.translateLatest(language) }
+                MainActor.assumeIsolated { self.translateSelectionOrLatest(language) }
             }
             RunLoop.main.add(timer, forMode: .common)
         }
@@ -171,8 +171,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             captureScreen: { [weak self] in self?.captureScreen() },
             captureScrolling: { [weak self] in self?.captureScrolling() },
             openSettings: { [weak self] in self?.openSettings() })
-        actions.translateToEnglish = { [weak self] in self?.translateLatest(.english) }
-        actions.translateToHungarian = { [weak self] in self?.translateLatest(.hungarian) }
+        actions.translateToEnglish = { [weak self] in self?.translateSelectionOrLatest(.english) }
+        actions.translateToHungarian = { [weak self] in self?.translateSelectionOrLatest(.hungarian) }
 #if DEBUG
         actions.openDebugSample = { [weak self] in self?.openDebugSample() }
 #endif
@@ -233,9 +233,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Translation entry point
 
-    /// Translates the newest text in the clipboard history; pressing the same
-    /// language's hotkey again while the panel is up closes it.
-    func translateLatest(_ language: TranslationLanguage) {
+    /// Translates the text selected in the focused app, else the newest text in
+    /// the clipboard history; pressing the same language's hotkey again while
+    /// the panel is up closes it. The panel controller reads the selection
+    /// before it shows anything, so nothing here may take focus first.
+    func translateSelectionOrLatest(_ language: TranslationLanguage) {
         TranslationPanelController.shared.show(language: language)
     }
 

@@ -335,10 +335,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         // either, and the items would advertise shortcuts that do nothing.
         if TranslationSettings.shared.isEnabled {
             clipboardItems.append(.separator())
-            clipboardItems.append(ActionMenuItem("Translate Latest to English",
+            clipboardItems.append(ActionMenuItem("Translate Selection or Latest to English",
                                                  combo: shortcuts.translateEnglishCombo,
                                                  handler: actions.translateToEnglish))
-            clipboardItems.append(ActionMenuItem("Translate Latest to Hungarian",
+            clipboardItems.append(ActionMenuItem("Translate Selection or Latest to Hungarian",
                                                  combo: shortcuts.translateHungarianCombo,
                                                  handler: actions.translateToHungarian))
         }

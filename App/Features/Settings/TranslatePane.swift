@@ -18,21 +18,16 @@ struct TranslatePane: View {
             } header: {
                 Text("Translate")
             } footer: {
-                Text("Translates the newest text in the clipboard history into English or "
-                     + "Hungarian, shows it in a small panel and copies it. The text is sent to "
-                     + "\(settings.backend.provider) through the \(settings.backend.executableName) "
-                     + "command-line tool, using the account it is signed in with, and counts "
-                     + "against that plan. Switching translation off releases the shortcuts "
-                     + "for other apps.")
+                Text(overviewFooter)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Section {
-                LabeledContent("Translate to English") {
+                LabeledContent("Translate selection or latest to English") {
                     ShortcutRecorderField(combo: $shortcuts.translateEnglishCombo).frame(width: 160)
                 }
-                LabeledContent("Translate to Hungarian") {
+                LabeledContent("Translate selection or latest to Hungarian") {
                     ShortcutRecorderField(combo: $shortcuts.translateHungarianCombo).frame(width: 160)
                 }
             } header: {
@@ -87,6 +82,24 @@ struct TranslatePane: View {
                 Text("Not found")
             }
         }
+    }
+
+    /// What the feature does and where the text goes. Built here, not inline,
+    /// so the type checker isn't handed one long concatenation inside `body`.
+    private var overviewFooter: String {
+        let backend = settings.backend
+        let source = "Translates the text selected in the frontmost app — or, with nothing "
+            + "selected, the newest text in the clipboard history — into English or Hungarian, "
+            + "shows it in a small panel and copies the translation."
+        let selection = "A selection is read without copying it, so it never enters the "
+            + "clipboard or its history. Reading it needs the Accessibility permission "
+            + "(Settings → Permissions); apps that don't expose their selection, which includes "
+            + "many Chromium-based browsers and Electron apps, get the clipboard text instead."
+        let destination = "The text is sent to \(backend.provider) through the "
+            + "\(backend.executableName) command-line tool, using the account it is signed in "
+            + "with, and counts against that plan. Switching translation off releases the "
+            + "shortcuts for other apps."
+        return source + " " + selection + " " + destination
     }
 
     /// Install/sign-in instructions for the selected backend, plus what the

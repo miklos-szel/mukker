@@ -8,9 +8,9 @@ enum TileSlot: String, CaseIterable {
 }
 
 /// Snaps the frontmost window to a half of the screen it is currently on, via
-/// the Accessibility API. The only thing in the app that talks to
-/// `AXUIElement` — everything else goes through this service, the same way
-/// `KeepAwakeService` solely owns IOKit power management.
+/// the Accessibility API. One of the two things in the app that talk to
+/// `AXUIElement` — the other is `SelectedTextReader`, which only reads the
+/// focused element's selection and follows the same rules below.
 ///
 /// Three details are load-bearing:
 ///
