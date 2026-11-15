@@ -11,33 +11,35 @@ struct AdvancedSubpane: View {
     @State private var draftExtID = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Picker("Max Clip Size:", selection: $settings.maxClipSize) {
+        Section {
+            Picker(selection: $settings.maxClipSize) {
                 ForEach(MaxClipSize.allCases) { size in
                     Text(size.label).tag(size)
                 }
+            } label: {
+                Text("Max clip size")
+                Text("Copied text over this limit is ignored, so one huge copy can't bloat "
+                     + "the clipboard history.")
             }
             .pickerStyle(.menu)
-            .fixedSize()
-            Text("Ignore any copied text over the specified limit. This prevents accidental Clipboard History bloating.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 8)
 
-            Toggle("Show preview in plaintext", isOn: $settings.plainTextPreview)
-            Text("Render rich-text clips as plain text in the preview pane. Pasting still uses the original formatting.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 8)
+            Toggle(isOn: $settings.plainTextPreview) {
+                Text("Show preview in plain text")
+                Text("Render rich-text clips as plain text in the preview pane. Pasting still "
+                     + "uses the original formatting.")
+            }
 
-            Toggle("Ignore items marked as concealed/sensitive", isOn: $settings.ignoreConcealedItems)
-            Text("Skips clipboard contents that apps like 1Password mark as concealed (passwords, secrets), plus copies coming from the password-manager browser extensions listed below, so they are never stored in history.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 8)
+            Toggle(isOn: $settings.ignoreConcealedItems) {
+                Text("Ignore items marked as concealed/sensitive")
+                Text("Skips clipboard contents that apps like 1Password mark as concealed "
+                     + "(passwords, secrets), plus copies coming from the password-manager "
+                     + "browser extensions listed below, so they are never stored in history.")
+            }
+        } header: {
+            Text("Advanced")
+        }
 
-            Text("Ignore Apps")
-                .font(.headline)
+        Section {
             Table(settings.ignoredApps, selection: $selection) {
                 TableColumn("") { app in
                     Image(nsImage: AppIconCache.shared.icon(forBundleID: app.bundleID))
@@ -48,38 +50,35 @@ struct AdvancedSubpane: View {
                 TableColumn("Application", value: \.displayName)
                 TableColumn("Bundle ID", value: \.bundleID)
             }
-            .frame(height: 200)
+            .frame(height: 180)
 
             HStack {
-                Text("Apps in this list will not have their clipboard contents captured.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
                 Button("Add ignored app", systemImage: "plus", action: addApp)
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
+                    .help("Add an app to ignore")
                 Button("Remove ignored app", systemImage: "minus", action: removeSelected)
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
+                    .help("Remove the selected app")
                     .disabled(selection == nil)
+                Spacer()
                 Button("Reset", action: settings.resetIgnoredApps)
             }
+        } header: {
+            Text("Ignored apps")
+        } footer: {
+            SettingsFootnote("Apps in this list will not have their clipboard contents captured.")
+        }
 
-            Text("Password Manager Extensions")
-                .font(.headline)
-                .padding(.top, 8)
+        Section {
             Table(settings.passwordManagerExtensions, selection: $extensionSelection) {
                 TableColumn("Name", value: \.displayName)
                 TableColumn("Extension ID", value: \.extensionID)
             }
-            .frame(height: 160)
-            .disabled(!settings.ignoreConcealedItems)
+            .frame(height: 150)
 
             HStack {
-                Text("Copies made from these browser-extension popups are treated as sensitive (matched by Chromium source URL). Requires the toggle above.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
                 Button("Add extension", systemImage: "plus") {
                     draftExtName = ""
                     draftExtID = ""
@@ -87,14 +86,23 @@ struct AdvancedSubpane: View {
                 }
                 .labelStyle(.iconOnly)
                 .buttonStyle(.borderless)
+                .help("Add a password-manager extension")
                 Button("Remove extension", systemImage: "minus", action: removeSelectedExtension)
                     .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
+                    .help("Remove the selected extension")
                     .disabled(extensionSelection == nil)
+                Spacer()
                 Button("Reset", action: settings.resetPasswordManagerExtensions)
             }
-            .disabled(!settings.ignoreConcealedItems)
+        } header: {
+            Text("Password manager extensions")
+        } footer: {
+            SettingsFootnote("Copies made from these browser-extension popups are treated as "
+                             + "sensitive (matched by Chromium source URL). Requires “Ignore items "
+                             + "marked as concealed/sensitive” above.")
         }
+        .disabled(!settings.ignoreConcealedItems)
         .sheet(isPresented: $showAddExtension) {
             addExtensionSheet
         }

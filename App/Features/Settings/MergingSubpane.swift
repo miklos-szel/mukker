@@ -1,37 +1,40 @@
 import SwiftUI
 
+/// The Merging section of the Clipboard pane (fast append). The options below
+/// the main switch only matter while it is on, so they are disabled otherwise.
 struct MergingSubpane: View {
     @ObservedObject private var settings = ClipboardSettings.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Toggle("Fast append selected text", isOn: $settings.fastAppendEnabled)
-            Text("Hold ⌘ and double tap C to append the currently selected clipboard item to the previously copied text in the Clipboard History.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        Section {
+            Toggle(isOn: $settings.fastAppendEnabled) {
+                Text("Fast append selected text")
+                Text("Hold ⌘ and double tap C to append the currently selected text to the "
+                     + "previously copied text in the clipboard history.")
+            }
 
             Group {
-                Toggle("Place merged text back into macOS clipboard",
-                       isOn: $settings.fastAppendBackToPasteboard)
-                Text("By placing the merged text back into the macOS clipboard, you can paste with ⌘V without having to open \(Branding.name)'s Clipboard History.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Toggle(isOn: $settings.fastAppendBackToPasteboard) {
+                    Text("Place merged text back into macOS clipboard")
+                    Text("Lets you paste the merged text with ⌘V without opening "
+                         + "\(Branding.name)'s clipboard history.")
+                }
 
-                Picker("Separator", selection: $settings.appendSeparator) {
+                Picker("Separate appended text with", selection: $settings.appendSeparator) {
                     ForEach(AppendSeparator.allCases) { sep in
-                        Text("Separate appended item with \(sep.label.lowercased())").tag(sep)
+                        Text(sep.label).tag(sep)
                     }
                 }
-                .labelsHidden()
-                .fixedSize()
+                .pickerStyle(.menu)
 
-                Toggle("Play a sound when appending", isOn: $settings.playAppendSound)
-                Text("Plays the system 'Purr' sound when an item is successfully appended.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Toggle(isOn: $settings.playAppendSound) {
+                    Text("Play a sound when appending")
+                    Text("Plays the system “Purr” sound when an item is successfully appended.")
+                }
             }
-            .padding(.leading, 20)
             .disabled(!settings.fastAppendEnabled)
+        } header: {
+            Text("Merging")
         }
     }
 }
