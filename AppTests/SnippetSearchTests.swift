@@ -38,6 +38,31 @@ final class SnippetSearchTests: XCTestCase {
         XCTAssertEqual(names, ["date helper"])
     }
 
+    func testMixedCaseQueriesMatchNameAndKeyword() throws {
+        let (cache, _, cid) = try makeCache()
+        XCTAssertEqual(Set(cache.filterByName("DiSk", in: nil).map(\.name)), ["disk", "disk3"])
+        XCTAssertEqual(cache.filterByName("DT", in: cid).map(\.name), ["date helper"])
+        XCTAssertEqual(cache.filterByName("Date HELPER", in: nil).map(\.name), ["date helper"])
+    }
+
+    func testSingleQueryLoadGroupsAndOrdersPerCollection() throws {
+        let (cache, repo, cid) = try makeCache()
+        let other = try XCTUnwrap(try repo.createCollection(name: "Another").id)
+        try repo.createSnippet(collectionId: other, name: "zeta", keyword: nil, content: "z")
+        try repo.createSnippet(collectionId: other, name: "alpha", keyword: nil, content: "a")
+        try repo.createSnippet(collectionId: other, name: "alpha", keyword: nil, content: "a2")
+        cache.loadAll()
+
+        XCTAssertEqual(cache.collections.map(\.name), ["Another", "Test"])
+        for collection in [cid, other] {
+            XCTAssertEqual(cache.snippets(in: collection).map(\.id), try repo.snippets(in: collection).map(\.id),
+                           "grouped order must match the per-collection query")
+        }
+        XCTAssertEqual(cache.snippets(in: other).map(\.content), ["a", "a2", "z"])
+        XCTAssertEqual(cache.snippets(in: nil).count, 7)
+        XCTAssertEqual(cache.filterByName("ALPHA", in: other).count, 2)
+    }
+
     func testEmptyQueryReturnsAll() throws {
         let (cache, _, _) = try makeCache()
         XCTAssertEqual(cache.filterByName("", in: nil).count, 4)

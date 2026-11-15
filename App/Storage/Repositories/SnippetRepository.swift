@@ -60,6 +60,17 @@ final class SnippetRepository {
         }
     }
 
+    /// Every snippet in one query, ordered as `snippets(in:)` orders each
+    /// collection (by name; ties by id, i.e. insertion order), so grouping the
+    /// result by `collectionId` yields each collection's list as-is.
+    func allSnippetsOrderedByName() throws -> [Snippet] {
+        try dbQueue.read { db in
+            try Snippet
+                .order(Snippet.Columns.name.asc, Snippet.Columns.id.asc)
+                .fetchAll(db)
+        }
+    }
+
     func allSnippets() throws -> [Snippet] {
         try dbQueue.read { db in
             try Snippet
