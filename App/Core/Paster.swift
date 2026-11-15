@@ -22,11 +22,7 @@ final class Paster {
             Log.paste.notice("Skipping auto-paste; accessibility not trusted")
             return
         }
-        ActiveAppTracker.shared.reactivate()
-        // Give the app a moment to come forward before sending keystrokes.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            self.sendCommandV()
-        }
+        reactivateAndSendCommandV()
     }
 
     /// Bumps the item to the top of history when the corresponding setting is on.
@@ -45,7 +41,14 @@ final class Paster {
         pb.setString(text, forType: .string)
         guard autoPaste else { return }
         guard PermissionsService.shared.hasAccessibilityPermission else { return }
+        reactivateAndSendCommandV()
+    }
+
+    /// Brings the previously active app back and sends it ⌘V.
+    @MainActor
+    private func reactivateAndSendCommandV() {
         ActiveAppTracker.shared.reactivate()
+        // Give the app a moment to come forward before sending keystrokes.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             self.sendCommandV()
         }

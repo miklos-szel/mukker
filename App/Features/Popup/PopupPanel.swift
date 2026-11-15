@@ -75,7 +75,8 @@ final class PopupPanel: NSPanel {
             }
             onCommandC?()
             return true
-        // The app has no Edit menu (LSUIElement + MenuBarExtra), so the
+        // The app has no Edit menu (LSUIElement, no main menu — only the
+        // `NSStatusItem` menu `MenuBarController` owns), so the
         // standard editing key equivalents never resolve — route them to the
         // search field's editor ourselves.
         case "v":

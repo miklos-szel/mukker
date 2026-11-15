@@ -66,8 +66,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private var eventItemRange: Range<Int> = 0..<0
 
     /// The date half of the status item's title, recomputed on the (rare)
-    /// date/settings refresh so the once-a-second bandwidth repaint does no
-    /// `DateFormatter` work.
+    /// date/settings refresh so the per-sample bandwidth repaint (every 5 s by
+    /// default) does no `DateFormatter` work.
     private var dateTitle = ""
     private var baseImage: NSImage?
 

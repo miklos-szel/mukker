@@ -168,14 +168,12 @@ final class ClipboardRepository {
         if let deleted { removeSidecarFiles(of: [deleted]) }
     }
 
-    /// Returns the deleted items (so callers can archive their text).
+    /// Deletes every unpinned item. Returns the deleted items (so callers can
+    /// archive their text).
     @discardableResult
-    func clearAll(keepPinned: Bool = true) throws -> [ClipItem] {
+    func clearAll() throws -> [ClipItem] {
         let victims: [ClipItem] = try dbQueue.write { db in
-            let request = keepPinned
-                ? ClipItem.filter(ClipItem.Columns.pinned == false)
-                : ClipItem.all()
-            let items = try request.fetchAll(db)
+            let items = try ClipItem.filter(ClipItem.Columns.pinned == false).fetchAll(db)
             try ClipItem.deleteAll(db, keys: items.compactMap { $0.id })
             return items
         }

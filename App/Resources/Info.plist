@@ -26,8 +26,6 @@
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>NSAppleEventsUsageDescription</key>
-	<string>Mukker needs Accessibility access to paste items into the active app.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Mukker shows the events on the selected day in its menu bar calendar. It only reads them.</string>
 	<key>NSHumanReadableCopyright</key>

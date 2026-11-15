@@ -64,11 +64,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         KeepAwakeService.shared.start()
         HourlyChimeService.shared.start()
 
-        // Bandwidth monitor: samples the network interfaces once a second for
-        // the menu bar rate and the per-interface daily totals.
+        // Bandwidth monitor: samples the network interfaces every refresh
+        // interval (5 s by default, 1–30 s in Settings) for the menu bar rate
+        // and the per-interface daily totals.
         BandwidthService.shared.start()
 
-        // One manager owns all four system-wide shortcuts. The menu items carry
+        // One manager owns all eight system-wide shortcuts. The menu items carry
         // the same key equivalents for discoverability; CaptureCoordinator's
         // in-flight guard keeps a double-trigger from starting two captures.
         // Window tiling registers only while it is switched on, so that its

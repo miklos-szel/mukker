@@ -20,11 +20,6 @@ extension SnippetCollection: FetchableRecord, MutablePersistableRecord {
         static let createdAt = Column(CodingKeys.createdAt)
     }
 
-    static let snippets = hasMany(Snippet.self)
-    var snippets: QueryInterfaceRequest<Snippet> {
-        request(for: SnippetCollection.snippets)
-    }
-
     mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
     }

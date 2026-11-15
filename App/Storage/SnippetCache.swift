@@ -3,7 +3,9 @@ import Foundation
 
 /// In-memory cache of all collections and snippets.
 /// Snippets are small; we keep the whole set and filter in-memory for instant popup rendering.
-/// Mutations happen in `SnippetRepository`; it calls `reload()` to keep this in sync.
+/// Mutations go through `SnippetRepository`; the code that writes (the Snippets
+/// Manager, the popup's "add to snippets" star) calls `loadAll()` afterwards to
+/// keep this in sync — the repository itself never touches the cache.
 @MainActor
 final class SnippetCache: ObservableObject {
     static let shared = SnippetCache()

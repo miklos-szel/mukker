@@ -78,12 +78,12 @@ final class CalendarMenuModel: ObservableObject {
 
     func goToToday() { reset() ; onSelectionChanged?() }
 
-    func select(_ day: Date, notify: Bool = true) {
+    func select(_ day: Date) {
         let start = calendar.startOfDay(for: day)
         guard start != selectedDay else { return }
         selectedDay = start
         reloadEvents()
-        if notify { onSelectionChanged?() }
+        onSelectionChanged?()
     }
 
     /// A label for the selected day: "Today" when it is, otherwise the date.

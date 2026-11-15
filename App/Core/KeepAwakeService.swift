@@ -21,10 +21,10 @@ final class KeepAwakeService: ObservableObject {
     static let shared = KeepAwakeService()
 
     /// Whether an assertion is currently held. The only *stored* published
-    /// property; the countdown deliberately isn't one. `AppMain` observes this
-    /// service to pick the menu-bar icon and to render the menu's status line,
-    /// and a value that changed every second would rebuild the whole
-    /// `MenuBarExtra` body (and can close an open menu). Instead the object
+    /// property; the countdown deliberately isn't one. `MenuBarController`
+    /// observes this service to tint the status item, and a value that changed
+    /// every second would repaint the menu bar item continuously for nothing
+    /// (the menu's status line is read when the menu opens). Instead the object
     /// republishes once a minute while counting down — the same granularity
     /// `format(remaining:)` shows above a minute, so the menu is never visibly
     /// stale.

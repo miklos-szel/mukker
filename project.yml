@@ -54,7 +54,6 @@ targets:
         LSMinimumSystemVersion: "14.0"
         LSUIElement: true
         NSHumanReadableCopyright: ""
-        NSAppleEventsUsageDescription: "Mukker needs Accessibility access to paste items into the active app."
         NSCalendarsFullAccessUsageDescription: "Mukker shows the events on the selected day in its menu bar calendar. It only reads them."
 
     dependencies:

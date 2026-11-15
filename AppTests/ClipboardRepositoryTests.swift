@@ -128,7 +128,7 @@ final class ClipboardRepositoryTests: XCTestCase {
         try repo.delete(id: try XCTUnwrap(insertedImage.id))
         XCTAssertFalse(FileManager.default.fileExists(atPath: imagePath), "delete(id:) should remove the PNG")
 
-        let cleared = try repo.clearAll(keepPinned: true)
+        let cleared = try repo.clearAll()
         XCTAssertEqual(cleared.count, 1)
         XCTAssertFalse(FileManager.default.fileExists(atPath: rtfPath), "clearAll should remove the RTF")
     }

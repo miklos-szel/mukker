@@ -11,7 +11,6 @@ struct CalendarEvent: Identifiable, Equatable {
     let start: Date
     let end: Date
     let isAllDay: Bool
-    let calendarID: String
     let calendarColor: NSColor
 }
 
@@ -127,7 +126,6 @@ final class CalendarEventsService: ObservableObject {
                 start: event.startDate ?? interval.start,
                 end: event.endDate ?? interval.start,
                 isAllDay: event.isAllDay,
-                calendarID: event.calendar?.calendarIdentifier ?? "",
                 calendarColor: event.calendar?.color ?? .secondaryLabelColor)
         }
     }

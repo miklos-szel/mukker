@@ -174,7 +174,7 @@ final class ClipboardSettings: ObservableObject {
     // MARK: Popup appearance
 
     /// When on, the popup panel uses `popupBackgroundColor` instead of the
-    /// appearance-adaptive `PopupTheme.panelBackground`. Off by default.
+    /// appearance-adaptive `PopupTheme.panelBackground`. On by default (white).
     var popupCustomBackgroundEnabled: Bool {
         get { boolValue("popup.customBackgroundEnabled", default: true) }
         set { setBool(newValue, "popup.customBackgroundEnabled") }
@@ -187,7 +187,7 @@ final class ClipboardSettings: ObservableObject {
     }
 
     /// When on, the popup panel draws a colored bezel (border) around its edge.
-    /// Off by default.
+    /// On by default (orange).
     var popupBezelEnabled: Bool {
         get { boolValue("popup.bezelEnabled", default: true) }
         set { setBool(newValue, "popup.bezelEnabled") }

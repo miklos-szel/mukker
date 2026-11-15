@@ -80,7 +80,7 @@ struct HistorySubpane: View {
 
     private func clearHistory() {
         do {
-            let removed = try ClipboardRepository().clearAll(keepPinned: true)
+            let removed = try ClipboardRepository().clearAll()
             // Honor the forever-history promise even for an explicit clear.
             ForeverHistoryArchive.archive(removed)
             ClipboardCache.shared.loadAll()

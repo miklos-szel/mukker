@@ -42,8 +42,8 @@ struct SnippetBundleImporter {
     var maxUncompressedBytes: UInt64 = 10 * 1024 * 1024
     var maxEntries: Int = 5_000
 
-    /// Parses the file at `url`. `collectionName` defaults to the file's basename.
-    func parse(url: URL, collectionName: String? = nil) throws -> ParsedCollection {
+    /// Parses the file at `url`; the collection is named after the file's basename.
+    func parse(url: URL) throws -> ParsedCollection {
         try checkLimits(of: url)
 
         let fm = FileManager.default
@@ -90,9 +90,8 @@ struct SnippetBundleImporter {
             throw ImportError.noSnippetsFound
         }
 
-        let name = collectionName ?? url.deletingPathExtension().lastPathComponent
         return ParsedCollection(
-            name: name,
+            name: url.deletingPathExtension().lastPathComponent,
             keywordPrefix: prefix,
             keywordSuffix: suffix,
             snippets: snippets
