@@ -1,0 +1,142 @@
+<Window x:Class="Mukker.App.Popup.PopupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Mukker.App.Popup"
+        Title="Mukker Clipboard" WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
+        Background="Transparent" ShowInTaskbar="False" Topmost="True" WindowStartupLocation="Manual">
+    <Window.Resources>
+        <DataTemplate DataType="{x:Type local:HeaderRow}">
+            <DockPanel Margin="4,8,4,2">
+                <TextBlock Text="‹ All" Foreground="{StaticResource Accent}" FontSize="11" FontWeight="SemiBold" Margin="0,0,8,0"
+                           Cursor="Hand" MouseLeftButtonUp="BackClicked">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CanGoBack}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Text="{Binding Title}" Foreground="{StaticResource InkSoft}" FontSize="11" FontWeight="SemiBold" />
+            </DockPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="RowTemplate">
+            <DockPanel Margin="2,3">
+                <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
+                           Width="22" VerticalAlignment="Center" Foreground="{StaticResource InkSoft}" />
+                <StackPanel>
+                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontSize="13" />
+                    <TextBlock Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" FontSize="11" Foreground="{StaticResource InkSoft}" />
+                </StackPanel>
+            </DockPanel>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type local:CollectionRow}">
+            <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource RowTemplate}" />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type local:SnippetRow}">
+            <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource RowTemplate}" />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type local:ClipRow}">
+            <DockPanel Margin="2,3">
+                <TextBlock DockPanel.Dock="Left" Text="{Binding Glyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="14"
+                           Width="22" VerticalAlignment="Center" Foreground="{StaticResource InkSoft}" />
+                <TextBlock DockPanel.Dock="Right" Text="&#xE718;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="11"
+                           VerticalAlignment="Center" Foreground="{StaticResource Accent}" Margin="6,0,2,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Pinned}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <StackPanel>
+                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" FontSize="13" />
+                    <TextBlock Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" FontSize="11" Foreground="{StaticResource InkSoft}" />
+                </StackPanel>
+            </DockPanel>
+        </DataTemplate>
+
+        <Style x:Key="RowStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="6,1" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}" Margin="4,0">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#F0F0F2" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource Selection}" />
+                                <Setter Property="TextElement.Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border x:Name="Bezel" CornerRadius="12" BorderBrush="{StaticResource Accent}" BorderThickness="7" Background="White" Margin="10">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.28" />
+        </Border.Effect>
+        <Grid x:Name="Root">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="ListColumn" Width="0.46*" />
+                <ColumnDefinition Width="1" />
+                <ColumnDefinition Width="0.54*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.ColumnSpan="3" BorderBrush="{StaticResource Hairline}" BorderThickness="0,0,0,1" Padding="12,10">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Text="&#xE721;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="15"
+                               VerticalAlignment="Center" Foreground="{StaticResource InkSoft}" Margin="2,0,10,0" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE713;" ToolTip="Settings (Ctrl+,)" Click="SettingsClicked" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Content="&#xE8F1;" ToolTip="Snippets Manager" Click="ManagerClicked" />
+                    <Grid>
+                        <TextBox x:Name="Search" BorderThickness="0" FontSize="16" Padding="0" Background="Transparent"
+                                 TextChanged="SearchChanged" PreviewKeyDown="SearchKeyDown" />
+                        <TextBlock x:Name="Placeholder" Text="Search snippets and clipboard history" FontSize="16"
+                                   Foreground="#A0A0A8" IsHitTestVisible="False" VerticalAlignment="Center" />
+                    </Grid>
+                </DockPanel>
+            </Border>
+
+            <ListBox x:Name="Results" Grid.Row="1" BorderThickness="0" Background="Transparent" Padding="0,4"
+                     ItemContainerStyle="{StaticResource RowStyle}" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel"
+                     SelectionChanged="ResultsSelectionChanged" MouseDoubleClick="ResultsDoubleClick"
+                     PreviewMouseRightButtonDown="ResultsRightClick" ScrollViewer.ScrollChanged="ResultsScrolled" />
+
+            <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource Hairline}" />
+
+            <DockPanel Grid.Row="1" Grid.Column="2" Margin="14,10,12,10">
+                <DockPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button x:Name="PinButton" Style="{StaticResource IconButton}" Content="&#xE718;" ToolTip="Pin" Click="PinClicked" />
+                        <Button x:Name="StarButton" Style="{StaticResource IconButton}" Content="&#xE734;" ToolTip="Save as snippet" Click="StarClicked" />
+                        <Button x:Name="DeleteButton" Style="{StaticResource IconButton}" Content="&#xE74D;" ToolTip="Delete" Click="DeleteClicked" />
+                    </StackPanel>
+                    <TextBlock x:Name="Meta" Foreground="{StaticResource InkSoft}" FontSize="11" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+                <Grid x:Name="PreviewHost" />
+            </DockPanel>
+        </Grid>
+    </Border>
+</Window>
