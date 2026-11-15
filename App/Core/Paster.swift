@@ -10,17 +10,19 @@ final class Paster {
     @MainActor
     func paste(_ item: ClipItem, autoPaste: Bool = true) {
         writeToPasteboard(item)
+        // The item is already in history; don't let the monitor's next poll record
+        // our own write as a fresh copy. Must come *after* the write: it snapshots the
+        // pasteboard's current change count, and on the main thread no poll can run
+        // in between. `moveToTopIfNeeded` does the bump the monitor would have done.
+        // Snippet pastes (`pasteText`) deliberately still land in history.
+        ClipboardMonitor.shared.suppressNextChange()
         moveToTopIfNeeded(item)
         guard autoPaste else { return }
         guard PermissionsService.shared.hasAccessibilityPermission else {
             Log.paste.notice("Skipping auto-paste; accessibility not trusted")
             return
         }
-        ActiveAppTracker.shared.reactivate()
-        // Give the app a moment to come forward before sending keystrokes.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            self.sendCommandV()
-        }
+        reactivateAndSendCommandV()
     }
 
     /// Bumps the item to the top of history when the corresponding setting is on.
@@ -39,7 +41,14 @@ final class Paster {
         pb.setString(text, forType: .string)
         guard autoPaste else { return }
         guard PermissionsService.shared.hasAccessibilityPermission else { return }
+        reactivateAndSendCommandV()
+    }
+
+    /// Brings the previously active app back and sends it ⌘V.
+    @MainActor
+    private func reactivateAndSendCommandV() {
         ActiveAppTracker.shared.reactivate()
+        // Give the app a moment to come forward before sending keystrokes.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
             self.sendCommandV()
         }

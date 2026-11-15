@@ -39,7 +39,7 @@ struct CapturePane: View {
                 }
             }
 
-            Section("Behaviour") {
+            Section("Behavior") {
                 Picker("After screenshot", selection: $settings.afterCapture) {
                     ForEach(AfterCapture.allCases) { Text($0.label).tag($0) }
                 }

@@ -21,13 +21,18 @@ enum PopupResult: Identifiable, Equatable {
 @MainActor
 final class PopupViewModel: ObservableObject {
     @Published var query: String = "" {
-        didSet { visibleClipCount = clipPageSize; refreshResults() }
+        didSet { visibleClipCount = clipPageSize; if !isBatchingChanges { refreshResults() } }
     }
 
     /// nil = top level (collections + history); set = drilled into a collection
     @Published var currentCollection: SnippetCollection? {
-        didSet { visibleClipCount = clipPageSize; refreshResults() }
+        didSet { visibleClipCount = clipPageSize; if !isBatchingChanges { refreshResults() } }
     }
+
+    /// Set while several of the properties above change together (`reset`,
+    /// `enter`), so their `didSet`s don't each rebuild the results; the caller
+    /// refreshes once at the end.
+    private var isBatchingChanges = false
 
     /// History is shown in pages: only `visibleClipCount` clip rows render at a
     /// time (lazy-loaded as the user scrolls/arrows down). Search still filters
@@ -41,7 +46,25 @@ final class PopupViewModel: ObservableObject {
     /// Pre-split sections so the list view doesn't re-filter `results` on every render.
     @Published private(set) var snippetResults: [PopupResult] = []
     @Published private(set) var clipResults: [PopupResult] = []
-    @Published var selectedId: String?
+    @Published var selectedId: String? {
+        didSet { if selectedId != oldValue { updateSelectedPreview() } }
+    }
+
+    /// Full text and counts of the selected text clip, resolved once per
+    /// selection change (a clip over the cache's inline threshold costs a DB
+    /// read) rather than on every render of the preview pane.
+    @Published private(set) var selectedPreview: ClipTextPreview?
+
+    /// Whether the popup is on screen. While false, cache changes don't rebuild
+    /// the results — `reset()` does that on the next show. Defaults to true so a
+    /// view model nobody tells about visibility behaves as it always has.
+    var isPanelVisible = true {
+        didSet {
+            if isPanelVisible, !oldValue, needsRefreshOnShow { scheduleCacheRefresh() }
+        }
+    }
+    private var needsRefreshOnShow = false
+    private var cacheRefreshQueued = false
 
     /// Invoked when an action requests the popup to close (set by the window controller).
     var onRequestClose: (() -> Void)?
@@ -61,35 +84,58 @@ final class PopupViewModel: ObservableObject {
 
     private let snippetCache: SnippetCache
     private let clipboardCache: ClipboardCache
+    private let snippetRepo: SnippetRepository
 
     private var cancellables: Set<AnyCancellable> = []
 
     init(snippetCache: SnippetCache = .shared,
-         clipboardCache: ClipboardCache = .shared) {
+         clipboardCache: ClipboardCache = .shared,
+         snippetRepository: SnippetRepository = SnippetRepository()) {
         self.snippetCache = snippetCache
         self.clipboardCache = clipboardCache
+        self.snippetRepo = snippetRepository
 
         // Keep results in sync when the underlying caches change.
         snippetCache.objectWillChange
-            .sink { [weak self] _ in
-                Task { @MainActor in self?.refreshResults() }
-            }
+            .merge(with: clipboardCache.objectWillChange)
+            .sink { [weak self] _ in self?.cacheWillChange() }
             .store(in: &cancellables)
-        clipboardCache.objectWillChange
-            .sink { [weak self] _ in
-                Task { @MainActor in self?.refreshResults() }
-            }
-            .store(in: &cancellables)
+    }
+
+    /// `objectWillChange` fires *before* the cache mutates, so the refresh is
+    /// deferred to see the new contents; a burst of publishes (a capture plus
+    /// its trim, a snippet reload) queues one refresh, not one per publish.
+    private func cacheWillChange() {
+        guard isPanelVisible else {
+            needsRefreshOnShow = true
+            return
+        }
+        scheduleCacheRefresh()
+    }
+
+    private func scheduleCacheRefresh() {
+        guard !cacheRefreshQueued else { return }
+        cacheRefreshQueued = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.cacheRefreshQueued = false
+            self.needsRefreshOnShow = false
+            self.refreshResults()
+        }
     }
 
     /// Reset to a clean state for every popup show: top level, empty query,
     /// selection on the first row. Never restores where the user left off.
+    /// Rebuilds the results exactly once.
     func reset() {
+        isBatchingChanges = true
         selectedId = nil            // clear before refresh so no stale row is preserved
         visibleClipCount = clipPageSize
         currentCollection = nil
-        query = ""                  // didSet → refreshResults() selects results.first
-        refreshResults()
+        query = ""
+        isBatchingChanges = false
+        needsRefreshOnShow = false
+        refreshResults()            // selects results.first
         showGeneration &+= 1        // fresh ScrollView identity → starts at the top
     }
 
@@ -102,6 +148,8 @@ final class PopupViewModel: ObservableObject {
     }
 
     func refreshResults() {
+        let previousSelection = selectedId
+        let previousIndex = selectedIndex
         var rows: [PopupResult] = []
 
         // ── Snippets / collections section ─────────────────────────
@@ -141,11 +189,36 @@ final class PopupViewModel: ObservableObject {
 
         // Maintain a valid selection
         if let sel = selectedId, results.contains(where: { $0.id == sel }) {
-            // keep
+            // keep — but the item itself may have changed (e.g. its text was
+            // rewritten by fast-append), so re-resolve the preview if so.
+            updateSelectedPreview()
         } else {
             selectedId = results.first?.id
         }
-        scrollTick &+= 1
+        // Scroll only when the selected row is a different row or moved: an
+        // unconditional bump animated a scroll on every keystroke.
+        if selectedId != previousSelection || selectedIndex != previousIndex {
+            scrollTick &+= 1
+        }
+    }
+
+    private var selectedIndex: Int? {
+        guard let id = selectedId else { return nil }
+        return results.firstIndex(where: { $0.id == id })
+    }
+
+    // MARK: Preview
+
+    /// Resolves `selectedPreview` for the current selection. Cheap when the
+    /// selected clip hasn't changed since the last call.
+    private func updateSelectedPreview() {
+        guard case .clip(let item)? = selectedResult, item.kind == .text else {
+            if selectedPreview != nil { selectedPreview = nil }
+            return
+        }
+        if let current = selectedPreview, current.item == item { return }
+        let text = item.textContent ?? clipboardCache.fullText(for: item) ?? (item.previewText ?? "")
+        selectedPreview = ClipTextPreview(item: item, text: text)
     }
 
     // MARK: Navigation
@@ -188,8 +261,11 @@ final class PopupViewModel: ObservableObject {
 
     /// Drills into a collection (no paste).
     func enter(_ collection: SnippetCollection) {
+        isBatchingChanges = true
         currentCollection = collection
         query = ""
+        isBatchingChanges = false
+        refreshResults()
     }
 
     /// Exits the current collection (back to top level). Returns true if drill-out happened.
@@ -202,33 +278,44 @@ final class PopupViewModel: ObservableObject {
 
     // MARK: Add a clip to snippets
 
-    private let snippetRepo = SnippetRepository()
+    enum AddClipError: LocalizedError {
+        case noText
+        case emptyCollectionName
 
-    /// Adds a text clip's content as a snippet in an existing collection.
-    func addClip(_ item: ClipItem, toCollectionId cid: Int64) {
-        guard let text = fullText(of: item), !text.isEmpty else { return }
-        do {
-            try snippetRepo.createSnippet(collectionId: cid, name: snippetName(from: text),
-                                          keyword: nil, content: text)
-            snippetCache.loadAll()
-        } catch {
-            Log.snippets.error("Failed to add clip to collection: \(error.localizedDescription)")
+        var errorDescription: String? {
+            switch self {
+            case .noText: return "This clip has no text to save as a snippet."
+            case .emptyCollectionName: return "The collection needs a name."
+            }
         }
     }
 
-    /// Creates a new collection and adds the text clip into it.
-    func addClip(_ item: ClipItem, toNewCollection name: String) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let text = fullText(of: item), !text.isEmpty else { return }
-        do {
-            let col = try snippetRepo.createCollection(name: trimmed)
-            if let cid = col.id {
-                try snippetRepo.createSnippet(collectionId: cid, name: snippetName(from: text),
-                                              keyword: nil, content: text)
-            }
-            snippetCache.loadAll()
-        } catch {
-            Log.snippets.error("Failed to add clip to new collection: \(error.localizedDescription)")
+    /// The name offered by default when a clip is added to snippets.
+    func suggestedSnippetName(for item: ClipItem) -> String {
+        SnippetNaming.defaultName(from: fullText(of: item) ?? item.previewText ?? "")
+    }
+
+    /// Adds a text clip's content as a snippet named `name` (normalised; an
+    /// empty name falls back to the suggested one) in an existing collection.
+    func addClip(_ item: ClipItem, toCollectionId cid: Int64, name: String) throws {
+        guard let text = fullText(of: item), !text.isEmpty else { throw AddClipError.noText }
+        let snippetName = SnippetNaming.normalized(name, fallback: SnippetNaming.defaultName(from: text))
+        try snippetRepo.createSnippet(collectionId: cid, name: snippetName, keyword: nil, content: text)
+        snippetCache.loadAll()
+    }
+
+    /// Creates a collection named `collectionName` and adds the text clip into
+    /// it as a snippet named `snippetName` (normalised as above).
+    func addClip(_ item: ClipItem, toNewCollection collectionName: String, snippetName: String) throws {
+        guard let colName = SnippetNaming.validated(collectionName) else {
+            throw AddClipError.emptyCollectionName
+        }
+        guard let text = fullText(of: item), !text.isEmpty else { throw AddClipError.noText }
+        let name = SnippetNaming.normalized(snippetName, fallback: SnippetNaming.defaultName(from: text))
+        let col = try snippetRepo.createCollection(name: colName)
+        defer { snippetCache.loadAll() }
+        if let cid = col.id {
+            try snippetRepo.createSnippet(collectionId: cid, name: name, keyword: nil, content: text)
         }
     }
 
@@ -245,15 +332,6 @@ final class PopupViewModel: ObservableObject {
         var copy = item
         copy.textContent = clipboardCache.fullText(for: item) ?? ""
         return copy
-    }
-
-    /// Derives a snippet name from the first non-empty line, truncated.
-    private func snippetName(from text: String) -> String {
-        let firstLine = text.split(whereSeparator: \.isNewline)
-            .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
-            .map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
-        let name = firstLine.isEmpty ? "Snippet" : String(firstLine.prefix(50))
-        return name
     }
 
     // MARK: Intent (called from the view; keeps logic out of the view body)
@@ -340,5 +418,31 @@ final class PopupViewModel: ObservableObject {
             Paster.shared.paste(resolvedForPaste(item), autoPaste: autoPaste)
             return true
         }
+    }
+}
+
+/// The selected text clip's full text and its counts, computed once per
+/// selection instead of on every preview render.
+struct ClipTextPreview: Equatable {
+    /// The cached item this was resolved from (identifies the selection and
+    /// detects a changed item).
+    let item: ClipItem
+    let text: String
+    let words: Int
+    let characters: Int
+    let bytes: Int
+
+    init(item: ClipItem, text: String) {
+        self.item = item
+        self.text = text
+        words = text.split { $0.isWhitespace || $0.isNewline }.count
+        characters = text.count
+        bytes = text.utf8.count
+    }
+
+    /// "12 words; 80 chars; 80 bytes", plus " • rich text" for a formatted clip.
+    var countsLine: String {
+        let base = "\(words) words; \(characters) chars; \(bytes) bytes"
+        return item.richTextPath == nil ? base : base + " • rich text"
     }
 }

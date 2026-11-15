@@ -20,6 +20,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SnippetCache.shared.loadAll()
         ClipboardCache.shared.loadAll()
 
+        // Launch housekeeping, off the main thread (it walks the support folder):
+        // owner-only permissions on the history, then delete sidecar files no row
+        // references. The sweep is safe against captures running meanwhile — see
+        // `ClipboardRepository.removeOrphanedSidecarFiles`.
+        DispatchQueue.global(qos: .utility).async {
+            let tightened = AppPaths.tightenPermissions(under: AppPaths.supportDirectory)
+            if tightened > 0 {
+                Log.clipboard.info("Restricted permissions on \(tightened) support item(s)")
+            }
+            do {
+                let removed = try ClipboardRepository().removeOrphanedSidecarFiles(
+                    in: [AppPaths.imagesDirectory, AppPaths.richTextDirectory])
+                Log.clipboard.info("Orphan sweep removed \(removed) sidecar file(s)")
+            } catch {
+                Log.clipboard.error("Orphan sweep failed: \(error.localizedDescription)")
+            }
+        }
+
         // The popup is a non-activating panel, so ⌘, never reaches the app menu —
         // let it open Settings directly.
         PopupWindowController.shared.onRequestSettings = { [weak self] in
@@ -46,16 +64,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         KeepAwakeService.shared.start()
         HourlyChimeService.shared.start()
 
-        // Bandwidth monitor: samples the network interfaces once a second for
-        // the menu bar rate and the per-interface daily totals.
+        // Bandwidth monitor: samples the network interfaces every refresh
+        // interval (5 s by default, 1–30 s in Settings) for the menu bar rate
+        // and the per-interface daily totals.
         BandwidthService.shared.start()
 
-        // One manager owns all four system-wide shortcuts. The menu items carry
+        // One manager owns all eight system-wide shortcuts. The menu items carry
         // the same key equivalents for discoverability; CaptureCoordinator's
         // in-flight guard keeps a double-trigger from starting two captures.
         // Window tiling registers only while it is switched on, so that its
         // ⌃⌘arrow combos are free for other apps when the user doesn't want it.
         let tilingEnabled = { WindowTilingSettings.shared.isEnabled }
+        // Translation likewise frees ⌘⇧E/⌘⌥E while it is switched off.
+        let translationEnabled = { TranslationSettings.shared.isEnabled }
         HotKeyManager.shared.start(
             settings: ShortcutSettings.shared,
             actions: [
@@ -71,12 +92,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .init(combo: \.tileTopCombo, isEnabled: tilingEnabled,
                       handler: { [weak self] in self?.tileWindow(.top) }),
                 .init(combo: \.tileBottomCombo, isEnabled: tilingEnabled,
-                      handler: { [weak self] in self?.tileWindow(.bottom) })
+                      handler: { [weak self] in self?.tileWindow(.bottom) }),
+                .init(combo: \.translateEnglishCombo, isEnabled: translationEnabled,
+                      handler: { [weak self] in self?.translateSelectionOrLatest(.english) }),
+                .init(combo: \.translateHungarianCombo, isEnabled: translationEnabled,
+                      handler: { [weak self] in self?.translateSelectionOrLatest(.hungarian) })
             ],
-            reloadOn: WindowTilingSettings.shared.$isEnabled
-                .dropFirst()
-                .map { _ in () }
-                .eraseToAnyPublisher()
+            // Either switch re-registers. Each drops its subscribe-time replay;
+            // the manager delivers on the run loop, after the new value is stored.
+            reloadOn: Publishers.Merge(
+                WindowTilingSettings.shared.$isEnabled.dropFirst().map { _ in () },
+                TranslationSettings.shared.$isEnabled.dropFirst().map { _ in () }
+            )
+            .eraseToAnyPublisher()
         )
 
         // The menu bar item, last so everything it can invoke already exists.
@@ -116,6 +144,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             RunLoop.main.add(timer, forMode: .common)
         }
+        // The translate panel on the selection or newest history entry (`MUKKER_TRANSLATE=en|hu`),
+        // after the cache has loaded — the hotkey is otherwise the only way in.
+        if let code = ProcessInfo.processInfo.environment["MUKKER_TRANSLATE"],
+           let language = TranslationLanguage(shortCode: code) {
+            let timer = Timer(timeInterval: 1.0, repeats: false) { _ in
+                MainActor.assumeIsolated { self.translateSelectionOrLatest(language) }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+        }
 #endif
 
         // We hide the dock icon via LSUIElement; still set activation policy as a guard
@@ -134,6 +171,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             captureScreen: { [weak self] in self?.captureScreen() },
             captureScrolling: { [weak self] in self?.captureScrolling() },
             openSettings: { [weak self] in self?.openSettings() })
+        actions.translateToEnglish = { [weak self] in self?.translateSelectionOrLatest(.english) }
+        actions.translateToHungarian = { [weak self] in self?.translateSelectionOrLatest(.hungarian) }
 #if DEBUG
         actions.openDebugSample = { [weak self] in self?.openDebugSample() }
 #endif
@@ -192,6 +231,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         WindowTiler.shared.tile(slot)
     }
 
+    // MARK: - Translation entry point
+
+    /// Translates the text selected in the focused app, else the newest text in
+    /// the clipboard history; pressing the same language's hotkey again while
+    /// the panel is up closes it. The panel controller reads the selection
+    /// before it shows anything, so nothing here may take focus first.
+    func translateSelectionOrLatest(_ language: TranslationLanguage) {
+        TranslationPanelController.shared.show(language: language)
+    }
+
     /// Routes a finished capture according to the user's "After screenshot" setting.
     private static func handleCapture(image: CGImage, scale: CGFloat) {
         let settings = CaptureSettings.shared
@@ -203,7 +252,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .save:
             let output = settings.downscaleRetina
                 ? ImageExporter.downscaled(image, by: scale) : image
-            ImageExporter.saveSilently(output, to: settings.saveDirectory, format: settings.saveFormat)
+            let directory = settings.saveDirectory
+            if case .failure(let error) = ImageExporter.saveSilently(output, to: directory,
+                                                                     format: settings.saveFormat) {
+                // Keep the capture: open it in the editor (full resolution, as for
+                // "show"), then say why the save didn't happen.
+                EditorWindowController.shared.open(image: image, sourceScale: scale)
+                let alert = NSAlert()
+                alert.alertStyle = .warning
+                alert.messageText = "Couldn't save the screenshot"
+                alert.informativeText = "\(Branding.name) couldn't save to “\(directory.path)”: "
+                    + "\(error.localizedDescription)\n\nThe capture is open in the editor instead."
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+            }
         }
     }
 

@@ -48,13 +48,12 @@ targets:
         CFBundleDisplayName: Mukker
         CFBundleIdentifier: com.mukker.Mukker
         CFBundleIconName: AppIcon
-        CFBundleShortVersionString: "1.1.1"
-        CFBundleVersion: "19"
+        CFBundleShortVersionString: "1.3.0"
+        CFBundleVersion: "20"
         CFBundlePackageType: APPL
         LSMinimumSystemVersion: "14.0"
         LSUIElement: true
         NSHumanReadableCopyright: ""
-        NSAppleEventsUsageDescription: "Mukker needs Accessibility access to paste items into the active app."
         NSCalendarsFullAccessUsageDescription: "Mukker shows the events on the selected day in its menu bar calendar. It only reads them."
 
     dependencies:

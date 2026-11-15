@@ -7,12 +7,40 @@ struct MukkerImporter {
         self.repository = repository
     }
 
-    enum ImportError: Error {
+    enum ImportError: LocalizedError {
         case unsupportedFormat(String)
+        case fileTooLarge(maxBytes: Int)
+
+        var errorDescription: String? {
+            switch self {
+            case .unsupportedFormat(let format):
+                return "Unsupported snippet file format “\(format)”."
+            case .fileTooLarge(let maxBytes):
+                let size = ByteCountFormatter.string(fromByteCount: Int64(maxBytes), countStyle: .file)
+                return "The snippet file is too large to import (more than \(size))."
+            }
+        }
+    }
+
+    /// Exported snippet files are small JSON; refuse to read anything far bigger.
+    var maxFileBytes: Int = 20 * 1024 * 1024
+
+    /// What an import wrote: the collections (created or merged into) and the
+    /// number of snippets the file carried into them.
+    struct Summary {
+        let collections: [SnippetCollection]
+        let snippetCount: Int
     }
 
     @discardableResult
     func importFile(at url: URL) throws -> [SnippetCollection] {
+        try importFileWithSummary(at: url).collections
+    }
+
+    @discardableResult
+    func importFileWithSummary(at url: URL) throws -> Summary {
+        let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        guard size <= maxFileBytes else { throw ImportError.fileTooLarge(maxBytes: maxFileBytes) }
         let data = try Data(contentsOf: url)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -23,6 +51,7 @@ struct MukkerImporter {
         }
 
         var imported: [SnippetCollection] = []
+        var count = 0
         for col in payload.collections {
             let snippets = col.snippets.map {
                 (name: $0.name, keyword: $0.keyword, content: $0.content, uid: $0.uid)
@@ -34,7 +63,8 @@ struct MukkerImporter {
                 snippets: snippets
             )
             imported.append(c)
+            count += snippets.count
         }
-        return imported
+        return Summary(collections: imported, snippetCount: count)
     }
 }

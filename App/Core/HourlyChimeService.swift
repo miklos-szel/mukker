@@ -2,8 +2,9 @@ import AppKit
 import Combine
 import CoreAudio
 
-/// Beeps at the top of every hour. The only thing in the app that plays a
-/// sound of its own, and the only one that talks to CoreAudio.
+/// Beeps at the top of every hour. The only thing in the app that talks to
+/// CoreAudio (fast-append's optional "Purr" is a plain `NSSound` on the
+/// default effects device).
 ///
 /// Two details are load-bearing:
 ///

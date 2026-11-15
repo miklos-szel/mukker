@@ -1,8 +1,8 @@
 # Mukker
 
 A native macOS menu-bar utility that combines a **calendar**, **clipboard history**, **text
-snippets**, **screen capture with annotation**, **window tiling**, a **bandwidth monitor** and
-**keeping your Mac awake** in one app. The menu bar shows today's date and drops down a month calendar with the day's
+snippets**, **screen capture with annotation**, **window tiling**, a **bandwidth monitor**,
+**translation of what you select or copy** and **keeping your Mac awake** in one app. The menu bar shows today's date and drops down a month calendar with the day's
 events; a quick popup on a global shortcut pastes back into the app you were just using; a
 capture shortcut opens a screenshot in a full annotation editor; a ⌃⌘arrow snaps the frontmost
 window to half the screen.
@@ -41,12 +41,12 @@ window to half the screen.
 </p>
 
 - **Clipboard history** — text (incl. **rich text**/formatting), images, and file lists, with per-kind retention and a max-items cap.
-- **Snippets** — organize reusable text into collections; import `.alfredsnippets` snippet bundles and export/import Mukker's own JSON.
+- **Snippets** — organize reusable text into collections; import `.alfredsnippets` snippet bundles and export/import Mukker's own JSON. Names are capped at 100 characters, and oversized imports are refused before they are unpacked (bundles over 10 MB uncompressed or 5,000 entries, Mukker files over 20 MB).
 - **Fast popup** (⌘E) — a single searchable list of snippets + history; reads from an in-memory cache so it opens instantly. Press the shortcut again to close. History lazy-loads in pages of 50; search spans everything.
-- **Fast append** — double-tap ⌘C to merge the new copy onto the previous text item.
-- **Star a clip into snippets** right from the preview.
+- **Fast append** — double-tap ⌘C to merge the new copy onto the previous text item. It follows the same privacy rules as ordinary capture.
+- **Star a clip into snippets** right from the preview — pick a collection (or create one) and name the snippet; the name is prefilled with the clip's first line.
 - **Forever history** *(optional, off by default)* — archives text items as `.txt` files before they're deleted.
-- **Privacy** — ignores configured apps (password managers preloaded), skips concealed/sensitive copies, and respects a max clip size. **Clear History…** wipes unpinned items on demand.
+- **Privacy** — ignores configured apps (password managers preloaded) and respects a max clip size. With *Ignore items marked as concealed/sensitive* on (the default) it also skips copies that apps mark as concealed, transient or auto-generated, copies carrying the 1Password app's marker, and copies from the password-manager browser extensions listed in Settings. Copied HTML is stripped of images, scripts and other remote references before it is turned into rich text, so a copy never makes Mukker load anything. **Clear History…** wipes unpinned items on demand.
 - **Screen-relative popup size** (30%–90% of your display) and a **customizable popup appearance** — background color plus a colored bezel with adjustable width.
 
 ### Capture & annotation
@@ -79,6 +79,28 @@ window to half the screen.
 - **Data transferred per interface** — Wi-Fi, Ethernet, Thunderbolt… — in the menu's *Network*
   submenu, with the active interface checked. Today by default; this week and this month can be
   switched on. VPN tunnels aren't counted twice, and only traffic while Mukker runs is recorded.
+
+### Translate
+
+- **Translate what you selected or just copied** — ⌘⇧E into English, ⌘⌥E into Hungarian. The
+  text selected in the frontmost app is translated; with nothing selected, the newest text in the
+  clipboard history is (the source language is detected either way). The result is shown in a
+  small floating panel next to the original, marked *from Selection* or *from Clipboard*, and
+  copied so you can paste it straight away. A button in the panel redoes it in the other language.
+- **A selection is never copied.** It is read through the Accessibility permission, so it doesn't
+  replace what is on your clipboard and doesn't appear in the history. Native Mac apps (TextEdit,
+  Notes, Mail, …) expose their selection, and Safari pages usually do; many Chromium-based browsers, Electron
+  apps and some terminals don't, and password fields never do — there the shortcut translates the
+  newest clipboard text instead. So does it without the Accessibility permission, and for apps
+  you excluded from the clipboard history.
+- **Uses the subscription you already have, no API key.** Mukker hands the text to a command-line
+  tool signed in with your own account: the **Codex CLI** for ChatGPT (`brew install codex`, then
+  `codex login`) or the **Claude Code CLI** for Claude. Pick the engine, and optionally a model or
+  the tool's path, in **Settings → Translate**.
+- **Only your selection or what is in your history is ever sent**, and only when you press the
+  shortcut — text from ignored apps or marked as concealed never gets there. The text goes to OpenAI or Anthropic
+  through that tool and counts against that plan.
+- Switch it off in Settings and both shortcuts are released back to other apps.
 
 ### Keep awake
 
@@ -114,6 +136,7 @@ Every feature set has its own tab; Hotkeys, Permissions and About are shared.
 | ⌃⇧⌘4 / ⌃⇧⌘3 / ⌃⇧⌘5 | Capture area / screen / scrolling |
 | ⌃⌘← / ⌃⌘→ | Tile the frontmost window to the left / right half |
 | ⌃⌘↓ / ⌃⌘↑ | Tile the frontmost window to the top / bottom half |
+| ⌘⇧E / ⌘⌥E | Translate the selection (or the latest clipboard text) into English / Hungarian |
 | ↑ / ↓ | Move selection in the popup |
 | Return | Paste selected item (with formatting) |
 | ⌘⇧V | Paste **without** formatting (plain text) |
@@ -123,15 +146,20 @@ Every feature set has its own tab; Hotkeys, Permissions and About are shared.
 | Esc | Close |
 
 The popup and capture shortcuts are configurable in **Settings → Hotkeys**; the four tiling
-shortcuts live in **Settings → Windows**, next to the switch that turns them on and off. The
-calendar has no shortcut — it is the menu bar item itself.
+shortcuts live in **Settings → Windows** and the two translate shortcuts in
+**Settings → Translate**, each next to the switch that turns them on and off. A new
+shortcut has to include ⌘, ⌃ or ⌥ (F1–F20 may be used on their own), since a global shortcut
+takes its key away from every other app; one recorded before 1.3.0 without a modifier keeps
+working until you record a new one. The calendar has no shortcut — it is the menu bar item itself.
 
 ## Where your data lives
 
 Clipboard history and snippets are stored in a SQLite database at
 `~/Library/Application Support/Mukker/mukker.sqlite`, with image and rich-text sidecar files
-alongside it. Saved screenshots go wherever you point **Settings → Capture → Screenshots folder**,
-defaulting to the Desktop.
+alongside it. The folder is readable by your user account only (folders `0700`, files `0600`;
+Mukker tightens an existing folder at launch). Saved screenshots go wherever you point
+**Settings → Capture → Screenshots folder**, defaulting to the Desktop, and never overwrite an
+existing file — a second save in the same second is numbered (`… 2.png`).
 
 Upgrading from a build older than 0.5.0, which stored its data under a different name? **Nothing is
 carried over automatically** — 0.6.0 removed the one-shot migration. The old folder is left
@@ -147,7 +175,8 @@ buttons for both).
 ## Permissions
 
 One **Accessibility** grant covers everything that needs it: pasting into the active app,
-double-⌘C merging, and auto-scrolling during scrolling capture. **Screen Recording** is
+double-⌘C merging, auto-scrolling during scrolling capture, window tiling, and reading the selected
+text to translate (without it, translation uses the newest clipboard text). **Screen Recording** is
 additionally required for capture. Both are shown live, with grant buttons, in
 **Settings → Permissions**.
 

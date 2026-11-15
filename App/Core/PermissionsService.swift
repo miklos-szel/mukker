@@ -7,9 +7,10 @@ import EventKit
 ///
 /// - **Screen Recording** (TCC): required by ScreenCaptureKit — without it
 ///   `SCShareableContent.current` fails and captures produce nothing.
-/// - **Accessibility** (AX trust): required by four independent subsystems —
+/// - **Accessibility** (AX trust): required by five independent subsystems —
 ///   pasting (synthetic ⌘V), the fast-append global ⌘C monitor, scrolling
-///   capture (synthetic scroll events) and window tiling. One grant covers all.
+///   capture (synthetic scroll events), window tiling and reading the selected
+///   text for translation (`SelectedTextReader`). One grant covers all.
 /// - **Calendars** (TCC): read-only, so the menu bar calendar can list the
 ///   selected day's events. Nothing else in the app touches EventKit.
 ///

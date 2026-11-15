@@ -28,6 +28,28 @@ final class ClipboardCacheTests: XCTestCase {
         XCTAssertEqual(cache.filter("zzz").count, 0)
     }
 
+    func testFilterIsCaseInsensitiveWithMixedCaseQueries() throws {
+        let (cache, repo) = try makeCache()
+        let a = try XCTUnwrap(try repo.insertIfNew(textItem("Hello World", app: "com.apple.Notes", hash: "h1")))
+        let b = try XCTUnwrap(try repo.insertIfNew(textItem("Straße", hash: "h2")))
+        cache.loadAll()
+
+        XCTAssertEqual(cache.filter("hELLO wOrLd").map(\.id), [a.id])
+        XCTAssertEqual(cache.filter("NOTES").map(\.id), [a.id])
+        XCTAssertEqual(cache.filter("STRASSE").count, 0, "ß is not folded to ss (lowercased() semantics)")
+        XCTAssertEqual(cache.filter("STRAßE").map(\.id), [b.id])
+    }
+
+    func testFilterSeesItemsAddedAfterAnEarlierSearch() throws {
+        let (cache, _) = try makeCache()
+        cache.insertNew(textItem("alpha", hash: "a").withID(1))
+        XCTAssertEqual(cache.filter("Beta").count, 0)
+        cache.insertNew(textItem("BETA", hash: "b").withID(2))
+        XCTAssertEqual(cache.filter("beta").map(\.id), [2])
+        cache.remove(id: 2)
+        XCTAssertEqual(cache.filter("beta").count, 0)
+    }
+
     func testLargeTextStrippedButFetchable() throws {
         let (cache, repo) = try makeCache()
         let big = String(repeating: "x", count: 4096) // > 3 KB threshold

@@ -37,6 +37,9 @@ final class PopupWindowController {
     var onRequestSettings: (() -> Void)?
 
     init() {
+        // Hidden until the first show: cache changes needn't rebuild results
+        // nobody can see (`reset()` rebuilds them on every show).
+        viewModel.isPanelVisible = false
         keyObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didBecomeKeyNotification,
             object: nil,
@@ -99,7 +102,8 @@ final class PopupWindowController {
     private func present() {
         ActiveAppTracker.shared.captureFrontmost()
         // Each open starts fresh: top-level, empty query, first row selected.
-        viewModel.reset()
+        viewModel.reset()            // clears any refresh deferred while hidden
+        viewModel.isPanelVisible = true
 
         // Prompt for Accessibility once per launch if it's missing — without it
         // we can only copy, not auto-paste.
@@ -178,13 +182,14 @@ final class PopupWindowController {
         guard isShown || panel?.isVisible == true else { return }
         Log.hotkey.info("popup hide: \(reason, privacy: .public)")
         isShown = false
+        viewModel.isPanelVisible = false
         panel?.orderOut(nil)
     }
 
     /// Reference geometry — defines the popup's **aspect ratio** and the
     /// list/preview split, not absolute pixels. The actual size is a percentage
     /// of the screen (see `popupSize(for:)`), fitted to this aspect ratio.
-    static let baseSize = NSSize(width: 820, height: 480)
+    nonisolated static let baseSize = NSSize(width: 820, height: 480)
     /// Width of the results list at the reference geometry; the preview pane
     /// takes the rest.
     static let baseListWidth: CGFloat = 380
@@ -201,9 +206,15 @@ final class PopupWindowController {
     /// Fit the base aspect ratio inside `popupSizePercent` of the screen's
     /// `visibleFrame` (respecting menu bar / dock / notch).
     private func popupSize(for screen: NSScreen) -> NSSize {
-        let pct = ClipboardSettings.shared.popupSizePercent
-        let vf = screen.visibleFrame
-        let aspect = Self.baseSize.width / Self.baseSize.height
+        Self.popupSize(percent: ClipboardSettings.shared.popupSizePercent,
+                       visibleSize: screen.visibleFrame.size)
+    }
+
+    /// The popup size for `percent` of a screen whose visible area is
+    /// `visibleSize`. Also drives the Settings readout, so the number shown
+    /// there is the size the popup actually opens at.
+    nonisolated static func popupSize(percent pct: Double, visibleSize vf: NSSize) -> NSSize {
+        let aspect = baseSize.width / baseSize.height
         var w = vf.width * pct
         var h = w / aspect
         let maxH = vf.height * pct

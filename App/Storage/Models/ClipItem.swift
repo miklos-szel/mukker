@@ -66,6 +66,10 @@ extension ClipItem {
 
     /// Effective sort timestamp — uses lastUsedAt when present so re-used items bubble up.
     var effectiveTimestamp: Date {
+        Self.effectiveTimestamp(createdAt: createdAt, lastUsedAt: lastUsedAt)
+    }
+
+    static func effectiveTimestamp(createdAt: Date, lastUsedAt: Date?) -> Date {
         if let last = lastUsedAt, last > createdAt { return last }
         return createdAt
     }

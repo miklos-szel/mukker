@@ -49,19 +49,53 @@ enum ImageExporter {
         Log.export.info("copied \(cg.width)×\(cg.height)px to pasteboard")
     }
 
-    /// Save without prompting, to `directory` using a timestamped name.
+    enum SaveError: LocalizedError {
+        case encodingFailed(SaveFormat)
+
+        var errorDescription: String? {
+            switch self {
+            case .encodingFailed(let format): return "The image could not be encoded as \(format.label)."
+            }
+        }
+    }
+
+    /// Save without prompting, to `directory` using a timestamped name. Never
+    /// overwrites: a name already taken (two saves in the same second) gets
+    /// " 2", " 3", … before the extension.
     @discardableResult
-    static func saveSilently(_ cg: CGImage, to directory: URL, format: SaveFormat) -> URL? {
-        guard let data = data(from: cg, format: format) else { return nil }
-        let url = directory.appendingPathComponent(
-            AppPaths.suggestedFileName(fileExtension: format.fileExtension))
+    static func saveSilently(_ cg: CGImage, to directory: URL, format: SaveFormat) -> Result<URL, Error> {
+        guard let data = data(from: cg, format: format) else {
+            Log.export.error("save failed: could not encode \(format.label, privacy: .public)")
+            return .failure(SaveError.encodingFailed(format))
+        }
+        let fm = FileManager.default
+        let name = uniqueFileName(AppPaths.suggestedFileName(fileExtension: format.fileExtension)) {
+            fm.fileExists(atPath: directory.appendingPathComponent($0).path)
+        }
+        let url = directory.appendingPathComponent(name)
         do {
-            try data.write(to: url)
+            // `.withoutOverwriting` closes the gap between the check above and the write.
+            try data.write(to: url, options: .withoutOverwriting)
             Log.export.info("saved \(format.label) to \(url.path, privacy: .public)")
-            return url
+            return .success(url)
         } catch {
             Log.export.error("save failed: \(error.localizedDescription, privacy: .public)")
-            return nil
+            return .failure(error)
+        }
+    }
+
+    /// `fileName` if `exists` says it is free, else the first free of
+    /// "name 2.ext", "name 3.ext", …
+    static func uniqueFileName(_ fileName: String, exists: (String) -> Bool) -> String {
+        guard exists(fileName) else { return fileName }
+        let ns = fileName as NSString
+        let ext = ns.pathExtension
+        let stem = ns.deletingPathExtension
+        var n = 2
+        while true {
+            let candidate = ext.isEmpty ? "\(stem) \(n)" : "\(stem) \(n).\(ext)"
+            if !exists(candidate) { return candidate }
+            n += 1
         }
     }
 }

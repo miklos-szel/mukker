@@ -39,7 +39,7 @@ struct KeepAwakePane: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Behaviour") {
+            Section("Behavior") {
                 Picker("Default duration", selection: $settings.defaultDuration) {
                     ForEach(KeepAwakeDuration.allCases) { Text($0.label).tag($0) }
                 }

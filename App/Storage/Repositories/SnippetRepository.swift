@@ -60,27 +60,14 @@ final class SnippetRepository {
         }
     }
 
-    func allSnippets() throws -> [Snippet] {
+    /// Every snippet in one query, ordered as `snippets(in:)` orders each
+    /// collection (by name; ties by id, i.e. insertion order), so grouping the
+    /// result by `collectionId` yields each collection's list as-is.
+    func allSnippetsOrderedByName() throws -> [Snippet] {
         try dbQueue.read { db in
             try Snippet
-                .order(Snippet.Columns.name.asc)
+                .order(Snippet.Columns.name.asc, Snippet.Columns.id.asc)
                 .fetchAll(db)
-        }
-    }
-
-    /// Filters on snippet name only (case-insensitive).
-    func search(query: String, in collectionId: Int64? = nil) throws -> [Snippet] {
-        guard !query.isEmpty else {
-            if let c = collectionId { return try snippets(in: c) }
-            return try allSnippets()
-        }
-        let like = "%\(query.lowercased())%"
-        return try dbQueue.read { db in
-            var request = Snippet.filter(sql: "LOWER(name) LIKE ?", arguments: [like])
-            if let cid = collectionId {
-                request = request.filter(Snippet.Columns.collectionId == cid)
-            }
-            return try request.order(Snippet.Columns.name.asc).fetchAll(db)
         }
     }
 

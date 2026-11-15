@@ -54,6 +54,24 @@ final class CoreSettingsTests: XCTestCase {
         // Deliberately inverted: top is ⌃⌘↓ and bottom is ⌃⌘↑, as asked for.
         XCTAssertEqual(shortcuts.tileTopCombo, KeyCombo(key: .downArrow, modifiers: [.control, .command]))
         XCTAssertEqual(shortcuts.tileBottomCombo, KeyCombo(key: .upArrow, modifiers: [.control, .command]))
+        XCTAssertEqual(shortcuts.translateEnglishCombo, KeyCombo(key: .e, modifiers: [.command, .shift]))
+        XCTAssertEqual(shortcuts.translateHungarianCombo, KeyCombo(key: .e, modifiers: [.command, .option]))
+    }
+
+    @MainActor
+    func testTranslateCombosPersistAndReset() {
+        let defaults = makeDefaults()
+        let first = ShortcutSettings(defaults: defaults)
+        first.translateEnglishCombo = KeyCombo(key: .t, modifiers: [.command, .control])
+        first.translateHungarianCombo = KeyCombo(key: .y, modifiers: [.command, .control])
+
+        let second = ShortcutSettings(defaults: defaults)
+        XCTAssertEqual(second.translateEnglishCombo, KeyCombo(key: .t, modifiers: [.command, .control]))
+        XCTAssertEqual(second.translateHungarianCombo, KeyCombo(key: .y, modifiers: [.command, .control]))
+
+        second.resetToDefaults()
+        XCTAssertEqual(second.translateEnglishCombo, ShortcutSettings.defaultTranslateEnglishCombo)
+        XCTAssertEqual(second.translateHungarianCombo, ShortcutSettings.defaultTranslateHungarianCombo)
     }
 
     @MainActor

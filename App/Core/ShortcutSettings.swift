@@ -3,8 +3,8 @@ import Combine
 import HotKey
 
 /// Every global (system-wide) shortcut in one observable object: the popup from
-/// the clipboard/snippets side, the three capture shortcuts and the four window
-/// tiling shortcuts. `HotKeyManager` subscribes to all of them, the settings
+/// the clipboard/snippets side, the three capture shortcuts, the four window
+/// tiling shortcuts and the two translate shortcuts. `HotKeyManager` subscribes to all of them, the settings
 /// panes edit them, and the menu-bar menu derives its glyphs from them — so the
 /// three never drift apart.
 @MainActor
@@ -24,6 +24,9 @@ final class ShortcutSettings: ObservableObject {
     @Published var tileTopCombo: KeyCombo { didSet { defaults.set(tileTopCombo.dictionary, forKey: K.tileTop) } }
     @Published var tileBottomCombo: KeyCombo { didSet { defaults.set(tileBottomCombo.dictionary, forKey: K.tileBottom) } }
 
+    @Published var translateEnglishCombo: KeyCombo { didSet { defaults.set(translateEnglishCombo.dictionary, forKey: K.translateEnglish) } }
+    @Published var translateHungarianCombo: KeyCombo { didSet { defaults.set(translateHungarianCombo.dictionary, forKey: K.translateHungarian) } }
+
     static let defaultPopupCombo = KeyCombo(key: .e, modifiers: [.command])
     static let defaultAreaCombo = KeyCombo(key: .four, modifiers: [.command, .shift, .control])
     static let defaultFullscreenCombo = KeyCombo(key: .three, modifiers: [.command, .shift, .control])
@@ -35,6 +38,9 @@ final class ShortcutSettings: ObservableObject {
     // ⌃⌘↑, matching the layout the user asked for. Do not "fix" it.
     static let defaultTileTopCombo = KeyCombo(key: .downArrow, modifiers: [.control, .command])
     static let defaultTileBottomCombo = KeyCombo(key: .upArrow, modifiers: [.control, .command])
+
+    static let defaultTranslateEnglishCombo = KeyCombo(key: .e, modifiers: [.command, .shift])
+    static let defaultTranslateHungarianCombo = KeyCombo(key: .e, modifiers: [.command, .option])
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -48,6 +54,9 @@ final class ShortcutSettings: ObservableObject {
         tileRightCombo = Self.combo(from: defaults, key: K.tileRight) ?? Self.defaultTileRightCombo
         tileTopCombo = Self.combo(from: defaults, key: K.tileTop) ?? Self.defaultTileTopCombo
         tileBottomCombo = Self.combo(from: defaults, key: K.tileBottom) ?? Self.defaultTileBottomCombo
+
+        translateEnglishCombo = Self.combo(from: defaults, key: K.translateEnglish) ?? Self.defaultTranslateEnglishCombo
+        translateHungarianCombo = Self.combo(from: defaults, key: K.translateHungarian) ?? Self.defaultTranslateHungarianCombo
     }
 
     /// Emits whenever any combo changes — the manager's re-register signal.
@@ -58,7 +67,8 @@ final class ShortcutSettings: ObservableObject {
     /// edit is swallowed. Keep the two in step when adding a combo.
     var comboChanges: AnyPublisher<Void, Never> {
         let publishers = [$popupCombo, $areaCombo, $fullscreenCombo, $scrollCombo,
-                          $tileLeftCombo, $tileRightCombo, $tileTopCombo, $tileBottomCombo]
+                          $tileLeftCombo, $tileRightCombo, $tileTopCombo, $tileBottomCombo,
+                          $translateEnglishCombo, $translateHungarianCombo]
             .map { $0.map { _ in () }.eraseToAnyPublisher() }
         return Publishers.MergeMany(publishers)
             .dropFirst(publishers.count)
@@ -74,6 +84,8 @@ final class ShortcutSettings: ObservableObject {
         tileRightCombo = Self.defaultTileRightCombo
         tileTopCombo = Self.defaultTileTopCombo
         tileBottomCombo = Self.defaultTileBottomCombo
+        translateEnglishCombo = Self.defaultTranslateEnglishCombo
+        translateHungarianCombo = Self.defaultTranslateHungarianCombo
     }
 
     private static func combo(from defaults: UserDefaults, key: String) -> KeyCombo? {
@@ -90,5 +102,7 @@ final class ShortcutSettings: ObservableObject {
         static let tileRight = "tileRightCombo"
         static let tileTop = "tileTopCombo"
         static let tileBottom = "tileBottomCombo"
+        static let translateEnglish = "translateEnglishCombo"
+        static let translateHungarian = "translateHungarianCombo"
     }
 }

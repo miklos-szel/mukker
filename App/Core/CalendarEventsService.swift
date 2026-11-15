@@ -11,7 +11,6 @@ struct CalendarEvent: Identifiable, Equatable {
     let start: Date
     let end: Date
     let isAllDay: Bool
-    let calendarID: String
     let calendarColor: NSColor
 }
 
@@ -28,7 +27,9 @@ final class CalendarEventsService: ObservableObject {
     private var store: EKEventStore?
     private var cancellables: Set<AnyCancellable> = []
     /// One grid's worth of marks, thrown away whenever the calendars change.
-    private var markCache: (interval: DateInterval, days: Set<Date>)?
+    /// Keyed by the hidden calendars too, so hiding one in Settings takes its
+    /// dots off the grid at once instead of at the next month change.
+    private var markCache: (interval: DateInterval, hidden: Set<String>, days: Set<Date>)?
 
     private init() {
         NotificationCenter.default.publisher(for: .EKEventStoreChanged)
@@ -84,7 +85,10 @@ final class CalendarEventsService: ObservableObject {
     /// Which days in the visible grid have at least one event — one query for the
     /// whole month, so paging costs a single fetch rather than 42.
     func daysWithEvents(in interval: DateInterval, calendar: Calendar) -> Set<Date> {
-        if let markCache, markCache.interval == interval { return markCache.days }
+        let hidden = Set(CalendarSettings.shared.hiddenCalendarIDs)
+        if let markCache, markCache.interval == interval, markCache.hidden == hidden {
+            return markCache.days
+        }
         var days: Set<Date> = []
         for event in events(in: interval) {
             var day = calendar.startOfDay(for: max(event.start, interval.start))
@@ -99,7 +103,7 @@ final class CalendarEventsService: ObservableObject {
             // never runs for it.
             if event.start == event.end { days.insert(calendar.startOfDay(for: event.start)) }
         }
-        markCache = (interval, days)
+        markCache = (interval, hidden, days)
         return days
     }
 
@@ -122,7 +126,6 @@ final class CalendarEventsService: ObservableObject {
                 start: event.startDate ?? interval.start,
                 end: event.endDate ?? interval.start,
                 isAllDay: event.isAllDay,
-                calendarID: event.calendar?.calendarIdentifier ?? "",
                 calendarColor: event.calendar?.color ?? .secondaryLabelColor)
         }
     }

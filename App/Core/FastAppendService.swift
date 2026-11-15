@@ -1,6 +1,5 @@
 import AppKit
 import Carbon.HIToolbox
-import CryptoKit
 import Foundation
 
 /// Detects a double-tap of ⌘C and appends the freshly-copied text onto the
@@ -48,19 +47,35 @@ final class FastAppendService {
 
     private func performAppend() {
         let settings = ClipboardSettings.shared
+        // Same rules as ordinary capture: text history on, not from an ignored
+        // app, not a concealed/password-manager copy.
+        guard settings.keepText else { return }
         let pb = NSPasteboard.general
+        let sourceApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        guard ClipboardMonitor.shared.shouldRecord(pb, sourceApp: sourceApp, settings: settings) else { return }
         guard let current = pb.string(forType: .string), !current.isEmpty else { return }
 
-        // The most-recent text item is the just-copied `current`. We append it
-        // onto the one before it (the "previously copied" text).
-        let textItems = ClipboardCache.shared.items.filter { $0.kind == .text }
+        // The most-recent text item should be the just-copied `current`; we append
+        // it onto the one before it (the "previously copied" text). Ordered by
+        // recency alone — the cache sorts pinned items first, which would make an
+        // old pinned item look like "the latest copy".
+        let textItems = ClipboardCache.shared.items
+            .filter { $0.kind == .text }
+            .sorted { $0.effectiveTimestamp > $1.effectiveTimestamp }
         guard textItems.count >= 2 else { return }
+        // If the monitor hasn't recorded this copy (not polled yet, over the size
+        // limit, …) the items are not what we think they are — merging would glue
+        // the copy onto an unrelated entry.
+        guard textItems[0].contentHash == ContentHash.sha256Hex(current) else {
+            Log.clipboard.debug("Fast append skipped: latest history item is not the copied text")
+            return
+        }
         let target = textItems[1]
         guard let targetId = target.id else { return }
 
         let previousText = ClipboardCache.shared.fullText(for: target) ?? (target.textContent ?? "")
         let merged = Self.merge(previous: previousText, current: current, separator: settings.appendSeparator)
-        let newHash = sha256(merged)
+        let newHash = ContentHash.sha256Hex(merged)
 
         do {
             try repository.updateTextContent(id: targetId, newContent: merged, newHash: newHash)
@@ -89,10 +104,5 @@ final class FastAppendService {
     /// Extracted for testability.
     nonisolated static func merge(previous: String, current: String, separator: AppendSeparator) -> String {
         previous + separator.literal + current
-    }
-
-    private func sha256(_ text: String) -> String {
-        let digest = SHA256.hash(data: Data(text.utf8))
-        return digest.map { String(format: "%02x", $0) }.joined()
     }
 }

@@ -26,8 +26,6 @@ extension Snippet: FetchableRecord, MutablePersistableRecord {
         static let updatedAt = Column(CodingKeys.updatedAt)
     }
 
-    static let collection = belongsTo(SnippetCollection.self)
-
     mutating func didInsert(_ inserted: InsertionSuccess) {
         id = inserted.rowID
     }

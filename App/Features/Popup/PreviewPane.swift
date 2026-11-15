@@ -73,20 +73,12 @@ struct PreviewPane: View {
     private func addToSnippetsButton(_ item: ClipItem) -> some View {
         Menu {
             ForEach(SnippetCache.shared.collections) { col in
-                if let cid = col.id {
-                    Button(col.name) {
-                        vm.addClip(item, toCollectionId: cid)
-                        flashAdded()
-                    }
+                if col.id != nil {
+                    Button(col.name) { addClip(item, to: col) }
                 }
             }
             Divider()
-            Button("New Collection…") {
-                if let name = Self.promptCollectionName() {
-                    vm.addClip(item, toNewCollection: name)
-                    flashAdded()
-                }
-            }
+            Button("New Collection…") { addClipToNewCollection(item) }
         } label: {
             Image(systemName: justAdded ? "star.fill" : "star")
                 .font(.system(size: 15, weight: .semibold))
@@ -100,27 +92,36 @@ struct PreviewPane: View {
         .help("Add to snippets")
     }
 
+    /// Asks for the snippet's name, then adds the clip to `collection`. Cancel
+    /// adds nothing; the star only flashes once the write has succeeded.
+    private func addClip(_ item: ClipItem, to collection: SnippetCollection) {
+        guard let cid = collection.id,
+              let name = SnippetNamePrompt.askSnippetName(
+                collectionName: collection.name,
+                suggested: vm.suggestedSnippetName(for: item)) else { return }
+        do {
+            try vm.addClip(item, toCollectionId: cid, name: name)
+            flashAdded()
+        } catch {
+            SnippetNamePrompt.showError(error)
+        }
+    }
+
+    /// Asks for a new collection's name and the snippet's, then creates both.
+    private func addClipToNewCollection(_ item: ClipItem) {
+        guard let names = SnippetNamePrompt.askNewCollection(
+            suggestedSnippetName: vm.suggestedSnippetName(for: item)) else { return }
+        do {
+            try vm.addClip(item, toNewCollection: names.collection, snippetName: names.snippet)
+            flashAdded()
+        } catch {
+            SnippetNamePrompt.showError(error)
+        }
+    }
+
     private func flashAdded() {
         justAdded = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { justAdded = false }
-    }
-
-    /// Modal prompt for a new collection name (the popup is a borderless
-    /// non-activating panel, so a native NSAlert is more reliable than a sheet).
-    private static func promptCollectionName() -> String? {
-        let alert = NSAlert()
-        alert.messageText = "New Collection"
-        alert.informativeText = "Name the collection to add this snippet to."
-        alert.addButton(withTitle: "Create")
-        alert.addButton(withTitle: "Cancel")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
-        field.placeholderString = "Collection name"
-        alert.accessoryView = field
-        alert.window.initialFirstResponder = field
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? nil : name
     }
 
     private func fileList(_ item: ClipItem) -> some View {
@@ -143,10 +144,11 @@ struct PreviewPane: View {
         }
     }
 
-    /// For text items, uses the cache's inlined content when present, otherwise lazily fetches.
+    /// Full text of a text clip: resolved once per selection by the view model
+    /// (`selectedPreview`); the fallbacks only cover a render that races it.
     private func textForClip(_ item: ClipItem) -> String {
-        if let t = item.textContent { return t }
-        return ClipboardCache.shared.fullText(for: item) ?? (item.previewText ?? "")
+        if let preview = vm.selectedPreview, preview.item.id == item.id { return preview.text }
+        return item.textContent ?? item.previewText ?? ""
     }
 
     /// Renders preview text, optionally highlighting the active search query
@@ -154,24 +156,41 @@ struct PreviewPane: View {
     @ViewBuilder
     private func textBody(_ text: String) -> some View {
         if ClipboardSettings.shared.highlightSearchMatches, !vm.query.isEmpty {
-            Text(highlighted(text, query: vm.query))
+            Text(Self.highlighted(text, query: vm.query))
         } else {
             Text(text)
         }
     }
 
-    private func highlighted(_ text: String, query: String) -> AttributedString {
-        var attr = AttributedString(text)
+    /// Non-overlapping, case-insensitive matches of `query` in `text`, in order.
+    static func matchRanges(of query: String, in text: String) -> [Range<String.Index>] {
+        guard !query.isEmpty else { return [] }
+        var ranges: [Range<String.Index>] = []
         var searchRange = text.startIndex..<text.endIndex
         while let r = text.range(of: query, options: .caseInsensitive, range: searchRange),
               !r.isEmpty {
-            let lower = text.distance(from: text.startIndex, to: r.lowerBound)
-            let upper = text.distance(from: text.startIndex, to: r.upperBound)
-            let aLower = attr.index(attr.startIndex, offsetByCharacters: lower)
-            let aUpper = attr.index(attr.startIndex, offsetByCharacters: upper)
+            ranges.append(r)
+            searchRange = r.upperBound..<text.endIndex
+        }
+        return ranges
+    }
+
+    /// `text` with every match of `query` highlighted. A single forward pass:
+    /// each match's position is reached by stepping on from the previous one,
+    /// in both the string and the attributed string, never from the start.
+    static func highlighted(_ text: String, query: String) -> AttributedString {
+        var attr = AttributedString(text)
+        var textCursor = text.startIndex
+        var attrCursor = attr.startIndex
+        for r in matchRanges(of: query, in: text) {
+            let aLower = attr.index(attrCursor,
+                                    offsetByCharacters: text.distance(from: textCursor, to: r.lowerBound))
+            let aUpper = attr.index(aLower,
+                                    offsetByCharacters: text.distance(from: r.lowerBound, to: r.upperBound))
             attr[aLower..<aUpper].backgroundColor = .yellow.opacity(0.45)
             attr[aLower..<aUpper].foregroundColor = .black
-            searchRange = r.upperBound..<text.endIndex
+            textCursor = r.upperBound
+            attrCursor = aUpper
         }
         return attr
     }
@@ -233,10 +252,8 @@ struct PreviewPane: View {
     private func countsLine(for item: ClipItem) -> String {
         switch item.kind {
         case .text:
-            let t = textForClip(item)
-            let words = t.split { $0.isWhitespace || $0.isNewline }.count
-            let base = "\(words) words; \(t.count) chars; \(t.utf8.count) bytes"
-            return item.richTextPath == nil ? base : base + " • rich text"
+            if let preview = vm.selectedPreview, preview.item.id == item.id { return preview.countsLine }
+            return ClipTextPreview(item: item, text: textForClip(item)).countsLine
         case .image:
             if let w = item.imageWidth, let h = item.imageHeight {
                 return "\(w) × \(h) px"

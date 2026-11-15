@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Mukker is a native macOS menu-bar utility combining six feature sets — two of which used to be
+Mukker is a native macOS menu-bar utility combining seven feature sets — two of which used to be
 separate apps:
 
 - **Clipboard history + snippets** (with rich-text support; no auto-expansion). A global shortcut
@@ -30,6 +30,13 @@ separate apps:
   drawn as an inverted badge to the *left* of the date glyph (`↓1,1 ↑0,3 Mbps`), sampled every
   **5 s** by default; plus per-interface transfer totals (today, optionally this week/month) in a
   *Network* submenu. Needs no permissions and never touches the database.
+- **Translate.** Two global shortcuts (⌘⇧E → English, ⌘⌥E → Hungarian by default) send the text
+  selected in the frontmost app — read through Accessibility, never copied — or, with nothing
+  selected, the newest text entry of the clipboard history to a command-line client signed in with
+  the user's own subscription — the Codex CLI (ChatGPT, the default) or the Claude Code CLI — and
+  show the result in a floating panel, copying it to the clipboard. No API key; the Accessibility
+  grant is optional (without it only history is used). It is the only feature that sends anything
+  off the Mac and the only one that spawns a process.
 
 The sides are deliberately independent at runtime. The only things they share are
 `PermissionsService`, `HotKeyManager`/`ShortcutSettings`, `Log`, `AppPaths`, `Branding`, the
@@ -118,14 +125,17 @@ and Screen Recording grants — there is no way to migrate those.
 **Layering (strict, top → bottom):** `App` → `Features` → `Core` + `Storage` → `Support`.
 Higher layers may import lower; never the reverse.
 
-**Singleton coordinators.** Long-lived services use `@MainActor static let shared`:
-`AppDatabase`, `SnippetCache`, `ClipboardCache`, `ClipboardSettings`, `CaptureSettings`,
-`ShortcutSettings`, `HotKeyManager`, `ClipboardMonitor`, `ClipboardRetentionService`,
-`FastAppendService`, `ActiveAppTracker`, `PermissionsService`, `LoginItemService`, `Paster`,
-`PopupWindowController`, `CaptureCoordinator`, `ScrollingCaptureService`,
-`EditorWindowController`, `AppIconCache`, `ClipThumbnailCache`, `KeepAwakeSettings`,
-`KeepAwakeService`, `WindowTilingSettings`, `WindowTiler`, `CalendarSettings`,
-`CalendarEventsService`, `HourlyChimeService`, `BandwidthSettings`, `BandwidthService`.
+**Singleton coordinators.** Long-lived services are a `static let shared`, almost all on a
+`@MainActor` type: `SnippetCache`, `ClipboardCache`, `ClipboardSettings`, `CaptureSettings`,
+`ShortcutSettings`, `HotKeyManager`, `ClipboardRetentionService`, `FastAppendService`,
+`PermissionsService`, `LoginItemService`, `PopupWindowController`, `CaptureCoordinator`,
+`ScreenCaptureService`, `ScrollingCaptureService`, `EditorWindowController`, `AppIconCache`,
+`ClipThumbnailCache`, `KeepAwakeSettings`, `KeepAwakeService`, `WindowTilingSettings`,
+`WindowTiler`, `CalendarSettings`, `CalendarEventsService`, `HourlyChimeService`,
+`BandwidthSettings`, `BandwidthService`, `TranslationSettings`, `TranslationService`,
+`TranslationPanelController`, `SelectedTextReader`. Four are plain (non-isolated) classes: `AppDatabase`,
+`ClipboardMonitor` and `Paster` (whose entry points are individually `@MainActor`, and
+`ClipboardMonitor` hands work to a background queue) and `ActiveAppTracker`.
 `AppDelegate.applicationDidFinishLaunching` wires them together — start there to follow runtime
 flow. There is **no SwiftUI `App` type**: its only scene was the old `MenuBarExtra`, so the entry
 point is a plain AppKit `App/App/main.swift`.
@@ -137,25 +147,37 @@ point is a plain AppKit `App/App/main.swift`.
   and Accessibility (`hasAccessibilityPermission` / `requestAccessibilityPermission` /
   `ensureAccessibility(reason:)`), each with an "open System Settings" helper and a denied-alert.
   Callers use the `ensure*` methods; the settings pane uses the raw checks plus a 1 s poll. One
-  Accessibility grant serves four subsystems: `Paster` (⌘V), `FastAppendService` (global ⌘C
-  monitor), `ScrollingCaptureService` (synthetic scroll) and `WindowTiler` (moving windows).
+  Accessibility grant serves five subsystems: `Paster` (⌘V), `FastAppendService` (global ⌘C
+  monitor), `ScrollingCaptureService` (synthetic scroll), `WindowTiler` (moving windows) and
+  `SelectedTextReader` (the selection the translate hotkeys send — read without prompting, and
+  silently skipped without the grant).
   **Calendars** (`hasCalendarAccess` / `requestCalendarAccess` / `openCalendarSettings`) is
   read-only and feeds the menu bar calendar's event rows; requesting it without
   `NSCalendarsFullAccessUsageDescription` in `project.yml` terminates the app.
   Don't add a second permissions type.
-- **`ShortcutSettings`** holds all eight global combos (`popupCombo`, `areaCombo`,
-  `fullscreenCombo`, `scrollCombo`, plus `tileLeftCombo`/`tileRightCombo`/`tileTopCombo`/
-  `tileBottomCombo`) as `HotKey.KeyCombo`s persisted to `UserDefaults`, and publishes
+- **`ShortcutSettings`** holds all ten global combos (`popupCombo`, `areaCombo`,
+  `fullscreenCombo`, `scrollCombo`, `tileLeftCombo`/`tileRightCombo`/`tileTopCombo`/
+  `tileBottomCombo`, plus `translateEnglishCombo`/`translateHungarianCombo`) as `HotKey.KeyCombo`s persisted to `UserDefaults`, and publishes
   `comboChanges` — whose `dropFirst(n)` **must equal the number of merged publishers**, because
-  `@Published` replays on subscribe. **`HotKeyManager`** subscribes to it and re-registers every
-  hotkey on change (the `HotKey` objects must be retained or the shortcuts die). Each shortcut is
+  `@Published` replays on subscribe. `@Published` also emits from `willSet`, *before* the new
+  value is stored, so a subscriber must either use the emitted value or be delivered on a later
+  run-loop pass: **`HotKeyManager`** subscribes with `.receive(on: RunLoop.main)` and then
+  re-registers every hotkey (re-reading synchronously registered the combo being replaced and
+  made the tiling switch work backwards); the `HotKey` objects must be retained or the shortcuts
+  die. The same trap applies to every `objectWillChange`/`$property` sink in the app. Each shortcut is
   a `HotKeyManager.Action` carrying an `isEnabled` closure, so a switched-off feature's combos are
   *not registered* rather than registered-and-ignored — that is what frees ⌃⌘arrows for other
   apps; `start(…, reloadOn:)` takes an extra re-register trigger for a flag living outside
   `ShortcutSettings`. The menu-bar glyphs derive from the same object via
-  `KeyCombo.swiftUIKeyEquivalent`, so menu, settings and live hotkey can never drift — note that
+  `KeyCombo.nsKeyEquivalent`, so menu, settings and live hotkey can never drift — note that
   helper takes the first character of the key's description and so yields a garbage glyph for
   arrow keys; special-case it before putting any arrow-bound action in the menu bar.
+  **`ShortcutRecorderField.isAcceptable`** is the acceptance rule for a *newly recorded* combo:
+  it needs ⌘, ⌃ or ⌥ (bare F1–F20 excepted), since a global hotkey swallows its key in every
+  app. It is enforced only in the recorder — combos already stored are loaded and registered
+  as-is, so a modifier-less one from an older build keeps working until re-recorded. The
+  recorder's app-wide key monitor ends when the field leaves its window, the window resigns key
+  or the button is deallocated.
 - **Menu bar:** one `NSStatusItem` owned by `MenuBarController` (`App/App/MenuBarController.swift`)
   — *not* a SwiftUI `MenuBarExtra`, which in `.menu` style can only hold buttons and text and so
   cannot host the calendar. Order: the calendar, the selected day's event rows, then (while enabled)
@@ -168,11 +190,11 @@ point is a plain AppKit `App/App/main.swift`.
   equivalents only fire while the menu is open, so they advertise the global hotkey rather than
   competing with it.
 - **Settings:** one `TabView` (`Features/Settings/SettingsWindow.swift`) — `ClipboardPane`,
-  `CapturePane`, `KeepAwakePane`, `WindowTilingPane`, `CalendarPane`, `NetworkPane`, `HotkeysPane`,
-  `PermissionsPane`, `AboutPane`. The first six are per-feature-set; the last three are shared. Add a
+  `CapturePane`, `KeepAwakePane`, `WindowTilingPane`, `CalendarPane`, `NetworkPane`, `TranslatePane`,
+  `HotkeysPane`, `PermissionsPane`, `AboutPane`. The first seven are per-feature-set; the last three are shared. Add a
   feature-specific setting to its own pane, not to the shared ones. (`WindowTilingPane` keeps its
   four shortcut recorders next to its on/off switch rather than in `HotkeysPane`, since the switch
-  is what decides whether they exist — but *not* the Accessibility grant it needs: permissions are
+  is what decides whether they exist, and `TranslatePane` does the same with its two — but *not* the Accessibility grant it needs: permissions are
   granted and shown in `PermissionsPane` only, never duplicated into a feature pane.)
 
 ### Clipboard & snippets
@@ -207,7 +229,23 @@ point is a plain AppKit `App/App/main.swift`.
    the next open.
 5. `Paster.paste(_:)` (`@MainActor`) writes to `NSPasteboard.general`, optionally bumps
    `lastUsedAt` (`moveToTopOnUse`), then `ActiveAppTracker.shared.reactivate()` + a CGEvent ⌘V to
-   `cghidEventTap` after ~80 ms. Without AX trust we silently degrade to copy-only.
+   `cghidEventTap` after ~80 ms. Without AX trust we silently degrade to copy-only. `paste(_:)`
+   calls `ClipboardMonitor.suppressNextChange()` after its write so a pasted history item is not
+   re-captured as a fresh copy; `pasteText` (snippets) deliberately still lands in history.
+
+**Popup refreshes.** `PopupViewModel.reset()` and `enter()` rebuild the results **once**, however
+many properties they change. Cache publishes (`objectWillChange`, i.e. before the change) are
+coalesced into one deferred refresh, and skipped entirely while `isPanelVisible` is false —
+`PopupWindowController` keeps that flag in step, and the next show's `reset()` rebuilds anyway.
+The selected text clip's full text is resolved once per selection (`selectedPreview`).
+
+**Star → snippet.** The preview's star asks for names through `SnippetNamePrompt` (modal
+`NSAlert`s with accessory fields — the popup is a non-activating panel, so a SwiftUI sheet is
+unreliable; `PopupWindowController` ignores focus changes during the modal session). The naming
+rule — trim, a blank entry falls back to the default (first non-blank line, 50 chars) or, for a
+rename, keeps the old name, and a **100-character cap** — lives in `SnippetNaming` and is shared
+with the Snippets Manager and the snippet editor. `PopupViewModel.addClip(...)` throws, and the
+star only flashes on success.
 
 **Caches (the snappy path).** `SnippetCache.shared` keeps all collections + snippets in memory;
 `ClipboardCache.shared` keeps the most recent ~500 items. The popup reads exclusively from caches
@@ -215,29 +253,67 @@ point is a plain AppKit `App/App/main.swift`.
 viewmodel write methods call `SnippetCache.shared.loadAll()` after committing;
 `ClipboardMonitor` calls `ClipboardCache.shared.insertNew(_:)` after each insert (a re-copy bumps
 `lastUsedAt` instead — see `persist`). `ClipThumbnailCache` serves image rows/preview so list
-rendering never decodes a full PNG. For text items the cache strips `textContent` above **3 KB**
-(`textInlineThreshold`); the preview pane and `Paster` lazily fetch the full text via
-`ClipboardCache.fullText(for:)`.
+rendering never decodes a full PNG: it decodes through ImageIO's thumbnail API (downsampling
+while decoding) into `NSCache`s. For text items the cache strips `textContent` above **3 KB**
+(`textInlineThreshold`); `PopupViewModel` fetches the full text via `ClipboardCache.fullText(for:)`
+— for the preview (`selectedPreview`) and before handing an item to `Paster`
+(`resolvedForPaste`), which only ever writes what it is given. A capture that trims history
+removes the trimmed rows from `ClipboardCache` too (`remove(id:)`), or the popup would keep
+offering items whose files are gone.
+Search keys are **lowercased copies** of the searched fields, built once per cache change
+(`ClipboardCache` lazily on the first search, `SnippetCache` in `loadAll`), so a keystroke
+lowercases only the query. Keep it `lowercased()` + `contains`, not a `.caseInsensitive` search:
+that folds "ß"/"ss" and ligatures differently and would change which items a query finds.
 
 **Clipboard settings & services.** `ClipboardSettings.shared` is the single source of truth for
 clipboard prefs. It is a `@MainActor ObservableObject` backed by computed properties over
 `UserDefaults` that fire `objectWillChange` on write — **do not** switch these to `@AppStorage`;
 `@AppStorage` inside an observable object does not publish changes. (`CaptureSettings` uses
 `@Published` + `didSet` instead; both patterns are fine, don't unify them for its own sake.)
-- `ClipboardMonitor` reads settings each tick: skips ignored apps, gates each kind on its `keep*`
-  toggle, captures file lists (`.fileURL` → `ClipKind.file`).
-- `ClipboardRetentionService` sweeps hourly (and on settings change) via
-  `ClipboardRepository.purgeOlderThan(kind:cutoff:)`. **Sidecar files** (image PNGs, RTFs) are
-  removed by the repository itself on every deletion path — keep it that way; deleting rows
-  without their files leaks disk.
+- `ClipboardMonitor` reads settings each tick. **`shouldRecord(_:sourceApp:settings:)`** is the
+  one capture policy: not from an ignored app and, with `ignoreConcealedItems` on, not sensitive —
+  a marker type in `sensitiveTypeIdentifiers` (nspasteboard.org Concealed/Transient/AutoGenerated,
+  plus `com.agilebits.onepassword`) or a Chromium source URL from a listed password-manager
+  extension. Then each kind is gated on its `keep*` toggle; a `.fileURL` copy stops there even
+  with `keepFiles` off (Finder also puts the icon and the name on the pasteboard, which must not
+  land as an image or text).
+- **Copied HTML** is passed through `HTMLSanitizer` (strips every element/attribute/CSS construct
+  that could make WebKit's importer load something) and converted to RTF only for a **new**,
+  size-checked, non-duplicate text item, with a 2 s import timeout. A re-copy is only offered
+  native RTF, to fill in a row stored without formatting.
+- **Row first, then sidecar.** `persist` inserts the row and only then writes its PNG/RTF
+  (`AppPaths.writePrivateFile`, deliberately not `.atomic`); a failed required write deletes the
+  row again. That ordering is what makes the launch-time orphan sweep
+  (`ClipboardRepository.removeOrphanedSidecarFiles`, run off main from `AppDelegate`) race-free:
+  every file on disk already has its row. Don't reorder it, and don't write sidecars through a
+  temporary file.
+- **Images are canonicalised off main**: `captureImage` reads the raw bytes on main, re-encodes
+  and hashes on a serial background queue, and hands back with
+  `RunLoop.main.perform(inModes: [.common])` — not `DispatchQueue.main`, which a tracking menu
+  never drains — so copy order is kept and `createdAt` is taken at copy time. The encoder is the
+  **original** NSImage → TIFF → `NSBitmapImageRep` → PNG pipeline on purpose: its bytes' hash is
+  the dedupe key already stored for every image, and ImageIO's encoder produces different bytes
+  (it drops a retina screenshot's `pHYs` chunk), so switching would break dedupe of existing
+  history.
+- `ClipboardRetentionService` sweeps hourly via `ClipboardRepository.purgeOlderThan(kind:cutoff:)`
+  (which picks victims from id/timestamps and fetches full rows only for them), and on settings
+  change **only when a `RetentionSnapshot`** (the three periods + three keep toggles) actually
+  differs — taken after delivery on the run loop, since `objectWillChange` fires before the
+  write. **Sidecar files** (image PNGs, RTFs) are removed by the repository itself on every
+  deletion path — keep it that way; deleting rows without their files leaks disk.
 - `FastAppendService` installs a global ⌘C monitor; a double-tap within 0.5 s appends the copied
   text onto the previous text item, optionally writing the merged result back to the pasteboard
-  (calling `ClipboardMonitor.suppressNextChange()` so we don't re-capture our own write).
+  (calling `ClipboardMonitor.suppressNextChange()` so we don't re-capture our own write). It goes
+  through the same `shouldRecord` policy and `keepText` gate, and merges only when the newest
+  text item's hash is the copied text (otherwise the monitor hasn't recorded it and the merge
+  would hit the wrong item).
 
 **Storage.** GRDB `DatabaseQueue` at `~/Library/Application Support/Mukker/mukker.sqlite`
 (both parts come from `Branding` — see *Naming* above).
 Schema is owned by `AppDatabase.migrator`; add schema via a new `registerMigration("vN")` block,
-never edit an existing one (currently `v1`, `v2_lastUsed`, `v3_richText`). Models (`ClipItem`,
+never edit an existing one (currently `v1`, `v2_lastUsed`, `v3_richText`, `v4_orderIndex` —
+an expression index on `(pinned, COALESCE(lastUsedAt, createdAt))` that the history query and
+trim rely on not to sort the whole table). Models (`ClipItem`,
 `Snippet`, `SnippetCollection`) conform to `FetchableRecord, MutablePersistableRecord` with
 explicit `Columns` enums — use those for type-safe queries, not raw SQL. The Swift type is
 `SnippetCollection` (not `Collection`) to avoid a stdlib clash. Repositories are the only callers
@@ -245,10 +321,14 @@ of `dbQueue`. Clip history is ordered by `pinned DESC, COALESCE(lastUsedAt, crea
 Image items are PNG files under `AppPaths.imagesDirectory`, named by SHA-256 of the PNG bytes (the
 same hash used in `content_hash` for dedupe); `ClipboardMonitor` re-encodes pasteboard TIFF/PNG to
 a canonical PNG before hashing so identical images dedupe regardless of source format.
+The support folder is **owner-only**: directories `0700`, the database, its `-wal`/`-shm` and
+every sidecar `0600` (`AppPaths`); `tightenPermissions(under:)` fixes older trees at launch.
 
 **Import/export.** `.alfredsnippets` is a **read-only** import format (`SnippetBundleImporter`).
-The fixture `AppTests/Fixtures/test.alfredsnippets` (also at the repo root) is the canonical test
-asset and round-trip target. Native export uses our own JSON versioned via the `format` string
+The fixture `AppTests/Fixtures/test.alfredsnippets` is the canonical test asset and round-trip
+target. Imports are bounded before anything is read: a bundle is refused above 10 MB declared
+uncompressed size or 5,000 entries (`SnippetBundleImporter.checkLimits`, before unzipping), a
+native file above 20 MB (`MukkerImporter.maxFileBytes`). Native export uses our own JSON versioned via the `format` string
 (`Branding.snippetExportFormat`). `SnippetRepository.importCollection` is **idempotent by
 (collection name, snippet uid)** — re-importing the same file must not create duplicates.
 
@@ -257,7 +337,10 @@ asset and round-trip target. Native export uses our own JSON versioned via the `
 **Capture flow:** hotkey/menu → `CaptureCoordinator` → `PermissionsService.ensureScreenRecording()`
 → `ScreenCaptureService` grabs the display as a frozen `CGImage` → `SelectionOverlayWindow` lets
 the user drag a region → crop the frozen image → routed by `CaptureSettings.afterCapture`
-(show/copy/save) in `AppDelegate.handleCapture`.
+(show/copy/save) in `AppDelegate.handleCapture`. `ImageExporter.saveSilently` returns a
+`Result` and **never overwrites** — a taken name gets " 2", " 3", … and the write uses
+`.withoutOverwriting`. A failed after-capture save opens the capture in the editor with an alert;
+the editor's own save flashes the error. Don't drop the failure on the floor.
 
 **Editor model:** annotations are value types in an ordered array on `EditorViewModel`; the canvas
 (`FlatCanvas`) is a `ZStack` of a white matte + the base image + an `AnnotationLayer` (a single
@@ -276,7 +359,9 @@ toggle is on.
 - **Editor vs export look:** on screen the non-exported surround is a transparency `Checkerboard`;
   `FlatCanvas`'s white matte makes the same region export white.
 - **Blur** obscures the composite beneath it via a `GraphicsContext` blur filter in
-  `AnnotationLayer.drawBlur(_:below:)` — it does not erase what's under it. There is no
+  `AnnotationLayer.drawBlur(_:below:)` — it does not erase what's under it. Its source is
+  clipped to the blur rect grown by `blurSourceMargin` (3) blur radii, so the filter never
+  processes the whole image per redraw. There is no
   pre-rendered pixelated layer: the old `ImageEffects.pixellate` → `pixelatedBase` →
   `AnnotationCanvas.pixelatedImage` chain was dead (the canvas stored the image and never drew
   it) and has been removed.
@@ -403,8 +488,8 @@ Things that are load-bearing and easy to undo:
   place.
 - `CalendarSettings.hiddenCalendarIDs` stores the calendars to **hide**, not to show, so one
   subscribed to later appears by default instead of silently going missing.
-- **The hourly chime** (`HourlyChimeService`, `Core/`) is the app's only sound and its only
-  CoreAudio caller. Same absolute-deadline discipline as the day rollover: a one-shot timer armed
+- **The hourly chime** (`HourlyChimeService`, `Core/`) is the app's only CoreAudio caller (the
+  other sound, fast-append's optional "Purr", is a plain `NSSound` on the effects device). Same absolute-deadline discipline as the day rollover: a one-shot timer armed
   on the top of the coming hour (at second **1**, so an early fire can't read the previous hour),
   re-armed after every fire and on `.NSSystemClockDidChange`/`didWakeNotification` — never a
   repeating one-hour timer, which drifts away from the hour with each sleep. A fire outside the
@@ -451,9 +536,77 @@ and `refreshInterval`. The pure halves — `BandwidthFormat`, `NetworkCounters.d
   interface (`State:/Network/Global/IPv4` → `PrimaryInterface`) gets the native checkmark. While
   the submenu is open their titles are rewritten on each sample.
 
+### Translate
+
+`TranslationService` (`Core/`) is the only thing in the app that spawns a process;
+`TranslationSettings` holds the switch, the backend (`TranslationBackend`: `.codex` default,
+`.claude`) and a path override and model **per backend**; `TranslationPanelController` +
+`TranslationView` (`Features/Translation/`) are the floating result panel. The pure halves — prompt,
+argument lists, executable resolution, environment, error mapping, `latestTextItem` — are
+`nonisolated static` and covered by `AppTests/TranslationTests.swift`, as is `source(selection:
+history:characterLimit:)`, the selection-vs-history decision; the child process, the panel and the
+AX selection read are verified by hand (`MUKKER_TRANSLATE=en|hu`).
+
+- **The source is the focused app's selection, else the clipboard history — never
+  `NSPasteboard.general`.** `SelectedTextReader` (`Core/`) reads the selection through AX:
+  system-wide `kAXFocusedUIElementAttribute` → `kAXSelectedText`, then
+  `kAXSelectedTextRange` + `kAXStringForRangeParameterizedAttribute`, then WebKit's
+  `AXSelectedTextMarkerRange` + `AXStringForTextMarkerRange` walking up to the `AXWebArea`. It
+  follows `WindowTiler`'s rules (system-wide element, 0.5 s messaging timeout, stop asking an app
+  that timed out, skip our own pid — the main thread can't answer its own AX request) and never
+  prompts: no grant means history. **There is no simulated-⌘C fallback, deliberately**: the
+  copied selection would sit on the general pasteboard where other clipboard managers and
+  Universal Clipboard see it, restoring a snapshot can't bring back promised/lazy types, and the
+  synthetic ⌘C would reach `FastAppendService`'s global monitor. Apps that don't expose a
+  selection over AX (many Chromium/Electron apps, some terminals) and secure fields therefore get
+  the history entry. A blank selection is no selection; a selection from an app in
+  `ClipboardSettings.ignoredBundleIDs` is dropped, as history would drop its copy; one longer than
+  `maxClipSize.characterLimit` is refused with a message rather than swapped for history.
+- **The selection is read before the panel shows** (`TranslationPanelController.show`, right after
+  the toggle check, before `present()`): showing and activating moves focus away from the
+  element. The menu items take the same path — a status menu doesn't activate the app, so the
+  focused element is still the user's.
+- History already honours the capture policy (ignored apps, concealed/transient items), so a
+  password that was never recorded can never be sent by a stray hotkey. "Latest" is the newest
+  **text** item by `effectiveTimestamp`, not `items.first` — pinned items sort first. Full text
+  comes from `ClipboardCache.fullText(for:)` (the cache strips text above 3 KB). The panel header
+  shows `TranslationService.origin` (*from Selection* / *from Clipboard*); the other-language
+  button keeps it.
+- **Both CLIs get the text on stdin and their arguments as an array** — never a shell string, so
+  there is no argument-length limit and no quoting. Codex: `exec --skip-git-repo-check --sandbox
+  read-only --ephemeral --color never --output-last-message <file> [-m model] -`, the answer read
+  from that file (stdout is a session transcript). Claude: `-p --output-format text --tools ""
+  --strict-mcp-config --disable-slash-commands --no-session-persistence --system-prompt <rules>
+  [--model model]`, the answer read from stdout. **Not `--bare`**, which can bypass the
+  subscription login. The flag sets were verified against codex-cli 0.169.0 and Claude Code
+  2.1.325; re-check them with `--help` when a CLI update breaks a run.
+- **The clipboard text is fenced and declared to be data** in the prompt, and the child runs in an
+  empty throwaway directory with no tools (Claude) or a read-only sandbox (Codex): clipboard
+  content is arbitrary and may read like an instruction.
+- **A GUI app has no shell PATH**, so executables are probed at fixed install locations
+  (`TranslationBackend.defaultCandidates`) and the child's PATH gets Homebrew's bin directories
+  prepended. A non-empty path override that does not exist is "not found", never a silent
+  fallback. `environment(from:)` also drops `CLAUDECODE`/`CLAUDE_CODE_*`, which are present when
+  the app is started by `make run` from inside a Claude Code session.
+- **Codex echoes the whole prompt to stderr**, so stderr is scrubbed of the input before it is
+  matched for "not signed in" or shown — otherwise the user's own text could trigger the hint.
+- **Results carry a generation token**; a newer request or a cancel supersedes a late answer. The
+  child is stopped with SIGTERM, then SIGKILL after 3 s, and stdin is written with
+  `F_SETNOSIGPIPE` so a CLI that exits early cannot kill the app. Timeout is 60 s.
+- **The copy deliberately does not call `suppressNextChange()`**: the translation lands in history
+  like any other copy. That also makes it the newest entry, which is why the panel's
+  "Translate to <other language>" button re-sends the *original* held in the state.
+- **The panel does not close on losing focus** (unlike the popup) — the user reads it while
+  working elsewhere. It closes on Esc, ⌘W, Close, or the same language's hotkey again; the other
+  language's hotkey re-translates. It captures the frontmost app before activating and hands
+  focus back on close, as the popup does.
+- Never log the text — `Log.translate` records the source used (selection/history, or why no
+  selection was read), lengths and exit status only.
+
 ### Window tiling
 
-`WindowTiler` (`Core/`) is the only thing in the app that talks to `AXUIElement`;
+`WindowTiler` (`Core/`) is the only thing in the app that *moves* anything through `AXUIElement`
+(`SelectedTextReader` only reads a selection, under the same rules);
 `WindowTilingSettings` holds the on/off switch and the `gap`. Four details are load-bearing:
 
 - **AX and Cocoa disagree about which way is up.** AX window geometry is top-left-origin with Y
@@ -489,7 +642,8 @@ without a real window or a permission grant; the AX half is verified by hand.
   `#if DEBUG` env hooks in `AppDelegate`: `MUKKER_OPEN_MENU=1` (pops the menu open so it can be
   screenshotted), `MUKKER_DUMP_MENU=1` (prints the whole menu tree and exits),
   `MUKKER_OPEN_EDITOR=1` (the editor on a sample canvas), `MUKKER_OPEN_SETTINGS=<tab>` (Settings
-  on a `SettingsTab` raw value, e.g. `network`) and `MUKKER_OPEN_POPUP=1`, which exist because
+  on a `SettingsTab` raw value, e.g. `network`), `MUKKER_OPEN_POPUP=1` and `MUKKER_TRANSLATE=en|hu` (the translate panel on
+  the newest history entry — it really sends that entry to the selected CLI), which exist because
   there is no other way to reach those surfaces without a human clicking.
 - **README screenshots** (`docs/screenshots/`) are taken from a demo run that never shows real
   data: `CFFIXED_USER_HOME=<scratch dir>` gives the app an empty database to seed with sample
@@ -505,7 +659,7 @@ without a real window or a permission grant; the AX half is verified by hand.
   `KeyEventCatcher`, `ShortcutRecorderField`, `InlineTextField`). Follow these patterns rather than
   fighting SwiftUI.
 - **Logging:** use `Log.<category>` from `Support/Logger.swift` (categories: `app`, `hotkey`,
-  `keepAwake`, `window`, `calendar`, `network`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`,
+  `keepAwake`, `window`, `calendar`, `network`, `translate`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`,
   `export`). View with
   `log show --predicate 'subsystem == "com.mukker.Mukker"' --info --last 1m` (the subsystem is the
   bundle ID).

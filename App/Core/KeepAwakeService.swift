@@ -21,10 +21,10 @@ final class KeepAwakeService: ObservableObject {
     static let shared = KeepAwakeService()
 
     /// Whether an assertion is currently held. The only *stored* published
-    /// property; the countdown deliberately isn't one. `AppMain` observes this
-    /// service to pick the menu-bar icon and to render the menu's status line,
-    /// and a value that changed every second would rebuild the whole
-    /// `MenuBarExtra` body (and can close an open menu). Instead the object
+    /// property; the countdown deliberately isn't one. `MenuBarController`
+    /// observes this service to tint the status item, and a value that changed
+    /// every second would repaint the menu bar item continuously for nothing
+    /// (the menu's status line is read when the menu opens). Instead the object
     /// republishes once a minute while counting down — the same granularity
     /// `format(remaining:)` shows above a minute, so the menu is never visibly
     /// stale.
@@ -68,9 +68,11 @@ final class KeepAwakeService: ObservableObject {
         // type, so re-assert immediately instead of waiting for the next refresh.
         settings.$allowDisplaySleep
             .dropFirst()
-            .sink { [weak self] _ in
+            .sink { [weak self] allowDisplaySleep in
                 guard let self, self.isActive else { return }
-                self.refreshAssertion()
+                // The emitted value: `settings` still holds the old one here
+                // (`@Published` emits from `willSet`).
+                self.refreshAssertion(allowDisplaySleep: allowDisplaySleep)
             }
             .store(in: &cancellables)
 
@@ -187,10 +189,12 @@ final class KeepAwakeService: ObservableObject {
 
     /// Creates a fresh assertion and drops the previous one. New before old, so
     /// the two overlap and there is no window in which the Mac may idle-sleep.
-    private func refreshAssertion() {
+    /// `allowDisplaySleep` overrides the setting for a caller that already
+    /// knows the new value before it is stored.
+    private func refreshAssertion(allowDisplaySleep: Bool? = nil) {
         guard isUserSessionActive else { return }
 
-        let type = settings.allowDisplaySleep
+        let type = (allowDisplaySleep ?? settings.allowDisplaySleep)
             ? kIOPMAssertPreventUserIdleSystemSleep
             : kIOPMAssertPreventUserIdleDisplaySleep
         let previous = assertionID

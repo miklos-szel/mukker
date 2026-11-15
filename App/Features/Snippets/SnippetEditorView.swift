@@ -56,15 +56,17 @@ struct SnippetEditorView: View {
         pendingDraft() != nil
     }
 
-    /// The draft as a saveable snippet, or nil when nothing changed.
+    /// The draft as a saveable snippet, or nil when nothing changed. The name
+    /// is trimmed; an empty one keeps the saved name rather than storing "".
     private func pendingDraft() -> Snippet? {
         guard let original = loadedSnippet else { return nil }
         let kw = keyword.isEmpty ? nil : keyword
-        guard name != original.name || kw != original.keyword || content != original.content else {
+        let draftName = SnippetNaming.validated(name) ?? original.name
+        guard draftName != original.name || kw != original.keyword || content != original.content else {
             return nil
         }
         var copy = original
-        copy.name = name
+        copy.name = draftName
         copy.keyword = kw
         copy.content = content
         return copy
@@ -73,6 +75,7 @@ struct SnippetEditorView: View {
     private func saveDraftIfNeeded() {
         guard let draft = pendingDraft() else { return }
         loadedSnippet = draft
+        name = draft.name
         onSave(draft)
     }
 

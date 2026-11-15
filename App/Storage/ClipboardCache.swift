@@ -16,7 +16,29 @@ final class ClipboardCache: ObservableObject {
     /// Maximum number of items kept resident.
     let maxResident: Int = 500
 
-    @Published private(set) var items: [ClipItem] = []
+    @Published private(set) var items: [ClipItem] = [] {
+        didSet { searchKeys = nil }
+    }
+
+    /// Lowercased copies of the searched fields, parallel to `items`. Built on
+    /// the first search after `items` changes, so a keystroke lowercases only
+    /// the query rather than every cached string. (Kept as `lowercased()` +
+    /// `contains` rather than a `.caseInsensitive` search: the latter folds
+    /// case differently — "ß" matches "ss", "ﬁ" matches "fi" — and would change
+    /// which items a query finds.)
+    private var searchKeys: [SearchKey]?
+
+    private struct SearchKey {
+        let preview: String?
+        let text: String?
+        let app: String?
+
+        init(_ item: ClipItem) {
+            preview = item.previewText?.lowercased()
+            text = item.textContent?.lowercased()
+            app = item.sourceApp?.lowercased()
+        }
+    }
 
     private let repo: ClipboardRepository
 
@@ -76,12 +98,15 @@ final class ClipboardCache: ObservableObject {
     func filter(_ query: String) -> [ClipItem] {
         guard !query.isEmpty else { return items }
         let q = query.lowercased()
-        return items.filter { item in
-            if let preview = item.previewText?.lowercased(), preview.contains(q) { return true }
-            if let text = item.textContent?.lowercased(), text.contains(q) { return true }
-            if let app = item.sourceApp?.lowercased(), app.contains(q) { return true }
-            return false
+        let keys = searchKeys ?? items.map(SearchKey.init)
+        searchKeys = keys
+        var matches: [ClipItem] = []
+        for (item, key) in zip(items, keys) {
+            if let preview = key.preview, preview.contains(q) { matches.append(item); continue }
+            if let text = key.text, text.contains(q) { matches.append(item); continue }
+            if let app = key.app, app.contains(q) { matches.append(item) }
         }
+        return matches
     }
 
     /// Returns the full text content for an item, fetching from DB if not cached inline.

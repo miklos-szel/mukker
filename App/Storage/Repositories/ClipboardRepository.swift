@@ -58,21 +58,89 @@ final class ClipboardRepository {
         }
     }
 
+    /// Points a row at its RTF sidecar (or clears it with nil). Used when a re-copy
+    /// brings formatting for a text row that was first stored plain, and to undo
+    /// the reference when writing the file fails.
+    func setRichTextPath(id: Int64, path: String?) throws {
+        try dbQueue.write { db in
+            guard var item = try ClipItem.fetchOne(db, key: id) else { return }
+            item.richTextPath = path
+            try item.update(db)
+        }
+    }
+
+    /// Deletes the files in `directories` that no row references (image PNGs and
+    /// RTFs left behind by older builds, which wrote them before the insert).
+    /// Returns how many were removed. Blocking file I/O — call it off the main thread.
+    ///
+    /// Race-free against live captures because of two orderings:
+    ///  - captures insert the row *before* writing its file, so every file that
+    ///    exists when the directories are listed already has its row;
+    ///  - the references are read and the orphans deleted inside one database
+    ///    access, which `DatabaseQueue` serialises with every write — a capture
+    ///    can't insert a row for a just-listed name between our read and the delete
+    ///    (it waits, then rewrites its file after the delete).
+    /// Files are matched by name (they are hash-named and unique per directory), so
+    /// a row whose stored absolute path went stale still protects its file.
+    @discardableResult
+    func removeOrphanedSidecarFiles(in directories: [URL]) throws -> Int {
+        let fm = FileManager.default
+        var candidates: [URL] = []
+        for dir in directories {
+            let urls = (try? fm.contentsOfDirectory(at: dir,
+                                                    includingPropertiesForKeys: [.isRegularFileKey],
+                                                    options: [.skipsHiddenFiles])) ?? []
+            candidates += urls.filter {
+                (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+            }
+        }
+        guard !candidates.isEmpty else { return 0 }
+
+        return try dbQueue.read { db in
+            let rows = try Row.fetchAll(db, ClipItem
+                .select(ClipItem.Columns.imagePath, ClipItem.Columns.richTextPath)
+                .filter(ClipItem.Columns.imagePath != nil || ClipItem.Columns.richTextPath != nil))
+            var referenced = Set<String>()
+            for row in rows {
+                for column in [ClipItem.Columns.imagePath, ClipItem.Columns.richTextPath] {
+                    if let path: String = row[column.name] {
+                        referenced.insert((path as NSString).lastPathComponent)
+                    }
+                }
+            }
+            var removed = 0
+            for url in candidates where !referenced.contains(url.lastPathComponent) {
+                if (try? fm.removeItem(at: url)) != nil { removed += 1 }
+            }
+            return removed
+        }
+    }
+
     /// Delete unpinned rows of `kind` whose effective timestamp predates `cutoff`.
     /// Returns the deleted items so the caller can remove on-disk images and/or
     /// archive their text. (Dates are filtered in Swift on decoded values — GRDB
     /// stores `Date` as text, so a numeric SQL comparison would not work reliably.)
+    ///
+    /// Victims are picked from just `id`/`createdAt`/`lastUsedAt`; only they are
+    /// then fetched in full, so a sweep that deletes nothing never loads any text.
     @discardableResult
     func purgeOlderThan(kind: ClipKind, cutoff: Date) throws -> [ClipItem] {
         let removed: [ClipItem] = try dbQueue.write { db in
-            let candidates = try ClipItem
+            let rows = try Row.fetchAll(db, ClipItem
+                .select(ClipItem.Columns.id, ClipItem.Columns.createdAt, ClipItem.Columns.lastUsedAt)
                 .filter(ClipItem.Columns.kind == kind.rawValue)
-                .filter(ClipItem.Columns.pinned == false)
-                .fetchAll(db)
-                .filter { $0.effectiveTimestamp < cutoff }
-            let ids = candidates.compactMap { $0.id }
+                .filter(ClipItem.Columns.pinned == false))
+            let ids: [Int64] = rows.compactMap { row in
+                let createdAt: Date = row[ClipItem.Columns.createdAt.name]
+                let lastUsedAt: Date? = row[ClipItem.Columns.lastUsedAt.name]
+                guard ClipItem.effectiveTimestamp(createdAt: createdAt, lastUsedAt: lastUsedAt) < cutoff
+                else { return nil }
+                return row[ClipItem.Columns.id.name]
+            }
+            guard !ids.isEmpty else { return [] }
+            let victims = try ClipItem.fetchAll(db, keys: ids)
             try ClipItem.deleteAll(db, keys: ids)
-            return candidates
+            return victims
         }
         removeSidecarFiles(of: removed)
         return removed
@@ -100,14 +168,12 @@ final class ClipboardRepository {
         if let deleted { removeSidecarFiles(of: [deleted]) }
     }
 
-    /// Returns the deleted items (so callers can archive their text).
+    /// Deletes every unpinned item. Returns the deleted items (so callers can
+    /// archive their text).
     @discardableResult
-    func clearAll(keepPinned: Bool = true) throws -> [ClipItem] {
+    func clearAll() throws -> [ClipItem] {
         let victims: [ClipItem] = try dbQueue.write { db in
-            let request = keepPinned
-                ? ClipItem.filter(ClipItem.Columns.pinned == false)
-                : ClipItem.all()
-            let items = try request.fetchAll(db)
+            let items = try ClipItem.filter(ClipItem.Columns.pinned == false).fetchAll(db)
             try ClipItem.deleteAll(db, keys: items.compactMap { $0.id })
             return items
         }
