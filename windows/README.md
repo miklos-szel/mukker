@@ -1,9 +1,8 @@
 # Mukker for Windows
 
-A notification-area utility for Windows 10/11 combining four of the macOS Mukker app's feature
-sets:
+A notification-area utility for Windows 10/11 combining three of the macOS Mukker app's feature
+sets (the Mac calendar is left out — the taskbar clock already has one):
 
-- a **calendar**
 - **clipboard history + snippets**
 - **screen capture with annotation**
 - **translation** of the selected text or of what you just copied
@@ -12,18 +11,12 @@ Builds for Windows on ARM (arm64) and x64.
 
 ## Features
 
-### Calendar
+### Tray icon
 
-- **Today's date is the tray icon** — a calendar page with the day number knocked out of it,
-  redrawn at midnight and on resume, and adapting to a light or dark taskbar.
-- **Click it for the month calendar**:
-  - page back and forth with ◀ ▶ (or PgUp/PgDn), and ● or Home jumps back to today
-  - arrow keys move the selected day
-  - today is filled with the accent colour; the selected day is ringed
-  - optional week numbers and a choice of first weekday
-  - display only: no personal calendars are read
-- **Tooltip text** presets (weekday, month and day…) or a custom .NET date pattern.
-- **Hourly chime** (off by default):
+- **Left click** for the actions: translate to English or Hungarian, the clipboard popup, the
+  Snippets Manager, Clear History, and the three captures — each with its shortcut beside it.
+- **Right click** for **Settings** and **Quit**.
+- **Hourly chime** (off by default, **Settings → About**):
   - any sound from `C:\Windows\Media`
   - only between the hours you choose
   - a range that ends before it starts runs past midnight
@@ -86,15 +79,22 @@ Builds for Windows on ARM (arm64) and x64.
 - **Ctrl+Shift+E** → English, **Ctrl+Shift+H** → Hungarian.
 - **The source:** the text selected in the focused app, read through UI Automation and never
   copied. With nothing selected (or in an app that doesn't expose its selection), it uses the
-  newest clipboard history item.
+  newest clipboard history item. Chromium-based browsers (Chrome, Edge, Brave…) and Electron apps
+  (VS Code, Slack…) build their accessibility data only when asked, so the first press in such an
+  app shows "Reading the selection…" for a second or two.
 - **The translation service:** the **Codex CLI** (ChatGPT, the default) or the **Claude Code CLI**,
   signed in with your own subscription. Mukker stores no API key.
 - **The result** shows in a floating panel and is copied to the clipboard. Its buttons:
   - **Copy**
-  - **Translate to the other language**
+  - **Translate to English / Hungarian** (Ctrl+Enter repeats the current language)
   - **Close**
-
-  Esc closes the panel, and so does the same shortcut again.
+- **Editable source:** type or paste into the original text and press Ctrl+Enter (or a Translate
+  button) to translate it. While it holds text you haven't translated yet, Esc no longer closes the
+  panel (Close or Ctrl+W do) and the translate shortcuts translate that text.
+- **Move and resize:** drag the panel by its title and resize it by its edges; it reopens where
+  and as you left it. Width, height and an optional coloured border (on by default, like the
+  popup's bezel) are in **Settings → Translate → Panel**.
+- Esc closes the panel, and so does the same shortcut again.
 - **Setup:** install the CLI first and sign in once:
   - Codex: `npm install -g @openai/codex`, then `codex login`
   - Claude Code: `irm https://claude.ai/install.ps1 | iex` in PowerShell, then `claude` → `/login`

@@ -1,3 +1,4 @@
+using System;
 using System.Text.Json.Serialization;
 
 namespace Mukker.Core.Settings;
@@ -183,6 +184,30 @@ public sealed class TranslationSettings
     public string CodexModel { get; set; } = "";
     public string ClaudePath { get; set; } = "";
     public string ClaudeModel { get; set; } = "sonnet";
+
+    /// <summary>The result panel's size in DIPs (Settings → Translate → Panel, or dragging its edges).</summary>
+    public double PanelWidth { get; set; } = DefaultPanelWidth;
+    public double PanelHeight { get; set; } = DefaultPanelHeight;
+    /// <summary>Where the user last dragged the panel (top-left, physical pixels); null until moved, which centres it on the cursor's screen.</summary>
+    public double? PanelLeft { get; set; }
+    public double? PanelTop { get; set; }
+
+    /// <summary>A coloured border like the popup's bezel — same defaults and range, stored separately.</summary>
+    public bool BorderEnabled { get; set; } = true;
+    public string BorderColor { get; set; } = "#E69718FF";
+    public double BorderWidth { get; set; } = 7;
+
+    public const double DefaultPanelWidth = 560, DefaultPanelHeight = 380;
+    public static readonly (double Min, double Max) PanelWidthRange = (380, 1200);
+    public static readonly (double Min, double Max) PanelHeightRange = (260, 1000);
+    public static readonly (double Min, double Max) BorderWidthRange = (0, 12);
+
+    public static double Clamp(double value, (double Min, double Max) range) =>
+        double.IsFinite(value) ? Math.Min(Math.Max(value, range.Min), range.Max) : range.Min;
+
+    public double ClampedPanelWidth => Clamp(PanelWidth, PanelWidthRange);
+    public double ClampedPanelHeight => Clamp(PanelHeight, PanelHeightRange);
+    public double ClampedBorderWidth => Clamp(BorderWidth, BorderWidthRange);
 
     public string PathFor(TranslationBackend b) => b == TranslationBackend.Codex ? CodexPath : ClaudePath;
     public string ModelFor(TranslationBackend b) => b == TranslationBackend.Codex ? CodexModel : ClaudeModel;

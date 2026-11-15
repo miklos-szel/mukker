@@ -199,6 +199,12 @@ make test     # run the test suite
 
 SPM dependencies (resolved on first build): GRDB.swift, HotKey, ZIPFoundation.
 
+## Windows version
+
+`windows/` holds a native Windows 10/11 port (.NET 8, WPF): clipboard history + snippets, capture
+with annotation, and translate, living in the notification area. It shares the snippet export
+format and the history database schema with this app. See [`windows/README.md`](windows/README.md).
+
 ## Renaming the app
 
 The product name is not baked into the tree: source directories are `App/` and `AppTests/`,

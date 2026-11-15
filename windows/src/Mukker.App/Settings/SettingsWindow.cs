@@ -365,7 +365,20 @@ internal sealed class SettingsWindow : Window
             "Translates the selected text, or with nothing selected the newest clipboard item, and shows it in a panel.");
         ShortcutRow(g, "Translate to English", s => s.TranslateEnglish, (s, v) => s.TranslateEnglish = v);
         ShortcutRow(g, "Translate to Hungarian", s => s.TranslateHungarian, (s, v) => s.TranslateHungarian = v);
+        Caption(g, "They work even when Mukker isn't focused; pressing one again while the panel is open closes it — or, once you've edited the text in the panel, translates that instead.");
         Toggle(g, "Copy the translation to the clipboard", s => s.Translation.CopiesResult, (s, v) => s.Translation.CopiesResult = v);
+        Caption(g, "A selection is read without copying it, so it never enters the clipboard or its history. Chromium-based browsers and Electron apps build their accessibility data only when asked, so the first press in such an app can take a second or two; apps that don't expose a selection get the clipboard text.");
+
+        var panel = Section(root, "Panel");
+        SliderRow(panel, "Width", TranslationSettings.PanelWidthRange.Min, TranslationSettings.PanelWidthRange.Max, 10,
+            s => s.Translation.ClampedPanelWidth, (s, v) => s.Translation.PanelWidth = v, v => $"{v:0} px");
+        SliderRow(panel, "Height", TranslationSettings.PanelHeightRange.Min, TranslationSettings.PanelHeightRange.Max, 10,
+            s => s.Translation.ClampedPanelHeight, (s, v) => s.Translation.PanelHeight = v, v => $"{v:0} px");
+        Toggle(panel, "Border around panel", s => s.Translation.BorderEnabled, (s, v) => s.Translation.BorderEnabled = v);
+        ColorRow(panel, "Border colour", s => s.Translation.BorderColor, (s, v) => s.Translation.BorderColor = v);
+        SliderRow(panel, "Border width", TranslationSettings.BorderWidthRange.Min, TranslationSettings.BorderWidthRange.Max, 1,
+            s => s.Translation.ClampedBorderWidth, (s, v) => s.Translation.BorderWidth = v, v => $"{v:0} px");
+        Caption(panel, "Drag the panel by its title or resize it by its edges; it reopens where and as you left it. Esc closes it unless you've typed into the source text — then use Close or Ctrl+W. Ctrl+Enter translates the source text again.");
 
         var b = Section(root, "Translate with");
         var footer = new TextBlock { Style = (Style)FindResource("Caption"), Margin = new Thickness(0, 6, 0, 0) };

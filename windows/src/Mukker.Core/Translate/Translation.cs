@@ -8,7 +8,8 @@ namespace Mukker.Core.Translate;
 
 public enum TranslationLanguage { English, Hungarian }
 
-public enum TranslationOrigin { Selection, History }
+/// <summary>Where the translated text came from: the focused app's selection, the newest history entry, or the panel's edited source.</summary>
+public enum TranslationOrigin { Selection, History, Edited }
 
 public static class TranslationText
 {
@@ -34,7 +35,12 @@ public static class TranslationText
         ? "Run `codex login` in a terminal, then try again."
         : "Run `claude` in a terminal and sign in with `/login`, then try again.";
 
-    public static string Origin(this TranslationOrigin o) => o == TranslationOrigin.Selection ? "from Selection" : "from Clipboard";
+    public static string Origin(this TranslationOrigin o) => o switch
+    {
+        TranslationOrigin.Selection => "from Selection",
+        TranslationOrigin.Edited => "from Edited text",
+        _ => "from Clipboard",
+    };
 }
 
 /// <summary>The prompt. The text is fenced and declared to be data: clipboard content is arbitrary.</summary>

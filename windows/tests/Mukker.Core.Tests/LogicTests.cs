@@ -292,3 +292,66 @@ public class CaptureTests
         Assert.Equal(0, sig[1][1]);
     }
 }
+
+public class TranslationPanelSettingsTests
+{
+    [Fact]
+    public void DefaultsMirrorTheMac()
+    {
+        var t = new TranslationSettings();
+        Assert.Equal(560, t.PanelWidth);
+        Assert.Equal(380, t.PanelHeight);
+        Assert.Null(t.PanelLeft);
+        Assert.Null(t.PanelTop);
+        Assert.True(t.BorderEnabled);
+        Assert.Equal(new ClipboardSettings().PopupBezelColor, t.BorderColor);
+        Assert.Equal(new ClipboardSettings().PopupBezelWidth, t.BorderWidth);
+    }
+
+    [Fact]
+    public void SizesAreClampedToTheirRanges()
+    {
+        var t = new TranslationSettings { PanelWidth = 10, PanelHeight = 5000, BorderWidth = 40 };
+        Assert.Equal(380, t.ClampedPanelWidth);
+        Assert.Equal(1000, t.ClampedPanelHeight);
+        Assert.Equal(12, t.ClampedBorderWidth);
+        Assert.Equal(380, TranslationSettings.Clamp(double.NaN, TranslationSettings.PanelWidthRange));
+    }
+
+    [Fact]
+    public void PanelGeometryRoundTripsThroughJson()
+    {
+        var s = new AppSettings();
+        s.Translation.PanelWidth = 700;
+        s.Translation.PanelHeight = 420;
+        s.Translation.PanelLeft = -1500;
+        s.Translation.PanelTop = 200;
+        s.Translation.BorderEnabled = false;
+        s.Translation.BorderColor = "#112233FF";
+        var json = System.Text.Json.JsonSerializer.Serialize(s, SettingsStore.JsonOptions);
+        var back = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json, SettingsStore.JsonOptions)!;
+        Assert.Equal(700, back.Translation.PanelWidth);
+        Assert.Equal(420, back.Translation.PanelHeight);
+        Assert.Equal(-1500, back.Translation.PanelLeft);
+        Assert.Equal(200, back.Translation.PanelTop);
+        Assert.False(back.Translation.BorderEnabled);
+        Assert.Equal("#112233FF", back.Translation.BorderColor);
+    }
+
+    [Fact]
+    public void OldSettingsWithACalendarSectionStillLoad()
+    {
+        var json = """{ "Calendar": { "TooltipFormat": "Weekday", "HourlyChime": true }, "Chime": { "HourlyChime": true } }""";
+        var s = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json, SettingsStore.JsonOptions)!;
+        Assert.True(s.Chime.HourlyChime);
+        Assert.Equal(560, s.Translation.PanelWidth);
+    }
+
+    [Fact]
+    public void EditedOriginHasItsOwnLabel()
+    {
+        Assert.Equal("from Edited text", TranslationOrigin.Edited.Origin());
+        Assert.Equal("from Selection", TranslationOrigin.Selection.Origin());
+        Assert.Equal("from Clipboard", TranslationOrigin.History.Origin());
+    }
+}
