@@ -142,7 +142,7 @@ The popup and capture shortcuts are configurable in **Settings → Hotkeys**; th
 shortcuts live in **Settings → Windows** and the two translate shortcuts in
 **Settings → Translate**, each next to the switch that turns them on and off. A new
 shortcut has to include ⌘, ⌃ or ⌥ (F1–F20 may be used on their own), since a global shortcut
-takes its key away from every other app; one recorded before 1.2.0 without a modifier keeps
+takes its key away from every other app; one recorded before 1.3.0 without a modifier keeps
 working until you record a new one. The calendar has no shortcut — it is the menu bar item itself.
 
 ## Where your data lives

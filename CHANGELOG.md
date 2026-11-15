@@ -3,7 +3,7 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [1.2.0] - 2026-11-15
+## [1.3.0] - 2026-11-15
 
 ### Added
 - **Translate what you just copied.** ⌘⇧E translates the newest text in the clipboard history
