@@ -231,6 +231,59 @@ final class TranslationTests: XCTestCase {
         XCTAssertNil(TranslationService.latestTextItem(in: [item(1, kind: .image, created: 1)]))
     }
 
+    // MARK: - Selection vs history
+
+    func testNonBlankSelectionWins() {
+        let history = [item(1, created: 500)]
+        XCTAssertEqual(TranslationService.source(selection: "Guten Morgen", history: history,
+                                                 characterLimit: 256_000),
+                       .selection("Guten Morgen"))
+        // Kept verbatim, surrounding whitespace included — it is what was selected.
+        XCTAssertEqual(TranslationService.source(selection: "  Hallo\n", history: [], characterLimit: nil),
+                       .selection("  Hallo\n"))
+    }
+
+    func testBlankOrMissingSelectionFallsBackToNewestTextItem() {
+        let history = [item(1, created: 100, pinned: true), item(2, created: 500),
+                       item(3, kind: .image, created: 900)]
+        for selection in [nil, "", "   ", "\n\t \n"] as [String?] {
+            XCTAssertEqual(TranslationService.source(selection: selection, history: history,
+                                                     characterLimit: 256_000),
+                           .history(history[1]), "selection: \(String(describing: selection))")
+        }
+    }
+
+    func testNothingSelectedAndNoTextInHistory() {
+        XCTAssertEqual(TranslationService.source(selection: nil, history: [], characterLimit: nil), .nothing)
+        XCTAssertEqual(TranslationService.source(selection: " ", history: [item(1, kind: .image, created: 1)],
+                                                 characterLimit: nil),
+                       .nothing)
+    }
+
+    func testSelectionHeldToTheClipboardSizeLimit() {
+        let history = [item(1, created: 500)]
+        let long = String(repeating: "a", count: 11)
+        XCTAssertEqual(TranslationService.source(selection: long, history: history, characterLimit: 10),
+                       .selectionTooLong(count: 11, limit: 10))
+        XCTAssertEqual(TranslationService.source(selection: String(long.dropFirst()), history: history,
+                                                 characterLimit: 10),
+                       .selection(String(long.dropFirst())))
+        // Unlimited means unlimited.
+        XCTAssertEqual(TranslationService.source(selection: long, history: history, characterLimit: nil),
+                       .selection(long))
+    }
+
+    func testBlankDetection() {
+        XCTAssertTrue(SelectedTextReader.isBlank(""))
+        XCTAssertTrue(SelectedTextReader.isBlank(" \n\t"))
+        XCTAssertFalse(SelectedTextReader.isBlank(" x "))
+    }
+
+    func testOriginLabels() {
+        XCTAssertEqual(TranslationOrigin.selection.label, "Selection")
+        XCTAssertEqual(TranslationOrigin.history.label, "Clipboard")
+    }
+
     // MARK: - Languages and backends
 
     func testLanguageOtherAndLabels() {
