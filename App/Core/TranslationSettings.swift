@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import SwiftUI
 
 /// The languages the translate hotkeys aim at. The source language is never
 /// chosen — the model detects it — so this only names the *target*.
@@ -191,6 +192,23 @@ final class TranslationSettings: ObservableObject {
         didSet { defaults.set(panelHeight, forKey: K.panelHeight) }
     }
 
+    /// A colored border around the panel — the same option, defaults and
+    /// 0…12 pt range as the clipboard popup's bezel, stored separately so the
+    /// two can differ.
+    @Published var borderEnabled: Bool {
+        didSet { defaults.set(borderEnabled, forKey: K.borderEnabled) }
+    }
+
+    @Published var borderColor: Color {
+        didSet { defaults.set(borderColor.hexRGBA, forKey: K.borderColor) }
+    }
+
+    @Published var borderWidth: Double {
+        didSet { defaults.set(borderWidth, forKey: K.borderWidth) }
+    }
+
+    nonisolated static let borderWidthRange: ClosedRange<Double> = 0...12
+
     nonisolated static let panelWidthRange: ClosedRange<Double> = 380...1200
     nonisolated static let panelHeightRange: ClosedRange<Double> = 260...1000
     nonisolated static let defaultPanelSize = (width: 560.0, height: 380.0)
@@ -222,6 +240,11 @@ final class TranslationSettings: ObservableObject {
         claudeModel = defaults.string(forKey: K.claudeModel) ?? TranslationBackend.claude.defaultModel
         let width = defaults.object(forKey: K.panelWidth) as? Double ?? Self.defaultPanelSize.width
         let height = defaults.object(forKey: K.panelHeight) as? Double ?? Self.defaultPanelSize.height
+        borderEnabled = defaults.object(forKey: K.borderEnabled) as? Bool ?? true
+        borderColor = defaults.string(forKey: K.borderColor).flatMap(Color.init(hex:))
+            ?? ClipboardSettings.defaultPopupBezelColor
+        borderWidth = Self.clamp(defaults.object(forKey: K.borderWidth) as? Double ?? 7,
+                                 to: Self.borderWidthRange)
         panelWidth = Self.clamp(width, to: Self.panelWidthRange)
         panelHeight = Self.clamp(height, to: Self.panelHeightRange)
     }
@@ -269,5 +292,8 @@ final class TranslationSettings: ObservableObject {
         static let panelWidth = "translationPanelWidth"
         static let panelHeight = "translationPanelHeight"
         static let panelTopLeft = "translationPanelTopLeft"
+        static let borderEnabled = "translationBorderEnabled"
+        static let borderColor = "translationBorderColor"
+        static let borderWidth = "translationBorderWidth"
     }
 }

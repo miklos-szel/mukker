@@ -25,8 +25,13 @@ struct TranslationView: View {
         .background(PopupTheme.panelBackground)
         .clipShape(.rect(cornerRadius: 10))
         .overlay {
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(PopupTheme.divider, lineWidth: 1)
+            if settings.borderEnabled, settings.borderWidth > 0 {
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(settings.borderColor, lineWidth: settings.borderWidth)
+            } else {
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(PopupTheme.divider, lineWidth: 1)
+            }
         }
     }
 

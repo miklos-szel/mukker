@@ -55,6 +55,23 @@ struct TranslatePane: View {
                         Text("\(Int(settings.panelHeight)) pt").monospacedDigit().frame(width: 56, alignment: .trailing)
                     }
                 }
+                Toggle("Border around panel", isOn: $settings.borderEnabled)
+                if settings.borderEnabled {
+                    LabeledContent("Border color") {
+                        BorderedColorWell(selection: $settings.borderColor)
+                    }
+                    LabeledContent("Border width") {
+                        HStack(spacing: 8) {
+                            Slider(value: $settings.borderWidth,
+                                   in: TranslationSettings.borderWidthRange, step: 1)
+                                .frame(width: 150)
+                                .accessibilityLabel("Border width")
+                            Text("\(Int(settings.borderWidth.rounded())) pt")
+                                .font(.system(size: 11).monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             } header: {
                 Text("Panel")
             } footer: {
