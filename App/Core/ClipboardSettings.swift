@@ -297,13 +297,7 @@ final class ClipboardSettings: ObservableObject {
     /// the `org.chromium.source-url` extension ID). Used only when
     /// `ignoreConcealedItems` is on.
     var passwordManagerExtensions: [PasswordManagerExtension] {
-        get {
-            guard let data = defaults.data(forKey: "clip.passwordManagerExtensions"),
-                  let decoded = try? JSONDecoder().decode([PasswordManagerExtension].self, from: data) else {
-                return ClipboardSettings.defaultPasswordManagerExtensions
-            }
-            return decoded
-        }
+        get { passwordManagerExtensionsCache.value(in: defaults).list }
         set {
             objectWillChange.send()
             if let data = try? JSONEncoder().encode(newValue) {
@@ -313,8 +307,13 @@ final class ClipboardSettings: ObservableObject {
     }
 
     var passwordManagerExtensionIDs: Set<String> {
-        Set(passwordManagerExtensions.map(\.extensionID))
+        passwordManagerExtensionsCache.value(in: defaults).ids
     }
+
+    private let passwordManagerExtensionsCache = DecodedListCache<PasswordManagerExtension>(
+        key: "clip.passwordManagerExtensions",
+        fallback: ClipboardSettings.defaultPasswordManagerExtensions,
+        id: \.extensionID)
 
     func resetPasswordManagerExtensions() {
         passwordManagerExtensions = ClipboardSettings.defaultPasswordManagerExtensions
@@ -332,13 +331,7 @@ final class ClipboardSettings: ObservableObject {
     }
 
     var ignoredApps: [IgnoredApp] {
-        get {
-            guard let data = defaults.data(forKey: "clip.ignoredApps"),
-                  let decoded = try? JSONDecoder().decode([IgnoredApp].self, from: data) else {
-                return ClipboardSettings.defaultIgnoredApps
-            }
-            return decoded
-        }
+        get { ignoredAppsCache.value(in: defaults).list }
         set {
             objectWillChange.send()
             if let data = try? JSONEncoder().encode(newValue) {
@@ -347,9 +340,16 @@ final class ClipboardSettings: ObservableObject {
         }
     }
 
+    /// Read on every clipboard change (the capture policy), so it is served
+    /// from `ignoredAppsCache` rather than decoded each time.
     var ignoredBundleIDs: Set<String> {
-        Set(ignoredApps.map(\.bundleID))
+        ignoredAppsCache.value(in: defaults).ids
     }
+
+    private let ignoredAppsCache = DecodedListCache<IgnoredApp>(
+        key: "clip.ignoredApps",
+        fallback: ClipboardSettings.defaultIgnoredApps,
+        id: \.bundleID)
 
     func resetIgnoredApps() {
         ignoredApps = ClipboardSettings.defaultIgnoredApps
@@ -394,4 +394,33 @@ final class ClipboardSettings: ObservableObject {
         PasswordManagerExtension(extensionID: "bfogiafebfohielmmehodmfbbebbbpei", displayName: "Keeper"),
         PasswordManagerExtension(extensionID: "pnlccmojcmeohlpggmfnbbiapkmbliob", displayName: "RoboForm"),
     ]
+}
+
+/// A JSON-encoded list in `UserDefaults`, decoded only when its stored bytes
+/// change. The raw `Data` is still read on every access (cheap) and compared
+/// with the bytes last decoded, so a write from anywhere — these settings'
+/// setters, `defaults write`, a test's suite — is picked up exactly as an
+/// uncached decode would; only the decode itself is skipped.
+private final class DecodedListCache<Element: Codable> {
+    private let key: String
+    private let fallback: [Element]
+    private let id: (Element) -> String
+    private var decodedFrom: Data??
+    private var cached: (list: [Element], ids: Set<String>)?
+
+    init(key: String, fallback: [Element], id: @escaping (Element) -> String) {
+        self.key = key
+        self.fallback = fallback
+        self.id = id
+    }
+
+    func value(in defaults: UserDefaults) -> (list: [Element], ids: Set<String>) {
+        let data = defaults.data(forKey: key)
+        if let cached, let decodedFrom, decodedFrom == data { return cached }
+        let list = data.flatMap { try? JSONDecoder().decode([Element].self, from: $0) } ?? fallback
+        let value = (list: list, ids: Set(list.map(id)))
+        cached = value
+        decodedFrom = .some(data)
+        return value
+    }
 }

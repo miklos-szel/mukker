@@ -46,15 +46,14 @@ final class CalendarMenuModel: ObservableObject {
     }
 
     var monthTitle: String {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = .current
-        // Pinned rather than templated: a localized "yMMM" puts the year first in
-        // some regions ("2026. Sep"), and the header is laid out for a short month
-        // followed by the year.
-        formatter.dateFormat = "MMM yyyy"
-        return formatter.string(from: visibleMonth)
+        monthTitleFormatter.formatter(calendar: calendar).string(from: visibleMonth)
     }
+
+    // Pinned rather than templated: a localized "yMMM" puts the year first in
+    // some regions ("2026. Sep"), and the header is laid out for a short month
+    // followed by the year.
+    private let monthTitleFormatter = CachedDateFormatter { $0.dateFormat = "MMM yyyy" }
+    private let dayTitleFormatter = CachedDateFormatter { $0.setLocalizedDateFormatFromTemplate("EEEMMMd") }
 
     var weekdaySymbols: [String] { CalendarGrid.weekdaySymbols(calendar: calendar) }
     var weekNumbers: [Int] { CalendarGrid.weekNumbers(for: days, calendar: calendar) }
@@ -92,11 +91,7 @@ final class CalendarMenuModel: ObservableObject {
         if calendar.isDateInToday(selectedDay) { return "Today" }
         if calendar.isDateInTomorrow(selectedDay) { return "Tomorrow" }
         if calendar.isDateInYesterday(selectedDay) { return "Yesterday" }
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = .current
-        formatter.setLocalizedDateFormatFromTemplate("EEEMMMd")
-        return formatter.string(from: selectedDay)
+        return dayTitleFormatter.formatter(calendar: calendar).string(from: selectedDay)
     }
 
     /// Selecting a day outside the visible month pages to it, the way the system

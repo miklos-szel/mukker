@@ -149,22 +149,39 @@ struct CalendarPane: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear(perform: refresh)
+        .onAppear {
+            refresh()
+            rescanSounds()
+        }
         .onReceive(pollTimer) { _ in refresh() }
     }
 
-    /// Read once — the catalogue is a directory listing and the pane re-renders
-    /// on every poll tick.
-    private let sounds = HourlyChimeService.availableSounds
+    /// The sound catalogue is a directory listing, so it is not re-read on every
+    /// init of this view (each parent re-render): it is scanned once per launch
+    /// and again each time the pane appears, so a sound added meanwhile shows up.
+    @State private var sounds: [String] = CalendarPane.cachedSounds()
+    private static var soundCatalogue: [String]?
+
+    private static func cachedSounds() -> [String] {
+        if let soundCatalogue { return soundCatalogue }
+        let scanned = HourlyChimeService.availableSounds
+        soundCatalogue = scanned
+        return scanned
+    }
+
+    private func rescanSounds() {
+        let scanned = HourlyChimeService.availableSounds
+        Self.soundCatalogue = scanned
+        if scanned != sounds { sounds = scanned }
+    }
 
     /// "9 AM" or "09:00", whichever the user's region uses.
     private static func hourLabel(_ hour: Int) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = .current
-        formatter.setLocalizedDateFormatFromTemplate("j")
         let date = Calendar.current.date(from: DateComponents(hour: hour)) ?? Date()
-        return formatter.string(from: date)
+        return hourFormatter.formatter().string(from: date)
     }
+
+    private static let hourFormatter = CachedDateFormatter { $0.setLocalizedDateFormatFromTemplate("j") }
 
     private var preview: String {
         MenuBarDateText.text(for: Date(),

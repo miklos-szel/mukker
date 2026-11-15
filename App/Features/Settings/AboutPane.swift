@@ -36,7 +36,7 @@ struct AboutPane: View {
     private var changelog: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
-                ForEach(Array(ChangelogParser.load().enumerated()), id: \.offset) { _, line in
+                ForEach(Array(Self.changelog.enumerated()), id: \.offset) { _, line in
                     ChangelogRow(line: line)
                 }
             }
@@ -44,6 +44,10 @@ struct AboutPane: View {
             .padding(16)
         }
     }
+
+    /// The bundled changelog can't change while the app runs, so it is read and
+    /// parsed once rather than on every render.
+    private static let changelog = ChangelogParser.load()
 }
 
 /// Version identity read from the bundle's Info.plist. The display name comes
