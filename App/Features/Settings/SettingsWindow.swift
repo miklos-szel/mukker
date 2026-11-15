@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Tabbed Settings window. One tab per feature set — Clipboard & Snippets,
-/// Capture, Keep Awake, Windows, Calendar, Network — while Hotkeys, Permissions and
+/// Capture, Keep Awake, Windows, Calendar, Network, Translate — while Hotkeys, Permissions and
 /// About are shared across all of them.
 struct SettingsView: View {
     /// Which tab is showing. Defaults to the first; the `MUKKER_OPEN_SETTINGS`
@@ -28,6 +28,9 @@ struct SettingsView: View {
             NetworkPane()
                 .tabItem { Label("Network", systemImage: "network") }
                 .tag(SettingsTab.network)
+            TranslatePane()
+                .tabItem { Label("Translate", systemImage: "character.bubble") }
+                .tag(SettingsTab.translate)
             HotkeysPane()
                 .tabItem { Label("Hotkeys", systemImage: "keyboard") }
                 .tag(SettingsTab.hotkeys)
@@ -39,11 +42,13 @@ struct SettingsView: View {
                 .tag(SettingsTab.about)
         }
         .focusEffectDisabled()
-        .frame(width: 600, height: 620)
+        // Ten tab labels need ~642 pt in a row (measured with an equivalent
+        // NSTabView); narrower and AppKit drops the last tabs into overflow.
+        .frame(width: 680, height: 620)
         .padding()
     }
 }
 
 enum SettingsTab: String, CaseIterable {
-    case clipboard, capture, keepAwake, windows, calendar, network, hotkeys, permissions, about
+    case clipboard, capture, keepAwake, windows, calendar, network, translate, hotkeys, permissions, about
 }

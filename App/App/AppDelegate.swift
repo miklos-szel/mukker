@@ -75,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Window tiling registers only while it is switched on, so that its
         // ⌃⌘arrow combos are free for other apps when the user doesn't want it.
         let tilingEnabled = { WindowTilingSettings.shared.isEnabled }
+        // Translation likewise frees ⌘⇧E/⌘⌥E while it is switched off.
+        let translationEnabled = { TranslationSettings.shared.isEnabled }
         HotKeyManager.shared.start(
             settings: ShortcutSettings.shared,
             actions: [
@@ -90,12 +92,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .init(combo: \.tileTopCombo, isEnabled: tilingEnabled,
                       handler: { [weak self] in self?.tileWindow(.top) }),
                 .init(combo: \.tileBottomCombo, isEnabled: tilingEnabled,
-                      handler: { [weak self] in self?.tileWindow(.bottom) })
+                      handler: { [weak self] in self?.tileWindow(.bottom) }),
+                .init(combo: \.translateEnglishCombo, isEnabled: translationEnabled,
+                      handler: { [weak self] in self?.translateLatest(.english) }),
+                .init(combo: \.translateHungarianCombo, isEnabled: translationEnabled,
+                      handler: { [weak self] in self?.translateLatest(.hungarian) })
             ],
-            reloadOn: WindowTilingSettings.shared.$isEnabled
-                .dropFirst()
-                .map { _ in () }
-                .eraseToAnyPublisher()
+            // Either switch re-registers. Each drops its subscribe-time replay;
+            // the manager delivers on the run loop, after the new value is stored.
+            reloadOn: Publishers.Merge(
+                WindowTilingSettings.shared.$isEnabled.dropFirst().map { _ in () },
+                TranslationSettings.shared.$isEnabled.dropFirst().map { _ in () }
+            )
+            .eraseToAnyPublisher()
         )
 
         // The menu bar item, last so everything it can invoke already exists.
@@ -135,6 +144,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             RunLoop.main.add(timer, forMode: .common)
         }
+        // The translate panel on the newest history entry (`MUKKER_TRANSLATE=en|hu`),
+        // after the cache has loaded — the hotkey is otherwise the only way in.
+        if let code = ProcessInfo.processInfo.environment["MUKKER_TRANSLATE"],
+           let language = TranslationLanguage(shortCode: code) {
+            let timer = Timer(timeInterval: 1.0, repeats: false) { _ in
+                MainActor.assumeIsolated { self.translateLatest(language) }
+            }
+            RunLoop.main.add(timer, forMode: .common)
+        }
 #endif
 
         // We hide the dock icon via LSUIElement; still set activation policy as a guard
@@ -153,6 +171,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             captureScreen: { [weak self] in self?.captureScreen() },
             captureScrolling: { [weak self] in self?.captureScrolling() },
             openSettings: { [weak self] in self?.openSettings() })
+        actions.translateToEnglish = { [weak self] in self?.translateLatest(.english) }
+        actions.translateToHungarian = { [weak self] in self?.translateLatest(.hungarian) }
 #if DEBUG
         actions.openDebugSample = { [weak self] in self?.openDebugSample() }
 #endif
@@ -209,6 +229,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func tileWindow(_ slot: TileSlot) {
         WindowTiler.shared.tile(slot)
+    }
+
+    // MARK: - Translation entry point
+
+    /// Translates the newest text in the clipboard history; pressing the same
+    /// language's hotkey again while the panel is up closes it.
+    func translateLatest(_ language: TranslationLanguage) {
+        TranslationPanelController.shared.show(language: language)
     }
 
     /// Routes a finished capture according to the user's "After screenshot" setting.

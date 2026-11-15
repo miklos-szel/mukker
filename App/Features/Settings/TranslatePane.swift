@@ -1,0 +1,115 @@
+import SwiftUI
+
+/// The translation side of the app: the master switch, the two global
+/// shortcuts, and which command-line client does the work.
+///
+/// The shortcuts live here rather than in the shared `HotkeysPane`, as with
+/// `WindowTilingPane`, because the switch above them decides whether they are
+/// registered at all. Path and model fields follow the selected backend; each
+/// backend keeps its own values, so flipping the picker loses nothing.
+struct TranslatePane: View {
+    @ObservedObject private var settings = TranslationSettings.shared
+    @ObservedObject private var shortcuts = ShortcutSettings.shared
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Enable translation", isOn: $settings.isEnabled)
+            } header: {
+                Text("Translate")
+            } footer: {
+                Text("Translates the newest text in the clipboard history into English or "
+                     + "Hungarian, shows it in a small panel and copies it. The text is sent to "
+                     + "\(settings.backend.provider) through the \(settings.backend.executableName) "
+                     + "command-line tool, using the account it is signed in with, and counts "
+                     + "against that plan. Switching translation off releases the shortcuts "
+                     + "for other apps.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                LabeledContent("Translate to English") {
+                    ShortcutRecorderField(combo: $shortcuts.translateEnglishCombo).frame(width: 160)
+                }
+                LabeledContent("Translate to Hungarian") {
+                    ShortcutRecorderField(combo: $shortcuts.translateHungarianCombo).frame(width: 160)
+                }
+            } header: {
+                Text("Shortcuts")
+            } footer: {
+                Text("Click a shortcut, then press the new key combination (Esc cancels). "
+                     + "They work even when \(Branding.name) isn't focused; pressing one again "
+                     + "while the panel is open closes it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(!settings.isEnabled)
+
+            Section {
+                Picker("Translate with", selection: $settings.backend) {
+                    ForEach(TranslationBackend.allCases) { backend in
+                        Text(backend.label).tag(backend)
+                    }
+                }
+                LabeledContent("Status") { status }
+                TextField("Path", text: pathBinding, prompt: Text("Auto-detect"))
+                TextField("Model", text: modelBinding,
+                          prompt: Text(settings.backend == .codex ? "Codex default" : "CLI default"))
+                Toggle("Copy translation to clipboard", isOn: $settings.copiesResult)
+            } header: {
+                Text("Engine")
+            } footer: {
+                Text(engineFooter)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(!settings.isEnabled)
+        }
+        .formStyle(.grouped)
+    }
+
+    // MARK: - Pieces
+
+    @ViewBuilder
+    private var status: some View {
+        if let path = TranslationService.shared.resolvedExecutablePath(for: settings.backend) {
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                Text("Found at \(path)")
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+            }
+        } else {
+            HStack(spacing: 4) {
+                Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+                Text("Not found")
+            }
+        }
+    }
+
+    /// Install/sign-in instructions for the selected backend, plus what the
+    /// two fields mean. Shown always, since a found binary can still be
+    /// signed out.
+    private var engineFooter: String {
+        let backend = settings.backend
+        let modelNote = backend.defaultModel.isEmpty
+            ? "Leave the model empty to use the CLI's own default."
+            : "The model defaults to “\(backend.defaultModel)”; clear it to use the CLI's own default."
+        return "\(backend.installHint) Leave the path empty to look in the usual install "
+            + "locations. \(modelNote) The copied translation also lands in the clipboard history."
+    }
+
+    private var pathBinding: Binding<String> {
+        let backend = settings.backend
+        return Binding(get: { settings.path(for: backend) },
+                       set: { settings.setPath($0, for: backend) })
+    }
+
+    private var modelBinding: Binding<String> {
+        let backend = settings.backend
+        return Binding(get: { settings.model(for: backend) },
+                       set: { settings.setModel($0, for: backend) })
+    }
+}

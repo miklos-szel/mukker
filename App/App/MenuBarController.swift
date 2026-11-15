@@ -26,6 +26,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         var captureScreen: () -> Void
         var captureScrolling: () -> Void
         var openSettings: () -> Void
+        /// Defaulted, like the debug item below, so adding them left the
+        /// memberwise initialiser call in `AppDelegate` untouched.
+        var translateToEnglish: () -> Void = {}
+        var translateToHungarian: () -> Void = {}
 #if DEBUG
         /// Defaulted so the memberwise initialiser stays identical in both
         /// configurations — the debug item is filled in by `AppDelegate`.
@@ -321,12 +325,24 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             networkRows = []
         }
 
-        items.append(submenu("Clipboard & Snippets", of: [
+        var clipboardItems: [NSMenuItem] = [
             ActionMenuItem("Show Clipboard & Snippets", combo: shortcuts.popupCombo,
                            handler: actions.showPopup),
             .separator(),
             ActionMenuItem("Snippets Manager…", handler: actions.openSnippetsManager)
-        ]))
+        ]
+        // Only while translation is on — off, its hotkeys aren't registered
+        // either, and the items would advertise shortcuts that do nothing.
+        if TranslationSettings.shared.isEnabled {
+            clipboardItems.append(.separator())
+            clipboardItems.append(ActionMenuItem("Translate Latest to English",
+                                                 combo: shortcuts.translateEnglishCombo,
+                                                 handler: actions.translateToEnglish))
+            clipboardItems.append(ActionMenuItem("Translate Latest to Hungarian",
+                                                 combo: shortcuts.translateHungarianCombo,
+                                                 handler: actions.translateToHungarian))
+        }
+        items.append(submenu("Clipboard & Snippets", of: clipboardItems))
 
         var captureItems: [NSMenuItem] = [
             ActionMenuItem("Capture Area", combo: shortcuts.areaCombo, handler: actions.captureArea),
