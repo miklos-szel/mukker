@@ -3,6 +3,21 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **Windows version** in `windows/` (clipboard history and snippets, capture with annotation,
+  translate), now kept in this repository. It gains the 1.3.1 translate panel: Chromium and
+  Electron selections, an editable source text (Ctrl+Enter translates it), a movable and resizable
+  panel that reopens where you left it, and an optional coloured border. Its tray icon is the
+  Mukker icon — left click for translate, the clipboard popup and capture, right click for the
+  Snippets Manager, Clear History, Settings and Quit; the calendar is left out, since Windows has
+  its own.
+
+### Changed
+- **New app icon**: the orange Mukker keys, shared with the Windows version. Both are drawn by
+  `scripts/make-icons.py`, size by size, so the small sizes stay sharp.
+
 ## [1.3.1] - 2026-11-15
 
 ### Fixed
