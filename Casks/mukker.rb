@@ -6,8 +6,8 @@
 #   brew tap miklos-szel/mukker https://github.com/miklos-szel/mukker
 #   brew install --cask miklos-szel/mukker/mukker
 cask "mukker" do
-  version "1.1.1"
-  sha256 "bee03d447c845b3c719154fc5a709769efe15f4695ee3aa2fc9f5f184e371482"
+  version "1.3.0"
+  sha256 "39f726b6d9b0c16d7d30773f1098c91f65e0d506b121a3399237f71be2a3f0eb"
 
   url "https://github.com/miklos-szel/mukker/releases/download/v#{version}/Mukker-#{version}.dmg"
   name "Mukker"
