@@ -144,5 +144,12 @@ struct BorderedColorWell: View {
     var body: some View {
         ColorPicker("", selection: $selection, supportsOpacity: true)
             .labelsHidden()
+            // Outline the swatch itself (inside the well's own light ring).
+            .overlay {
+                Capsule()
+                    .inset(by: 4)
+                    .strokeBorder(Color.primary.opacity(0.3), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
     }
 }
