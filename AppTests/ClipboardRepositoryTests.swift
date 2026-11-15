@@ -179,6 +179,36 @@ final class ClipboardRepositoryTests: XCTestCase {
         XCTAssertFalse(fm.fileExists(atPath: orphanRTF.path))
     }
 
+    func testPurgeReturnsFullDeletedRowsAndRemovesTheirSidecars() throws {
+        let repo = try makeRepo()
+        let now = Date()
+        let rtfPath = try makeTempFile(named: "expired.rtf")
+        var expired = textItem("expired text", createdAt: now.addingTimeInterval(-10_000), hash: "e")
+        expired.richTextPath = rtfPath
+        expired.sourceApp = "com.apple.Notes"
+        let inserted = try XCTUnwrap(try repo.insertIfNew(expired))
+        // Old but recently used: its effective timestamp is fresh, so it survives.
+        let used = try XCTUnwrap(try repo.insertIfNew(textItem("used", createdAt: now.addingTimeInterval(-10_000), hash: "u")))
+        try repo.bumpLastUsed(id: try XCTUnwrap(used.id))
+        // Another kind past the cutoff is untouched by a text purge.
+        var image = textItem("", kind: .image, createdAt: now.addingTimeInterval(-10_000), hash: "i")
+        image.imagePath = try makeTempFile(named: "kept.png")
+        _ = try repo.insertIfNew(image)
+
+        let removed = try repo.purgeOlderThan(kind: .text, cutoff: now.addingTimeInterval(-3600))
+
+        XCTAssertEqual(removed.map(\.id), [inserted.id])
+        let row = try XCTUnwrap(removed.first)
+        XCTAssertEqual(row.textContent, "expired text", "the full row, text included, for archiving")
+        XCTAssertEqual(row.sourceApp, "com.apple.Notes")
+        XCTAssertEqual(row.richTextPath, rtfPath)
+        XCTAssertEqual(row.contentHash, "e")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: rtfPath), "purge should remove the RTF")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: try XCTUnwrap(image.imagePath)))
+        XCTAssertEqual(Set(try repo.recent().map(\.contentHash)), ["u", "i"])
+        XCTAssertEqual(try repo.purgeOlderThan(kind: .text, cutoff: now.addingTimeInterval(-3600)), [])
+    }
+
     func testFetchOneByContentHashFindsDuplicate() throws {
         let repo = try makeRepo()
         let first = try XCTUnwrap(try repo.insertIfNew(textItem("dup", createdAt: Date(), hash: "d")))

@@ -22,10 +22,43 @@ final class ClipboardRetentionService {
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
 
-        // Re-sweep when retention settings change.
-        cancellable = ClipboardSettings.shared.objectWillChange
+        // Re-sweep when a retention-relevant setting changes — not on every
+        // settings write (dragging the popup-size slider used to sweep too).
+        // `objectWillChange` fires before the write, so the snapshot is taken
+        // after delivery on the run loop, when the new value is readable.
+        let settings = ClipboardSettings.shared
+        var last = RetentionSnapshot(settings)
+        cancellable = settings.objectWillChange
+            .receive(on: RunLoop.main)
+            .compactMap { _ -> Void? in
+                // Delivered on the main run loop.
+                let current = MainActor.assumeIsolated { RetentionSnapshot(settings) }
+                guard current != last else { return nil }
+                last = current
+                return ()
+            }
             .debounce(for: .seconds(1), scheduler: RunLoop.main)
             .sink { [weak self] in self?.sweepNow() }
+    }
+
+    /// The settings a sweep depends on (plus the per-kind keep toggles).
+    struct RetentionSnapshot: Equatable {
+        let textRetention: RetentionPeriod
+        let imageRetention: RetentionPeriod
+        let fileRetention: RetentionPeriod
+        let keepText: Bool
+        let keepImages: Bool
+        let keepFiles: Bool
+
+        @MainActor
+        init(_ settings: ClipboardSettings) {
+            textRetention = settings.textRetention
+            imageRetention = settings.imageRetention
+            fileRetention = settings.fileRetention
+            keepText = settings.keepText
+            keepImages = settings.keepImages
+            keepFiles = settings.keepFiles
+        }
     }
 
     func sweepNow() {

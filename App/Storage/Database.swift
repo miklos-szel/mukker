@@ -86,6 +86,17 @@ final class AppDatabase {
             }
         }
 
+        // Matches the history order (`recent`: pinned DESC, COALESCE(...) DESC)
+        // and `trim`'s `pinned = 0 … COALESCE(...) ASC`, so neither sorts the
+        // whole table in a temp B-tree. The expression must stay textually the
+        // same as in `ClipboardRepository` for SQLite to match it.
+        m.registerMigration("v4_orderIndex") { db in
+            try db.execute(sql: """
+                CREATE INDEX IF NOT EXISTS idx_clip_order
+                ON clip_items(pinned, COALESCE(lastUsedAt, createdAt))
+                """)
+        }
+
         return m
     }
 }

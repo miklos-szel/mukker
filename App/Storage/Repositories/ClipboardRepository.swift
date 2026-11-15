@@ -120,17 +120,27 @@ final class ClipboardRepository {
     /// Returns the deleted items so the caller can remove on-disk images and/or
     /// archive their text. (Dates are filtered in Swift on decoded values — GRDB
     /// stores `Date` as text, so a numeric SQL comparison would not work reliably.)
+    ///
+    /// Victims are picked from just `id`/`createdAt`/`lastUsedAt`; only they are
+    /// then fetched in full, so a sweep that deletes nothing never loads any text.
     @discardableResult
     func purgeOlderThan(kind: ClipKind, cutoff: Date) throws -> [ClipItem] {
         let removed: [ClipItem] = try dbQueue.write { db in
-            let candidates = try ClipItem
+            let rows = try Row.fetchAll(db, ClipItem
+                .select(ClipItem.Columns.id, ClipItem.Columns.createdAt, ClipItem.Columns.lastUsedAt)
                 .filter(ClipItem.Columns.kind == kind.rawValue)
-                .filter(ClipItem.Columns.pinned == false)
-                .fetchAll(db)
-                .filter { $0.effectiveTimestamp < cutoff }
-            let ids = candidates.compactMap { $0.id }
+                .filter(ClipItem.Columns.pinned == false))
+            let ids: [Int64] = rows.compactMap { row in
+                let createdAt: Date = row[ClipItem.Columns.createdAt.name]
+                let lastUsedAt: Date? = row[ClipItem.Columns.lastUsedAt.name]
+                guard ClipItem.effectiveTimestamp(createdAt: createdAt, lastUsedAt: lastUsedAt) < cutoff
+                else { return nil }
+                return row[ClipItem.Columns.id.name]
+            }
+            guard !ids.isEmpty else { return [] }
+            let victims = try ClipItem.fetchAll(db, keys: ids)
             try ClipItem.deleteAll(db, keys: ids)
-            return candidates
+            return victims
         }
         removeSidecarFiles(of: removed)
         return removed
