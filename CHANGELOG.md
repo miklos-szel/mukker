@@ -3,6 +3,84 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] - 2026-11-15
+
+### Added
+- **Name a snippet when you star a clip.** Picking a collection from the preview's star now asks
+  for the snippet's name, prefilled with the clip's first line (selected, so Return accepts it).
+  **New Collection** asks for the collection's name and the snippet's in one dialog, with Create
+  disabled until the collection has a name. The star only flashes once the snippet is really
+  saved, and a failure is shown instead of silently ignored.
+- **Snippets Manager:** a new collection starts with its name ready to type; collections can be
+  renamed and deleted from a right-click menu, snippets deleted the same way; Esc cancels a
+  rename. Imports say how many snippets went into which collection and select it, exports confirm
+  the file with **Show in Finder**, and an empty window or collection offers New Collection,
+  Import… or New Snippet instead of blank columns. The icon-only buttons have tooltips.
+
+### Changed
+- **Settings → Clipboard has been redesigned** as one grouped page like the other tabs: switches
+  instead of checkboxes, one row per kind of history item with its retention period beside it
+  (greyed out while that kind is switched off), and explanations under each setting instead of
+  scattered captions. The item limit can be typed as well as stepped, and **Clear History…**
+  reports when it fails. Settings now use American spelling ("Behavior").
+- **Global shortcuts need ⌘, ⌃ or ⌥.** The shortcut recorder no longer accepts a bare key or
+  ⇧ + key, which would stop you typing that key in every app; it beeps and waits for a modifier
+  (F1–F20 are still allowed on their own). A shortcut you recorded earlier without a modifier
+  keeps working until you record a new one.
+- Snippet and collection names are trimmed and capped at **100 characters**; clearing a name while
+  renaming keeps the previous one instead of saving it blank.
+- With **Keep file lists** switched off, copying files in Finder records nothing — it used to
+  record the file's icon or name instead.
+- Pasting an item from the history no longer records it again as a new copy; it just moves to the
+  top when *Move items to top* is on. Pasted snippets still land in the history as before.
+- Settings color wells are outlined, so a white color stays visible.
+- Copying a large image no longer stalls the app: it is processed in the background, and history
+  thumbnails and the preview are decoded at the size they are drawn.
+- The popup opens faster and searches without re-reading every item on each keystroke; it refreshes
+  once per open rather than once per change, and does no work while it is closed.
+- Clearing out expired history only runs when a retention setting actually changes, and a new
+  database index keeps the history list fast however long it gets.
+- The editor's blur only processes the area around each blur, so drawing stays smooth on large
+  captures.
+
+### Fixed
+- **Recording a new global shortcut takes effect immediately** — it used to re-register the
+  shortcut it replaced. Switching window tiling on or off in Settings no longer works backwards.
+- The shortcut recorder stops listening when you leave the field or the window, so it can no longer
+  swallow keystrokes everywhere in the app.
+- Switching the bandwidth monitor off and on again restarts it, and the menu bar badge shows the
+  latest sample instead of lagging one behind (or sticking on an old non-zero rate).
+- Changing *Allow display sleep* while Keep Awake is on applies straight away instead of after up
+  to 10 seconds.
+- Hiding a calendar in Settings removes its event dots from the month grid at once.
+- **A saved screenshot never overwrites another.** Two saves in the same second get "… 2.png",
+  "… 3.png" instead of replacing each other. When *After screenshot: Save* can't write the file,
+  the capture opens in the editor with an explanation instead of being lost, and the editor's own
+  save says why it failed.
+- Items removed by the history limit disappear from the popup straight away; they used to stay
+  listed and paste nothing.
+- Image and rich-text files left behind by earlier versions with no history item pointing at them
+  are cleaned up at launch. Re-copying text that was first stored without formatting now adds the
+  formatting.
+- A single click in the popup selects a row immediately instead of waiting out the double-click
+  delay.
+
+### Security
+- **Fewer private copies land in history.** With *Ignore items marked as concealed/sensitive* on
+  (the default), copies marked as auto-generated and copies carrying the 1Password app's own marker
+  are skipped along with concealed ones. **Fast append** (double ⌘C) now follows the same rules as
+  ordinary capture: it ignores the apps on your ignore list, sensitive copies and copies made while
+  *Keep plain text* is off, and only merges when the newest history item really is what you just
+  copied.
+- **Copied web content can no longer make Mukker load anything.** HTML on the clipboard is stripped
+  of images, frames, scripts, stylesheets and every other remote reference before it is converted
+  to rich text, and the conversion now only runs for a genuinely new item, with a time limit.
+- **Your history folder is private to your user account.** The database, its images and rich-text
+  files are readable by you only, and existing folders are tightened at launch.
+- **Snippet imports are size-limited**: `.alfredsnippets` bundles over 10 MB uncompressed or with
+  more than 5,000 entries, and Mukker snippet files over 20 MB, are refused before they are
+  unpacked or read.
+
 ## [1.1.1] - 2026-10-06
 
 ### Fixed

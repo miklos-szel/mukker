@@ -118,14 +118,16 @@ and Screen Recording grants — there is no way to migrate those.
 **Layering (strict, top → bottom):** `App` → `Features` → `Core` + `Storage` → `Support`.
 Higher layers may import lower; never the reverse.
 
-**Singleton coordinators.** Long-lived services use `@MainActor static let shared`:
-`AppDatabase`, `SnippetCache`, `ClipboardCache`, `ClipboardSettings`, `CaptureSettings`,
-`ShortcutSettings`, `HotKeyManager`, `ClipboardMonitor`, `ClipboardRetentionService`,
-`FastAppendService`, `ActiveAppTracker`, `PermissionsService`, `LoginItemService`, `Paster`,
-`PopupWindowController`, `CaptureCoordinator`, `ScrollingCaptureService`,
-`EditorWindowController`, `AppIconCache`, `ClipThumbnailCache`, `KeepAwakeSettings`,
-`KeepAwakeService`, `WindowTilingSettings`, `WindowTiler`, `CalendarSettings`,
-`CalendarEventsService`, `HourlyChimeService`, `BandwidthSettings`, `BandwidthService`.
+**Singleton coordinators.** Long-lived services are a `static let shared`, almost all on a
+`@MainActor` type: `SnippetCache`, `ClipboardCache`, `ClipboardSettings`, `CaptureSettings`,
+`ShortcutSettings`, `HotKeyManager`, `ClipboardRetentionService`, `FastAppendService`,
+`PermissionsService`, `LoginItemService`, `PopupWindowController`, `CaptureCoordinator`,
+`ScreenCaptureService`, `ScrollingCaptureService`, `EditorWindowController`, `AppIconCache`,
+`ClipThumbnailCache`, `KeepAwakeSettings`, `KeepAwakeService`, `WindowTilingSettings`,
+`WindowTiler`, `CalendarSettings`, `CalendarEventsService`, `HourlyChimeService`,
+`BandwidthSettings`, `BandwidthService`. Four are plain (non-isolated) classes: `AppDatabase`,
+`ClipboardMonitor` and `Paster` (whose entry points are individually `@MainActor`, and
+`ClipboardMonitor` hands work to a background queue) and `ActiveAppTracker`.
 `AppDelegate.applicationDidFinishLaunching` wires them together — start there to follow runtime
 flow. There is **no SwiftUI `App` type**: its only scene was the old `MenuBarExtra`, so the entry
 point is a plain AppKit `App/App/main.swift`.
@@ -147,15 +149,25 @@ point is a plain AppKit `App/App/main.swift`.
   `fullscreenCombo`, `scrollCombo`, plus `tileLeftCombo`/`tileRightCombo`/`tileTopCombo`/
   `tileBottomCombo`) as `HotKey.KeyCombo`s persisted to `UserDefaults`, and publishes
   `comboChanges` — whose `dropFirst(n)` **must equal the number of merged publishers**, because
-  `@Published` replays on subscribe. **`HotKeyManager`** subscribes to it and re-registers every
-  hotkey on change (the `HotKey` objects must be retained or the shortcuts die). Each shortcut is
+  `@Published` replays on subscribe. `@Published` also emits from `willSet`, *before* the new
+  value is stored, so a subscriber must either use the emitted value or be delivered on a later
+  run-loop pass: **`HotKeyManager`** subscribes with `.receive(on: RunLoop.main)` and then
+  re-registers every hotkey (re-reading synchronously registered the combo being replaced and
+  made the tiling switch work backwards); the `HotKey` objects must be retained or the shortcuts
+  die. The same trap applies to every `objectWillChange`/`$property` sink in the app. Each shortcut is
   a `HotKeyManager.Action` carrying an `isEnabled` closure, so a switched-off feature's combos are
   *not registered* rather than registered-and-ignored — that is what frees ⌃⌘arrows for other
   apps; `start(…, reloadOn:)` takes an extra re-register trigger for a flag living outside
   `ShortcutSettings`. The menu-bar glyphs derive from the same object via
-  `KeyCombo.swiftUIKeyEquivalent`, so menu, settings and live hotkey can never drift — note that
+  `KeyCombo.nsKeyEquivalent`, so menu, settings and live hotkey can never drift — note that
   helper takes the first character of the key's description and so yields a garbage glyph for
   arrow keys; special-case it before putting any arrow-bound action in the menu bar.
+  **`ShortcutRecorderField.isAcceptable`** is the acceptance rule for a *newly recorded* combo:
+  it needs ⌘, ⌃ or ⌥ (bare F1–F20 excepted), since a global hotkey swallows its key in every
+  app. It is enforced only in the recorder — combos already stored are loaded and registered
+  as-is, so a modifier-less one from an older build keeps working until re-recorded. The
+  recorder's app-wide key monitor ends when the field leaves its window, the window resigns key
+  or the button is deallocated.
 - **Menu bar:** one `NSStatusItem` owned by `MenuBarController` (`App/App/MenuBarController.swift`)
   — *not* a SwiftUI `MenuBarExtra`, which in `.menu` style can only hold buttons and text and so
   cannot host the calendar. Order: the calendar, the selected day's event rows, then (while enabled)
@@ -207,7 +219,23 @@ point is a plain AppKit `App/App/main.swift`.
    the next open.
 5. `Paster.paste(_:)` (`@MainActor`) writes to `NSPasteboard.general`, optionally bumps
    `lastUsedAt` (`moveToTopOnUse`), then `ActiveAppTracker.shared.reactivate()` + a CGEvent ⌘V to
-   `cghidEventTap` after ~80 ms. Without AX trust we silently degrade to copy-only.
+   `cghidEventTap` after ~80 ms. Without AX trust we silently degrade to copy-only. `paste(_:)`
+   calls `ClipboardMonitor.suppressNextChange()` after its write so a pasted history item is not
+   re-captured as a fresh copy; `pasteText` (snippets) deliberately still lands in history.
+
+**Popup refreshes.** `PopupViewModel.reset()` and `enter()` rebuild the results **once**, however
+many properties they change. Cache publishes (`objectWillChange`, i.e. before the change) are
+coalesced into one deferred refresh, and skipped entirely while `isPanelVisible` is false —
+`PopupWindowController` keeps that flag in step, and the next show's `reset()` rebuilds anyway.
+The selected text clip's full text is resolved once per selection (`selectedPreview`).
+
+**Star → snippet.** The preview's star asks for names through `SnippetNamePrompt` (modal
+`NSAlert`s with accessory fields — the popup is a non-activating panel, so a SwiftUI sheet is
+unreliable; `PopupWindowController` ignores focus changes during the modal session). The naming
+rule — trim, a blank entry falls back to the default (first non-blank line, 50 chars) or, for a
+rename, keeps the old name, and a **100-character cap** — lives in `SnippetNaming` and is shared
+with the Snippets Manager and the snippet editor. `PopupViewModel.addClip(...)` throws, and the
+star only flashes on success.
 
 **Caches (the snappy path).** `SnippetCache.shared` keeps all collections + snippets in memory;
 `ClipboardCache.shared` keeps the most recent ~500 items. The popup reads exclusively from caches
@@ -215,29 +243,67 @@ point is a plain AppKit `App/App/main.swift`.
 viewmodel write methods call `SnippetCache.shared.loadAll()` after committing;
 `ClipboardMonitor` calls `ClipboardCache.shared.insertNew(_:)` after each insert (a re-copy bumps
 `lastUsedAt` instead — see `persist`). `ClipThumbnailCache` serves image rows/preview so list
-rendering never decodes a full PNG. For text items the cache strips `textContent` above **3 KB**
-(`textInlineThreshold`); the preview pane and `Paster` lazily fetch the full text via
-`ClipboardCache.fullText(for:)`.
+rendering never decodes a full PNG: it decodes through ImageIO's thumbnail API (downsampling
+while decoding) into `NSCache`s. For text items the cache strips `textContent` above **3 KB**
+(`textInlineThreshold`); `PopupViewModel` fetches the full text via `ClipboardCache.fullText(for:)`
+— for the preview (`selectedPreview`) and before handing an item to `Paster`
+(`resolvedForPaste`), which only ever writes what it is given. A capture that trims history
+removes the trimmed rows from `ClipboardCache` too (`remove(id:)`), or the popup would keep
+offering items whose files are gone.
+Search keys are **lowercased copies** of the searched fields, built once per cache change
+(`ClipboardCache` lazily on the first search, `SnippetCache` in `loadAll`), so a keystroke
+lowercases only the query. Keep it `lowercased()` + `contains`, not a `.caseInsensitive` search:
+that folds "ß"/"ss" and ligatures differently and would change which items a query finds.
 
 **Clipboard settings & services.** `ClipboardSettings.shared` is the single source of truth for
 clipboard prefs. It is a `@MainActor ObservableObject` backed by computed properties over
 `UserDefaults` that fire `objectWillChange` on write — **do not** switch these to `@AppStorage`;
 `@AppStorage` inside an observable object does not publish changes. (`CaptureSettings` uses
 `@Published` + `didSet` instead; both patterns are fine, don't unify them for its own sake.)
-- `ClipboardMonitor` reads settings each tick: skips ignored apps, gates each kind on its `keep*`
-  toggle, captures file lists (`.fileURL` → `ClipKind.file`).
-- `ClipboardRetentionService` sweeps hourly (and on settings change) via
-  `ClipboardRepository.purgeOlderThan(kind:cutoff:)`. **Sidecar files** (image PNGs, RTFs) are
-  removed by the repository itself on every deletion path — keep it that way; deleting rows
-  without their files leaks disk.
+- `ClipboardMonitor` reads settings each tick. **`shouldRecord(_:sourceApp:settings:)`** is the
+  one capture policy: not from an ignored app and, with `ignoreConcealedItems` on, not sensitive —
+  a marker type in `sensitiveTypeIdentifiers` (nspasteboard.org Concealed/Transient/AutoGenerated,
+  plus `com.agilebits.onepassword`) or a Chromium source URL from a listed password-manager
+  extension. Then each kind is gated on its `keep*` toggle; a `.fileURL` copy stops there even
+  with `keepFiles` off (Finder also puts the icon and the name on the pasteboard, which must not
+  land as an image or text).
+- **Copied HTML** is passed through `HTMLSanitizer` (strips every element/attribute/CSS construct
+  that could make WebKit's importer load something) and converted to RTF only for a **new**,
+  size-checked, non-duplicate text item, with a 2 s import timeout. A re-copy is only offered
+  native RTF, to fill in a row stored without formatting.
+- **Row first, then sidecar.** `persist` inserts the row and only then writes its PNG/RTF
+  (`AppPaths.writePrivateFile`, deliberately not `.atomic`); a failed required write deletes the
+  row again. That ordering is what makes the launch-time orphan sweep
+  (`ClipboardRepository.removeOrphanedSidecarFiles`, run off main from `AppDelegate`) race-free:
+  every file on disk already has its row. Don't reorder it, and don't write sidecars through a
+  temporary file.
+- **Images are canonicalised off main**: `captureImage` reads the raw bytes on main, re-encodes
+  and hashes on a serial background queue, and hands back with
+  `RunLoop.main.perform(inModes: [.common])` — not `DispatchQueue.main`, which a tracking menu
+  never drains — so copy order is kept and `createdAt` is taken at copy time. The encoder is the
+  **original** NSImage → TIFF → `NSBitmapImageRep` → PNG pipeline on purpose: its bytes' hash is
+  the dedupe key already stored for every image, and ImageIO's encoder produces different bytes
+  (it drops a retina screenshot's `pHYs` chunk), so switching would break dedupe of existing
+  history.
+- `ClipboardRetentionService` sweeps hourly via `ClipboardRepository.purgeOlderThan(kind:cutoff:)`
+  (which picks victims from id/timestamps and fetches full rows only for them), and on settings
+  change **only when a `RetentionSnapshot`** (the three periods + three keep toggles) actually
+  differs — taken after delivery on the run loop, since `objectWillChange` fires before the
+  write. **Sidecar files** (image PNGs, RTFs) are removed by the repository itself on every
+  deletion path — keep it that way; deleting rows without their files leaks disk.
 - `FastAppendService` installs a global ⌘C monitor; a double-tap within 0.5 s appends the copied
   text onto the previous text item, optionally writing the merged result back to the pasteboard
-  (calling `ClipboardMonitor.suppressNextChange()` so we don't re-capture our own write).
+  (calling `ClipboardMonitor.suppressNextChange()` so we don't re-capture our own write). It goes
+  through the same `shouldRecord` policy and `keepText` gate, and merges only when the newest
+  text item's hash is the copied text (otherwise the monitor hasn't recorded it and the merge
+  would hit the wrong item).
 
 **Storage.** GRDB `DatabaseQueue` at `~/Library/Application Support/Mukker/mukker.sqlite`
 (both parts come from `Branding` — see *Naming* above).
 Schema is owned by `AppDatabase.migrator`; add schema via a new `registerMigration("vN")` block,
-never edit an existing one (currently `v1`, `v2_lastUsed`, `v3_richText`). Models (`ClipItem`,
+never edit an existing one (currently `v1`, `v2_lastUsed`, `v3_richText`, `v4_orderIndex` —
+an expression index on `(pinned, COALESCE(lastUsedAt, createdAt))` that the history query and
+trim rely on not to sort the whole table). Models (`ClipItem`,
 `Snippet`, `SnippetCollection`) conform to `FetchableRecord, MutablePersistableRecord` with
 explicit `Columns` enums — use those for type-safe queries, not raw SQL. The Swift type is
 `SnippetCollection` (not `Collection`) to avoid a stdlib clash. Repositories are the only callers
@@ -245,10 +311,14 @@ of `dbQueue`. Clip history is ordered by `pinned DESC, COALESCE(lastUsedAt, crea
 Image items are PNG files under `AppPaths.imagesDirectory`, named by SHA-256 of the PNG bytes (the
 same hash used in `content_hash` for dedupe); `ClipboardMonitor` re-encodes pasteboard TIFF/PNG to
 a canonical PNG before hashing so identical images dedupe regardless of source format.
+The support folder is **owner-only**: directories `0700`, the database, its `-wal`/`-shm` and
+every sidecar `0600` (`AppPaths`); `tightenPermissions(under:)` fixes older trees at launch.
 
 **Import/export.** `.alfredsnippets` is a **read-only** import format (`SnippetBundleImporter`).
-The fixture `AppTests/Fixtures/test.alfredsnippets` (also at the repo root) is the canonical test
-asset and round-trip target. Native export uses our own JSON versioned via the `format` string
+The fixture `AppTests/Fixtures/test.alfredsnippets` is the canonical test asset and round-trip
+target. Imports are bounded before anything is read: a bundle is refused above 10 MB declared
+uncompressed size or 5,000 entries (`SnippetBundleImporter.checkLimits`, before unzipping), a
+native file above 20 MB (`MukkerImporter.maxFileBytes`). Native export uses our own JSON versioned via the `format` string
 (`Branding.snippetExportFormat`). `SnippetRepository.importCollection` is **idempotent by
 (collection name, snippet uid)** — re-importing the same file must not create duplicates.
 
@@ -257,7 +327,10 @@ asset and round-trip target. Native export uses our own JSON versioned via the `
 **Capture flow:** hotkey/menu → `CaptureCoordinator` → `PermissionsService.ensureScreenRecording()`
 → `ScreenCaptureService` grabs the display as a frozen `CGImage` → `SelectionOverlayWindow` lets
 the user drag a region → crop the frozen image → routed by `CaptureSettings.afterCapture`
-(show/copy/save) in `AppDelegate.handleCapture`.
+(show/copy/save) in `AppDelegate.handleCapture`. `ImageExporter.saveSilently` returns a
+`Result` and **never overwrites** — a taken name gets " 2", " 3", … and the write uses
+`.withoutOverwriting`. A failed after-capture save opens the capture in the editor with an alert;
+the editor's own save flashes the error. Don't drop the failure on the floor.
 
 **Editor model:** annotations are value types in an ordered array on `EditorViewModel`; the canvas
 (`FlatCanvas`) is a `ZStack` of a white matte + the base image + an `AnnotationLayer` (a single
@@ -276,7 +349,9 @@ toggle is on.
 - **Editor vs export look:** on screen the non-exported surround is a transparency `Checkerboard`;
   `FlatCanvas`'s white matte makes the same region export white.
 - **Blur** obscures the composite beneath it via a `GraphicsContext` blur filter in
-  `AnnotationLayer.drawBlur(_:below:)` — it does not erase what's under it. There is no
+  `AnnotationLayer.drawBlur(_:below:)` — it does not erase what's under it. Its source is
+  clipped to the blur rect grown by `blurSourceMargin` (3) blur radii, so the filter never
+  processes the whole image per redraw. There is no
   pre-rendered pixelated layer: the old `ImageEffects.pixellate` → `pixelatedBase` →
   `AnnotationCanvas.pixelatedImage` chain was dead (the canvas stored the image and never drew
   it) and has been removed.
@@ -403,8 +478,8 @@ Things that are load-bearing and easy to undo:
   place.
 - `CalendarSettings.hiddenCalendarIDs` stores the calendars to **hide**, not to show, so one
   subscribed to later appears by default instead of silently going missing.
-- **The hourly chime** (`HourlyChimeService`, `Core/`) is the app's only sound and its only
-  CoreAudio caller. Same absolute-deadline discipline as the day rollover: a one-shot timer armed
+- **The hourly chime** (`HourlyChimeService`, `Core/`) is the app's only CoreAudio caller (the
+  other sound, fast-append's optional "Purr", is a plain `NSSound` on the effects device). Same absolute-deadline discipline as the day rollover: a one-shot timer armed
   on the top of the coming hour (at second **1**, so an early fire can't read the previous hour),
   re-armed after every fire and on `.NSSystemClockDidChange`/`didWakeNotification` — never a
   repeating one-hour timer, which drifts away from the hour with each sleep. A fire outside the

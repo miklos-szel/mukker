@@ -41,12 +41,12 @@ window to half the screen.
 </p>
 
 - **Clipboard history** — text (incl. **rich text**/formatting), images, and file lists, with per-kind retention and a max-items cap.
-- **Snippets** — organize reusable text into collections; import `.alfredsnippets` snippet bundles and export/import Mukker's own JSON.
+- **Snippets** — organize reusable text into collections; import `.alfredsnippets` snippet bundles and export/import Mukker's own JSON. Names are capped at 100 characters, and oversized imports are refused before they are unpacked (bundles over 10 MB uncompressed or 5,000 entries, Mukker files over 20 MB).
 - **Fast popup** (⌘E) — a single searchable list of snippets + history; reads from an in-memory cache so it opens instantly. Press the shortcut again to close. History lazy-loads in pages of 50; search spans everything.
-- **Fast append** — double-tap ⌘C to merge the new copy onto the previous text item.
-- **Star a clip into snippets** right from the preview.
+- **Fast append** — double-tap ⌘C to merge the new copy onto the previous text item. It follows the same privacy rules as ordinary capture.
+- **Star a clip into snippets** right from the preview — pick a collection (or create one) and name the snippet; the name is prefilled with the clip's first line.
 - **Forever history** *(optional, off by default)* — archives text items as `.txt` files before they're deleted.
-- **Privacy** — ignores configured apps (password managers preloaded), skips concealed/sensitive copies, and respects a max clip size. **Clear History…** wipes unpinned items on demand.
+- **Privacy** — ignores configured apps (password managers preloaded) and respects a max clip size. With *Ignore items marked as concealed/sensitive* on (the default) it also skips copies that apps mark as concealed, transient or auto-generated, copies carrying the 1Password app's marker, and copies from the password-manager browser extensions listed in Settings. Copied HTML is stripped of images, scripts and other remote references before it is turned into rich text, so a copy never makes Mukker load anything. **Clear History…** wipes unpinned items on demand.
 - **Screen-relative popup size** (30%–90% of your display) and a **customizable popup appearance** — background color plus a colored bezel with adjustable width.
 
 ### Capture & annotation
@@ -123,15 +123,19 @@ Every feature set has its own tab; Hotkeys, Permissions and About are shared.
 | Esc | Close |
 
 The popup and capture shortcuts are configurable in **Settings → Hotkeys**; the four tiling
-shortcuts live in **Settings → Windows**, next to the switch that turns them on and off. The
-calendar has no shortcut — it is the menu bar item itself.
+shortcuts live in **Settings → Windows**, next to the switch that turns them on and off. A new
+shortcut has to include ⌘, ⌃ or ⌥ (F1–F20 may be used on their own), since a global shortcut
+takes its key away from every other app; one recorded before 1.2.0 without a modifier keeps
+working until you record a new one. The calendar has no shortcut — it is the menu bar item itself.
 
 ## Where your data lives
 
 Clipboard history and snippets are stored in a SQLite database at
 `~/Library/Application Support/Mukker/mukker.sqlite`, with image and rich-text sidecar files
-alongside it. Saved screenshots go wherever you point **Settings → Capture → Screenshots folder**,
-defaulting to the Desktop.
+alongside it. The folder is readable by your user account only (folders `0700`, files `0600`;
+Mukker tightens an existing folder at launch). Saved screenshots go wherever you point
+**Settings → Capture → Screenshots folder**, defaulting to the Desktop, and never overwrite an
+existing file — a second save in the same second is numbered (`… 2.png`).
 
 Upgrading from a build older than 0.5.0, which stored its data under a different name? **Nothing is
 carried over automatically** — 0.6.0 removed the one-shot migration. The old folder is left
@@ -147,7 +151,7 @@ buttons for both).
 ## Permissions
 
 One **Accessibility** grant covers everything that needs it: pasting into the active app,
-double-⌘C merging, and auto-scrolling during scrolling capture. **Screen Recording** is
+double-⌘C merging, auto-scrolling during scrolling capture, and window tiling. **Screen Recording** is
 additionally required for capture. Both are shown live, with grant buttons, in
 **Settings → Permissions**.
 
