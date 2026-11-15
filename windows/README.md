@@ -13,9 +13,9 @@ Builds for Windows on ARM (arm64) and x64.
 
 ### Tray icon
 
-- **Left click** for the actions: translate to English or Hungarian, the clipboard popup, the
-  Snippets Manager, Clear History, and the three captures — each with its shortcut beside it.
-- **Right click** for **Settings** and **Quit**.
+- **Left click** for the actions: translate to English or Hungarian, the clipboard popup and the
+  three captures — each with its shortcut beside it.
+- **Right click** for the **Snippets Manager**, **Clear History**, **Settings** and **Quit**.
 - **Hourly chime** (off by default, **Settings → About**):
   - any sound from `C:\Windows\Media`
   - only between the hours you choose

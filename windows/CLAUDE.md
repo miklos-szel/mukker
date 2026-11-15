@@ -115,12 +115,13 @@ scripts/vm.sh log
   - Crop flattens the inside of the rect into the new base image.
   - `ImageOutput.Save` never overwrites (`FileMode.CreateNew` + " 2", " 3"…).
 - **Tray icon:**
-  - The app icon (`Assets/mukker.ico`, 16–256 px frames made from the Mac's `AppIcon` 1024 px
-    PNG), reloaded at `SmallIconSize` on DPI/theme change so Windows uses a real frame, not a
-    scaled one.
+  - The app icon (`Assets/mukker.ico`), drawn per size by `../scripts/make-icons.py` together
+    with the Mac `AppIcon` — edit the design there, never the .ico. Reloaded at `SmallIconSize` on
+    DPI/theme change so Windows uses a real frame, not a scaled one.
   - Left click shows the actions menu through NotifyIcon's own `ShowContextMenu` (reflection) — a
     plain `ContextMenuStrip.Show()` doesn't take foreground and then never closes on an outside
-    click. Right click is the Settings/Quit menu.
+    click. Left click = actions (translate, popup, captures); right click = Snippets Manager, Clear
+    History, Settings, Quit.
 - **Frozen identifiers:** `AppPaths.SupportFolderName`/`DatabaseFileName` and
   `MukkerSnippetsJson.CurrentFormat` — renaming them orphans data or breaks import compatibility
   with the Mac app.

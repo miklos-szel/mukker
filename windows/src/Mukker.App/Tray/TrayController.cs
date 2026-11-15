@@ -9,8 +9,8 @@ using Mukker.Core.Translate;
 namespace Mukker.App.Tray;
 
 /// <summary>
-/// The notification-area icon: the Mukker app icon. Left click opens the actions menu (translate, clipboard,
-/// capture); right click opens Settings and Quit. Both menus are rebuilt on every open, so shortcut hints and
+/// The notification-area icon: the Mukker app icon. Left click opens the actions menu (translate, the clipboard
+/// popup, capture); right click opens the management menu (Snippets Manager, Clear History, Settings, Quit). Both menus are rebuilt on every open, so shortcut hints and
 /// the translate switch are never stale. There is no calendar — Windows has its own in the taskbar clock.
 /// </summary>
 internal sealed class TrayController : IDisposable
@@ -72,7 +72,7 @@ internal sealed class TrayController : IDisposable
 
     private static ContextMenuStrip NewMenu() => new() { ShowImageMargin = false, Font = new Font("Segoe UI", 9f) };
 
-    /// <summary>The left-click menu: what Mukker does.</summary>
+    /// <summary>The left-click menu: the things Mukker does.</summary>
     public void ShowActionsMenu()
     {
         var menu = NewMenu();
@@ -127,8 +127,6 @@ internal sealed class TrayController : IDisposable
         }
 
         menu.Items.Add(new ToolStripMenuItem("Clipboard && Snippets", null, (_, _) => _host.Popup.Show()) { ShortcutKeyDisplayString = Keys(s.Shortcuts.Popup) });
-        menu.Items.Add(new ToolStripMenuItem("Snippets Manager…", null, (_, _) => _host.OpenSnippetsManager()));
-        menu.Items.Add(new ToolStripMenuItem("Clear History…", null, (_, _) => ClearHistory()));
         menu.Items.Add(new ToolStripSeparator());
 
         menu.Items.Add(new ToolStripMenuItem("Capture Area", null, (_, _) => _host.Capture.CaptureArea()) { ShortcutKeyDisplayString = Keys(s.Shortcuts.Area) });
@@ -139,6 +137,9 @@ internal sealed class TrayController : IDisposable
     private void FillSettingsMenu(ContextMenuStrip menu)
     {
         menu.Items.Clear();
+        menu.Items.Add(new ToolStripMenuItem("Snippets Manager…", null, (_, _) => _host.OpenSnippetsManager()));
+        menu.Items.Add(new ToolStripMenuItem("Clear History…", null, (_, _) => ClearHistory()));
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Settings…", null, (_, _) => _host.OpenSettings()));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(new ToolStripMenuItem("Quit Mukker", null, (_, _) => _host.Quit()));
