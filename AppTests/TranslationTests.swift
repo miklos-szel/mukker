@@ -316,17 +316,23 @@ final class TranslationTests: XCTestCase {
 
     // MARK: - Languages and backends
 
-    func testLanguageOtherAndLabels() {
-        XCTAssertEqual(TranslationLanguage.english.other, .hungarian)
-        XCTAssertEqual(TranslationLanguage.hungarian.other, .english)
+    func testLanguageLabels() {
+        XCTAssertEqual(TranslationLanguage.allCases, [.english, .hungarian, .german])
         XCTAssertEqual(TranslationLanguage.english.label, "English")
         XCTAssertEqual(TranslationLanguage.hungarian.label, "Hungarian")
+        XCTAssertEqual(TranslationLanguage.german.label, "German")
+    }
+
+    /// The prompt names the target by its English label.
+    func testPromptNamesGerman() {
+        XCTAssertTrue(TranslationService.prompt(text: "Hallo", language: .german).contains("German"))
     }
 
     func testLanguageShortCodes() {
         XCTAssertEqual(TranslationLanguage(shortCode: "en"), .english)
         XCTAssertEqual(TranslationLanguage(shortCode: "HU"), .hungarian)
-        XCTAssertNil(TranslationLanguage(shortCode: "de"))
+        XCTAssertEqual(TranslationLanguage(shortCode: "de"), .german)
+        XCTAssertNil(TranslationLanguage(shortCode: "fr"))
     }
 
     func testBackendDefaults() {
@@ -400,6 +406,8 @@ final class TranslationTests: XCTestCase {
         XCTAssertEqual(count, 0)
         settings.translateHungarianCombo = KeyCombo(key: .t, modifiers: [.command, .control])
         XCTAssertEqual(count, 1)
+        settings.translateGermanCombo = KeyCombo(key: .g, modifiers: [.command, .control])
+        XCTAssertEqual(count, 2)
         cancellable.cancel()
     }
 }

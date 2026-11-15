@@ -26,6 +26,7 @@ final class ShortcutSettings: ObservableObject {
 
     @Published var translateEnglishCombo: KeyCombo { didSet { defaults.set(translateEnglishCombo.dictionary, forKey: K.translateEnglish) } }
     @Published var translateHungarianCombo: KeyCombo { didSet { defaults.set(translateHungarianCombo.dictionary, forKey: K.translateHungarian) } }
+    @Published var translateGermanCombo: KeyCombo { didSet { defaults.set(translateGermanCombo.dictionary, forKey: K.translateGerman) } }
 
     static let defaultPopupCombo = KeyCombo(key: .e, modifiers: [.command])
     static let defaultAreaCombo = KeyCombo(key: .four, modifiers: [.command, .shift, .control])
@@ -41,6 +42,7 @@ final class ShortcutSettings: ObservableObject {
 
     static let defaultTranslateEnglishCombo = KeyCombo(key: .e, modifiers: [.command, .shift])
     static let defaultTranslateHungarianCombo = KeyCombo(key: .e, modifiers: [.command, .option])
+    static let defaultTranslateGermanCombo = KeyCombo(key: .e, modifiers: [.command, .control])
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -57,6 +59,7 @@ final class ShortcutSettings: ObservableObject {
 
         translateEnglishCombo = Self.combo(from: defaults, key: K.translateEnglish) ?? Self.defaultTranslateEnglishCombo
         translateHungarianCombo = Self.combo(from: defaults, key: K.translateHungarian) ?? Self.defaultTranslateHungarianCombo
+        translateGermanCombo = Self.combo(from: defaults, key: K.translateGerman) ?? Self.defaultTranslateGermanCombo
     }
 
     /// Emits whenever any combo changes — the manager's re-register signal.
@@ -68,7 +71,7 @@ final class ShortcutSettings: ObservableObject {
     var comboChanges: AnyPublisher<Void, Never> {
         let publishers = [$popupCombo, $areaCombo, $fullscreenCombo, $scrollCombo,
                           $tileLeftCombo, $tileRightCombo, $tileTopCombo, $tileBottomCombo,
-                          $translateEnglishCombo, $translateHungarianCombo]
+                          $translateEnglishCombo, $translateHungarianCombo, $translateGermanCombo]
             .map { $0.map { _ in () }.eraseToAnyPublisher() }
         return Publishers.MergeMany(publishers)
             .dropFirst(publishers.count)
@@ -86,6 +89,7 @@ final class ShortcutSettings: ObservableObject {
         tileBottomCombo = Self.defaultTileBottomCombo
         translateEnglishCombo = Self.defaultTranslateEnglishCombo
         translateHungarianCombo = Self.defaultTranslateHungarianCombo
+        translateGermanCombo = Self.defaultTranslateGermanCombo
     }
 
     private static func combo(from defaults: UserDefaults, key: String) -> KeyCombo? {
@@ -104,5 +108,6 @@ final class ShortcutSettings: ObservableObject {
         static let tileBottom = "tileBottomCombo"
         static let translateEnglish = "translateEnglishCombo"
         static let translateHungarian = "translateHungarianCombo"
+        static let translateGerman = "translateGermanCombo"
     }
 }

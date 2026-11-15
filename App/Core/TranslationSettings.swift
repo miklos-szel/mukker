@@ -8,6 +8,7 @@ import SwiftUI
 enum TranslationLanguage: String, CaseIterable, Identifiable {
     case english
     case hungarian
+    case german
 
     var id: String { rawValue }
 
@@ -18,25 +19,17 @@ enum TranslationLanguage: String, CaseIterable, Identifiable {
         switch self {
         case .english: return "English"
         case .hungarian: return "Hungarian"
+        case .german: return "German"
         }
     }
 
-    /// The panel offers a one-click re-translation into the other language, so
-    /// a wrong hotkey costs one click rather than another round trip through
-    /// the clipboard.
-    var other: TranslationLanguage {
-        switch self {
-        case .english: return .hungarian
-        case .hungarian: return .english
-        }
-    }
-
-    /// Accepts the short codes the `MUKKER_TRANSLATE=en|hu` debug hook uses,
+    /// Accepts the short codes the `MUKKER_TRANSLATE=en|hu|de` debug hook uses,
     /// so a scripted run doesn't have to spell out the case name.
     init?(shortCode: String) {
         switch shortCode.lowercased() {
         case "en": self = .english
         case "hu": self = .hungarian
+        case "de": self = .german
         default: return nil
         }
     }

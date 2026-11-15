@@ -13,7 +13,7 @@ Builds for Windows on ARM (arm64) and x64.
 
 ### Tray icon
 
-- **Left click** for the actions: translate to English or Hungarian, the clipboard popup and the
+- **Left click** for the actions: translate to English, Hungarian or German, the clipboard popup and the
   three captures — each with its shortcut beside it.
 - **Right click** for the **Snippets Manager**, **Clear History**, **Settings** and **Quit**.
 - **Hourly chime** (off by default, **Settings → About**):
@@ -76,7 +76,7 @@ Builds for Windows on ARM (arm64) and x64.
 
 ### Translate
 
-- **Ctrl+Shift+E** → English, **Ctrl+Shift+H** → Hungarian.
+- **Ctrl+Shift+E** → English, **Ctrl+Shift+H** → Hungarian, **Ctrl+Shift+G** → German.
 - **The source:** the text selected in the focused app, read through UI Automation and never
   copied. With nothing selected (or in an app that doesn't expose its selection), it uses the
   newest clipboard history item. Chromium-based browsers (Chrome, Edge, Brave…) and Electron apps
@@ -86,7 +86,7 @@ Builds for Windows on ARM (arm64) and x64.
   signed in with your own subscription. Mukker stores no API key.
 - **The result** shows in a floating panel and is copied to the clipboard. Its buttons:
   - **Copy**
-  - **Translate to English / Hungarian** (Ctrl+Enter repeats the current language)
+  - **Translate to English / Hungarian / German** (Ctrl+Enter repeats the current language)
   - **Close**
 - **Editable source:** type or paste into the original text and press Ctrl+Enter (or a Translate
   button) to translate it. While it holds text you haven't translated yet, Esc no longer closes the

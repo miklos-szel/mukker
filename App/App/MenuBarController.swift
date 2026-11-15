@@ -30,6 +30,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         /// memberwise initialiser call in `AppDelegate` untouched.
         var translateToEnglish: () -> Void = {}
         var translateToHungarian: () -> Void = {}
+        var translateToGerman: () -> Void = {}
 #if DEBUG
         /// Defaulted so the memberwise initialiser stays identical in both
         /// configurations — the debug item is filled in by `AppDelegate`.
@@ -341,6 +342,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             clipboardItems.append(ActionMenuItem("Translate Selection or Latest to Hungarian",
                                                  combo: shortcuts.translateHungarianCombo,
                                                  handler: actions.translateToHungarian))
+            clipboardItems.append(ActionMenuItem("Translate Selection or Latest to German",
+                                                 combo: shortcuts.translateGermanCombo,
+                                                 handler: actions.translateToGerman))
         }
         items.append(submenu("Clipboard & Snippets", of: clipboardItems))
 

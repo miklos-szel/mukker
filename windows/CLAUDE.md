@@ -40,7 +40,7 @@ Keep the split: anything testable without Windows belongs in Core.
 dotnet build                 # builds on macOS thanks to EnableWindowsTargeting
 scripts/publish.sh           # dist/win-arm64 + dist/win-x64 single-file Mukker.exe
 scripts/vm.sh deploy         # push the arm64 build into the UTM VM "Mukker Win11"
-scripts/vm.sh run [popup|settings:<tab>|snippets|menu|menu-right|editor|translate-en|translate-hu]
+scripts/vm.sh run [popup|settings:<tab>|snippets|menu|menu-right|editor|translate-en|translate-hu|translate-de]
 scripts/vm.sh shot out.png   # screenshot the VM desktop
 scripts/vm.sh log
 ```

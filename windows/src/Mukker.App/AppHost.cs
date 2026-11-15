@@ -93,6 +93,8 @@ public sealed class AppHost : IDisposable
             () => Settings.Current.Translation.Enabled, () => Translation.Request(Core.Translate.TranslationLanguage.English)));
         HotKeys.Add(new("Translate to Hungarian", () => Settings.Current.Shortcuts.TranslateHungarian,
             () => Settings.Current.Translation.Enabled, () => Translation.Request(Core.Translate.TranslationLanguage.Hungarian)));
+        HotKeys.Add(new("Translate to German", () => Settings.Current.Shortcuts.TranslateGerman,
+            () => Settings.Current.Translation.Enabled, () => Translation.Request(Core.Translate.TranslationLanguage.German)));
         HotKeys.ReRegister();
 
         Monitor.Start();
@@ -145,6 +147,7 @@ public sealed class AppHost : IDisposable
                 case "editor": EditorWindow.OpenSample(this); break;
                 case "translate-en": Translation.Request(Core.Translate.TranslationLanguage.English); break;
                 case "translate-hu": Translation.Request(Core.Translate.TranslationLanguage.Hungarian); break;
+                case "translate-de": Translation.Request(Core.Translate.TranslationLanguage.German); break;
             }
         });
     }

@@ -230,6 +230,7 @@ public sealed class ShortcutSettings
     public KeyCombo? Scrolling { get; set; } = new(KeyModifiers.Control | KeyModifiers.Shift, 0x35);
     public KeyCombo? TranslateEnglish { get; set; } = new(KeyModifiers.Control | KeyModifiers.Shift, 0x45);
     public KeyCombo? TranslateHungarian { get; set; } = new(KeyModifiers.Control | KeyModifiers.Shift, 0x48);
+    public KeyCombo? TranslateGerman { get; set; } = new(KeyModifiers.Control | KeyModifiers.Shift, 0x47);
 
     public static ShortcutSettings Defaults() => new();
 

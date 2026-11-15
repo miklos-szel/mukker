@@ -365,6 +365,7 @@ internal sealed class SettingsWindow : Window
             "Translates the selected text, or with nothing selected the newest clipboard item, and shows it in a panel.");
         ShortcutRow(g, "Translate to English", s => s.TranslateEnglish, (s, v) => s.TranslateEnglish = v);
         ShortcutRow(g, "Translate to Hungarian", s => s.TranslateHungarian, (s, v) => s.TranslateHungarian = v);
+        ShortcutRow(g, "Translate to German", s => s.TranslateGerman, (s, v) => s.TranslateGerman = v);
         Caption(g, "They work even when Mukker isn't focused; pressing one again while the panel is open closes it — or, once you've edited the text in the panel, translates that instead.");
         Toggle(g, "Copy the translation to the clipboard", s => s.Translation.CopiesResult, (s, v) => s.Translation.CopiesResult = v);
         Caption(g, "A selection is read without copying it, so it never enters the clipboard or its history. Chromium-based browsers and Electron apps build their accessibility data only when asked, so the first press in such an app can take a second or two; apps that don't expose a selection get the clipboard text.");

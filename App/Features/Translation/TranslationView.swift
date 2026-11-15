@@ -140,11 +140,22 @@ struct TranslationView: View {
         HStack(spacing: 8) {
             Button("Copy", action: copy)
                 .disabled(translation == nil)
-            Button("Translate to \(targetLanguage.label)") { retranslate(to: targetLanguage) }
-                .disabled(!canRetranslate)
-                .help("⌘↩")
-            Button("Translate to \(targetLanguage.other.label)") { retranslate(to: targetLanguage.other) }
-                .disabled(!canRetranslate)
+            // One button per language, so a wrong hotkey costs one click. The
+            // last request's language is the default one — ⌘↩ repeats it.
+            Text("Translate to")
+                .foregroundStyle(PopupTheme.secondaryText)
+                .padding(.leading, 6)
+            ForEach(TranslationLanguage.allCases) { language in
+                if language == targetLanguage {
+                    Button(language.label) { retranslate(to: language) }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canRetranslate)
+                        .help("⌘↩")
+                } else {
+                    Button(language.label) { retranslate(to: language) }
+                        .disabled(!canRetranslate)
+                }
+            }
             Spacer()
             if service.isDraftEdited {
                 Text("Edited — Esc keeps it open")

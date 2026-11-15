@@ -30,6 +30,9 @@ struct TranslatePane: View {
                 LabeledContent("Translate selection or latest to Hungarian") {
                     ShortcutRecorderField(combo: $shortcuts.translateHungarianCombo).frame(width: 160)
                 }
+                LabeledContent("Translate selection or latest to German") {
+                    ShortcutRecorderField(combo: $shortcuts.translateGermanCombo).frame(width: 160)
+                }
             } header: {
                 Text("Shortcuts")
             } footer: {
@@ -132,7 +135,7 @@ struct TranslatePane: View {
     private var overviewFooter: String {
         let backend = settings.backend
         let source = "Translates the text selected in the frontmost app — or, with nothing "
-            + "selected, the newest text in the clipboard history — into English or Hungarian, "
+            + "selected, the newest text in the clipboard history — into English, Hungarian or German, "
             + "shows it in a small panel and copies the translation."
         let selection = "A selection is read without copying it, so it never enters the "
             + "clipboard or its history. Reading it needs the Accessibility permission "
