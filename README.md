@@ -1,8 +1,8 @@
 # Mukker
 
 A native macOS menu-bar utility that combines a **calendar**, **clipboard history**, **text
-snippets**, **screen capture with annotation**, **window tiling**, a **bandwidth monitor** and
-**keeping your Mac awake** in one app. The menu bar shows today's date and drops down a month calendar with the day's
+snippets**, **screen capture with annotation**, **window tiling**, a **bandwidth monitor**,
+**translation of what you just copied** and **keeping your Mac awake** in one app. The menu bar shows today's date and drops down a month calendar with the day's
 events; a quick popup on a global shortcut pastes back into the app you were just using; a
 capture shortcut opens a screenshot in a full annotation editor; a ⌃⌘arrow snaps the frontmost
 window to half the screen.
@@ -80,6 +80,21 @@ window to half the screen.
   submenu, with the active interface checked. Today by default; this week and this month can be
   switched on. VPN tunnels aren't counted twice, and only traffic while Mukker runs is recorded.
 
+### Translate
+
+- **Translate what you just copied** — ⌘⇧E into English, ⌘⌥E into Hungarian. The newest text in
+  the clipboard history is translated (the source language is detected), shown in a small floating
+  panel next to the original, and copied so you can paste it straight away. A button in the panel
+  redoes it in the other language.
+- **Uses the subscription you already have, no API key.** Mukker hands the text to a command-line
+  tool signed in with your own account: the **Codex CLI** for ChatGPT (`brew install codex`, then
+  `codex login`) or the **Claude Code CLI** for Claude. Pick the engine, and optionally a model or
+  the tool's path, in **Settings → Translate**.
+- **Only what is in your history is ever sent**, and only when you press the shortcut — text from
+  ignored apps or marked as concealed never gets there. The text goes to OpenAI or Anthropic
+  through that tool and counts against that plan.
+- Switch it off in Settings and both shortcuts are released back to other apps.
+
 ### Keep awake
 
 - **Stop the Mac idling to sleep** while a long job runs — one click in the menu bar, no Terminal.
@@ -114,6 +129,7 @@ Every feature set has its own tab; Hotkeys, Permissions and About are shared.
 | ⌃⇧⌘4 / ⌃⇧⌘3 / ⌃⇧⌘5 | Capture area / screen / scrolling |
 | ⌃⌘← / ⌃⌘→ | Tile the frontmost window to the left / right half |
 | ⌃⌘↓ / ⌃⌘↑ | Tile the frontmost window to the top / bottom half |
+| ⌘⇧E / ⌘⌥E | Translate the latest clipboard text into English / Hungarian |
 | ↑ / ↓ | Move selection in the popup |
 | Return | Paste selected item (with formatting) |
 | ⌘⇧V | Paste **without** formatting (plain text) |
@@ -123,7 +139,8 @@ Every feature set has its own tab; Hotkeys, Permissions and About are shared.
 | Esc | Close |
 
 The popup and capture shortcuts are configurable in **Settings → Hotkeys**; the four tiling
-shortcuts live in **Settings → Windows**, next to the switch that turns them on and off. A new
+shortcuts live in **Settings → Windows** and the two translate shortcuts in
+**Settings → Translate**, each next to the switch that turns them on and off. A new
 shortcut has to include ⌘, ⌃ or ⌥ (F1–F20 may be used on their own), since a global shortcut
 takes its key away from every other app; one recorded before 1.2.0 without a modifier keeps
 working until you record a new one. The calendar has no shortcut — it is the menu bar item itself.

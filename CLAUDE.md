@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Mukker is a native macOS menu-bar utility combining six feature sets — two of which used to be
+Mukker is a native macOS menu-bar utility combining seven feature sets — two of which used to be
 separate apps:
 
 - **Clipboard history + snippets** (with rich-text support; no auto-expansion). A global shortcut
@@ -30,6 +30,11 @@ separate apps:
   drawn as an inverted badge to the *left* of the date glyph (`↓1,1 ↑0,3 Mbps`), sampled every
   **5 s** by default; plus per-interface transfer totals (today, optionally this week/month) in a
   *Network* submenu. Needs no permissions and never touches the database.
+- **Translate.** Two global shortcuts (⌘⇧E → English, ⌘⌥E → Hungarian by default) send the newest
+  text entry of the clipboard history to a command-line client signed in with the user's own
+  subscription — the Codex CLI (ChatGPT, the default) or the Claude Code CLI — and show the
+  result in a floating panel, copying it to the clipboard. No API key, no permissions; it is the
+  only feature that sends anything off the Mac and the only one that spawns a process.
 
 The sides are deliberately independent at runtime. The only things they share are
 `PermissionsService`, `HotKeyManager`/`ShortcutSettings`, `Log`, `AppPaths`, `Branding`, the
@@ -125,7 +130,8 @@ Higher layers may import lower; never the reverse.
 `ScreenCaptureService`, `ScrollingCaptureService`, `EditorWindowController`, `AppIconCache`,
 `ClipThumbnailCache`, `KeepAwakeSettings`, `KeepAwakeService`, `WindowTilingSettings`,
 `WindowTiler`, `CalendarSettings`, `CalendarEventsService`, `HourlyChimeService`,
-`BandwidthSettings`, `BandwidthService`. Four are plain (non-isolated) classes: `AppDatabase`,
+`BandwidthSettings`, `BandwidthService`, `TranslationSettings`, `TranslationService`,
+`TranslationPanelController`. Four are plain (non-isolated) classes: `AppDatabase`,
 `ClipboardMonitor` and `Paster` (whose entry points are individually `@MainActor`, and
 `ClipboardMonitor` hands work to a background queue) and `ActiveAppTracker`.
 `AppDelegate.applicationDidFinishLaunching` wires them together — start there to follow runtime
@@ -145,9 +151,9 @@ point is a plain AppKit `App/App/main.swift`.
   read-only and feeds the menu bar calendar's event rows; requesting it without
   `NSCalendarsFullAccessUsageDescription` in `project.yml` terminates the app.
   Don't add a second permissions type.
-- **`ShortcutSettings`** holds all eight global combos (`popupCombo`, `areaCombo`,
-  `fullscreenCombo`, `scrollCombo`, plus `tileLeftCombo`/`tileRightCombo`/`tileTopCombo`/
-  `tileBottomCombo`) as `HotKey.KeyCombo`s persisted to `UserDefaults`, and publishes
+- **`ShortcutSettings`** holds all ten global combos (`popupCombo`, `areaCombo`,
+  `fullscreenCombo`, `scrollCombo`, `tileLeftCombo`/`tileRightCombo`/`tileTopCombo`/
+  `tileBottomCombo`, plus `translateEnglishCombo`/`translateHungarianCombo`) as `HotKey.KeyCombo`s persisted to `UserDefaults`, and publishes
   `comboChanges` — whose `dropFirst(n)` **must equal the number of merged publishers**, because
   `@Published` replays on subscribe. `@Published` also emits from `willSet`, *before* the new
   value is stored, so a subscriber must either use the emitted value or be delivered on a later
@@ -180,11 +186,11 @@ point is a plain AppKit `App/App/main.swift`.
   equivalents only fire while the menu is open, so they advertise the global hotkey rather than
   competing with it.
 - **Settings:** one `TabView` (`Features/Settings/SettingsWindow.swift`) — `ClipboardPane`,
-  `CapturePane`, `KeepAwakePane`, `WindowTilingPane`, `CalendarPane`, `NetworkPane`, `HotkeysPane`,
-  `PermissionsPane`, `AboutPane`. The first six are per-feature-set; the last three are shared. Add a
+  `CapturePane`, `KeepAwakePane`, `WindowTilingPane`, `CalendarPane`, `NetworkPane`, `TranslatePane`,
+  `HotkeysPane`, `PermissionsPane`, `AboutPane`. The first seven are per-feature-set; the last three are shared. Add a
   feature-specific setting to its own pane, not to the shared ones. (`WindowTilingPane` keeps its
   four shortcut recorders next to its on/off switch rather than in `HotkeysPane`, since the switch
-  is what decides whether they exist — but *not* the Accessibility grant it needs: permissions are
+  is what decides whether they exist, and `TranslatePane` does the same with its two — but *not* the Accessibility grant it needs: permissions are
   granted and shown in `PermissionsPane` only, never duplicated into a feature pane.)
 
 ### Clipboard & snippets
@@ -526,6 +532,51 @@ and `refreshInterval`. The pure halves — `BandwidthFormat`, `NetworkCounters.d
   interface (`State:/Network/Global/IPv4` → `PrimaryInterface`) gets the native checkmark. While
   the submenu is open their titles are rewritten on each sample.
 
+### Translate
+
+`TranslationService` (`Core/`) is the only thing in the app that spawns a process;
+`TranslationSettings` holds the switch, the backend (`TranslationBackend`: `.codex` default,
+`.claude`) and a path override and model **per backend**; `TranslationPanelController` +
+`TranslationView` (`Features/Translation/`) are the floating result panel. The pure halves — prompt,
+argument lists, executable resolution, environment, error mapping, `latestTextItem` — are
+`nonisolated static` and covered by `AppTests/TranslationTests.swift`; the child process and the
+panel are verified by hand (`MUKKER_TRANSLATE=en|hu`).
+
+- **The source is the clipboard history, never `NSPasteboard.general`.** History already honours
+  the capture policy (ignored apps, concealed/transient items), so a password that was never
+  recorded can never be sent by a stray hotkey. "Latest" is the newest **text** item by
+  `effectiveTimestamp`, not `items.first` — pinned items sort first. Full text comes from
+  `ClipboardCache.fullText(for:)` (the cache strips text above 3 KB).
+- **Both CLIs get the text on stdin and their arguments as an array** — never a shell string, so
+  there is no argument-length limit and no quoting. Codex: `exec --skip-git-repo-check --sandbox
+  read-only --ephemeral --color never --output-last-message <file> [-m model] -`, the answer read
+  from that file (stdout is a session transcript). Claude: `-p --output-format text --tools ""
+  --strict-mcp-config --disable-slash-commands --no-session-persistence --system-prompt <rules>
+  [--model model]`, the answer read from stdout. **Not `--bare`**, which can bypass the
+  subscription login. The flag sets were verified against codex-cli 0.169.0 and Claude Code
+  2.1.325; re-check them with `--help` when a CLI update breaks a run.
+- **The clipboard text is fenced and declared to be data** in the prompt, and the child runs in an
+  empty throwaway directory with no tools (Claude) or a read-only sandbox (Codex): clipboard
+  content is arbitrary and may read like an instruction.
+- **A GUI app has no shell PATH**, so executables are probed at fixed install locations
+  (`TranslationBackend.defaultCandidates`) and the child's PATH gets Homebrew's bin directories
+  prepended. A non-empty path override that does not exist is "not found", never a silent
+  fallback. `environment(from:)` also drops `CLAUDECODE`/`CLAUDE_CODE_*`, which are present when
+  the app is started by `make run` from inside a Claude Code session.
+- **Codex echoes the whole prompt to stderr**, so stderr is scrubbed of the input before it is
+  matched for "not signed in" or shown — otherwise the user's own text could trigger the hint.
+- **Results carry a generation token**; a newer request or a cancel supersedes a late answer. The
+  child is stopped with SIGTERM, then SIGKILL after 3 s, and stdin is written with
+  `F_SETNOSIGPIPE` so a CLI that exits early cannot kill the app. Timeout is 60 s.
+- **The copy deliberately does not call `suppressNextChange()`**: the translation lands in history
+  like any other copy. That also makes it the newest entry, which is why the panel's
+  "Translate to <other language>" button re-sends the *original* held in the state.
+- **The panel does not close on losing focus** (unlike the popup) — the user reads it while
+  working elsewhere. It closes on Esc, ⌘W, Close, or the same language's hotkey again; the other
+  language's hotkey re-translates. It captures the frontmost app before activating and hands
+  focus back on close, as the popup does.
+- Never log the text — `Log.translate` records lengths and exit status only.
+
 ### Window tiling
 
 `WindowTiler` (`Core/`) is the only thing in the app that talks to `AXUIElement`;
@@ -564,7 +615,8 @@ without a real window or a permission grant; the AX half is verified by hand.
   `#if DEBUG` env hooks in `AppDelegate`: `MUKKER_OPEN_MENU=1` (pops the menu open so it can be
   screenshotted), `MUKKER_DUMP_MENU=1` (prints the whole menu tree and exits),
   `MUKKER_OPEN_EDITOR=1` (the editor on a sample canvas), `MUKKER_OPEN_SETTINGS=<tab>` (Settings
-  on a `SettingsTab` raw value, e.g. `network`) and `MUKKER_OPEN_POPUP=1`, which exist because
+  on a `SettingsTab` raw value, e.g. `network`), `MUKKER_OPEN_POPUP=1` and `MUKKER_TRANSLATE=en|hu` (the translate panel on
+  the newest history entry — it really sends that entry to the selected CLI), which exist because
   there is no other way to reach those surfaces without a human clicking.
 - **README screenshots** (`docs/screenshots/`) are taken from a demo run that never shows real
   data: `CFFIXED_USER_HOME=<scratch dir>` gives the app an empty database to seed with sample
@@ -580,7 +632,7 @@ without a real window or a permission grant; the AX half is verified by hand.
   `KeyEventCatcher`, `ShortcutRecorderField`, `InlineTextField`). Follow these patterns rather than
   fighting SwiftUI.
 - **Logging:** use `Log.<category>` from `Support/Logger.swift` (categories: `app`, `hotkey`,
-  `keepAwake`, `window`, `calendar`, `network`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`,
+  `keepAwake`, `window`, `calendar`, `network`, `translate`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`,
   `export`). View with
   `log show --predicate 'subsystem == "com.mukker.Mukker"' --info --last 1m` (the subsystem is the
   bundle ID).
