@@ -58,7 +58,8 @@ struct TranslatePane: View {
             } header: {
                 Text("Panel")
             } footer: {
-                Text("Drag the panel by its title bar; it reopens where you left it. Esc closes "
+                Text("Drag the panel by its title bar or resize it by its edges; it reopens where "
+                     + "and as you left it. Esc closes "
                      + "it unless you've typed into the source text — then use Close or ⌘W. "
                      + "⌘↩ translates the source text again.")
                     .font(.caption)

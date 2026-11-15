@@ -19,7 +19,9 @@ struct TranslationView: View {
             Divider().background(PopupTheme.divider)
             footer
         }
-        .frame(width: settings.panelWidth, height: settings.panelHeight)
+        // Fills whatever size the panel has — set in Settings or by dragging
+        // its edges; the controller keeps the two in step.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(PopupTheme.panelBackground)
         .clipShape(.rect(cornerRadius: 10))
         .overlay {

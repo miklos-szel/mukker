@@ -9,7 +9,9 @@ final class TranslationPanel: NSPanel {
     init(contentRect: NSRect) {
         super.init(
             contentRect: contentRect,
-            styleMask: [.borderless, .nonactivatingPanel],
+            // `.resizable` on a borderless panel gives it edge/corner resizing
+            // without a title bar.
+            styleMask: [.borderless, .nonactivatingPanel, .resizable],
             backing: .buffered,
             defer: false
         )
@@ -202,8 +204,27 @@ final class TranslationPanelController {
             service.translateDraft(to: service.state.language ?? .english)
         }
         let root = TranslationView(onClose: { [weak self] in self?.close() })
-        panel.contentView = NSHostingView(rootView: root)
+        let host = NSHostingView(rootView: root)
+        // The window's size is ours (settings + edge drags); don't let the
+        // hosting view pin it to the SwiftUI content's size.
+        host.sizingOptions = []
+        panel.contentView = host
+        panel.contentMinSize = NSSize(width: TranslationSettings.panelWidthRange.lowerBound,
+                                      height: TranslationSettings.panelHeightRange.lowerBound)
+        panel.contentMaxSize = NSSize(width: TranslationSettings.panelWidthRange.upperBound,
+                                      height: TranslationSettings.panelHeightRange.upperBound)
         self.panel = panel
+
+        // An edge drag is a size change made in the panel: store it, so the
+        // Settings sliders follow and the next open uses it.
+        NotificationCenter.default.publisher(for: NSWindow.didResizeNotification, object: panel)
+            .sink { [weak self, weak panel] _ in
+                guard let self, let panel, !self.isPlacing else { return }
+                let size = panel.frame.size
+                if self.settings.panelWidth != size.width { self.settings.panelWidth = size.width }
+                if self.settings.panelHeight != size.height { self.settings.panelHeight = size.height }
+            }
+            .store(in: &observers)
 
         NotificationCenter.default.publisher(for: NSWindow.didMoveNotification, object: panel)
             .sink { [weak self, weak panel] _ in
@@ -253,7 +274,7 @@ final class TranslationPanelController {
     /// A size change from Settings, applied to an open panel without moving
     /// its top edge.
     private func resizeKeepingTopLeft() {
-        guard let panel, panel.isVisible else { return }
+        guard let panel, panel.isVisible, panel.frame.size != size else { return }
         isPlacing = true
         defer { isPlacing = false }
         let frame = panel.frame
