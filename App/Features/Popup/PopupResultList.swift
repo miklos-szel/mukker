@@ -109,8 +109,12 @@ struct PopupRow: View {
             }
         )
         .contentShape(Rectangle())
+        // A count-1 tap gesture after a count-2 one makes SwiftUI wait out the
+        // double-click interval before selecting. Selecting simultaneously
+        // instead makes a single click instant; a double click selects (again,
+        // a no-op) and activates exactly once via the count-2 gesture.
         .onTapGesture(count: 2) { onActivate() }
-        .onTapGesture(count: 1) { onTap() }
+        .simultaneousGesture(TapGesture().onEnded { onTap() })
     }
 
     private var titleWeight: Font.Weight {
