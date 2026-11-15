@@ -165,9 +165,20 @@ internal static class ImageOutput
 /// Scrolls the region with synthetic wheel input, grabs a frame after each step, finds the overlap by
 /// row signatures and appends only the new strip. Stops after two steps without movement, at the max
 /// height, after 400 steps, or on Esc. Sticky headers can show up as repeated bands.
+/// <para>
+/// Two things keep the stitch exact with Windows 11's smooth scrolling. Every frame is taken only once the
+/// region has stopped changing (<see cref="GrabSettled"/>): a frame grabbed mid-animation or mid-redraw is
+/// torn, and its seam shows. And movement is always measured against the <em>last stitched</em> frame —
+/// after an overshoot is stepped back, the view rarely lands exactly where it was, so re-baselining on it
+/// would offset everything after it (whole lines went missing that way).
+/// </para>
 /// </summary>
 internal static class ScrollingCapture
 {
+    /// <summary>Longest wait for the region to settle after a scroll step before the frame is used anyway.</summary>
+    private static readonly TimeSpan SettleTimeout = TimeSpan.FromMilliseconds(900);
+    private static readonly TimeSpan SettlePoll = TimeSpan.FromMilliseconds(35);
+
     public static async Task<BitmapSource?> Run(Int32Rect region, int maxHeight, double speed)
     {
         Native.GetCursorPos(out var savedCursor);
@@ -175,28 +186,40 @@ internal static class ScrollingCapture
         var delay = TimeSpan.FromSeconds(Math.Max(0.05, 0.30 - 0.22 * Math.Clamp(speed, 0, 1)));
         try
         {
-            var first = ScreenGrabber.Capture(region);
+            var (first, firstSig) = await GrabSettled(region);
             var rows = new List<byte[]>();
             AppendRows(rows, first, 0);
-            var prevSig = Core.Capture.ImageStitcher.RowSignatures(first.Pixels, first.Width, first.Height, first.Stride);
+            // The signature of the frame whose bottom is the bottom of `rows`.
+            var stitchedSig = firstSig;
             var notches = 2;
             var stalls = 0;
             for (var i = 0; i < 400 && rows.Count < maxHeight; i++)
             {
-                if ((Native.GetAsyncKeyState(0x1B) & 0x8000) != 0) break; // Esc
+                if (EscPressed()) break;
                 Native.SendWheel(-notches);
                 await Task.Delay(delay);
-                var frame = ScreenGrabber.Capture(region);
-                var sig = Core.Capture.ImageStitcher.RowSignatures(frame.Pixels, frame.Width, frame.Height, frame.Stride);
-                var advance = Core.Capture.ImageStitcher.FindAdvance(prevSig, sig);
+                var (frame, sig) = await GrabSettled(region);
+                var advance = Core.Capture.ImageStitcher.FindAdvance(stitchedSig, sig);
                 if (advance is null)
                 {
-                    // Scrolled past the overlap: step back and use smaller steps.
+                    // Scrolled past the overlap: step back, then stitch whatever that landed on against the
+                    // last stitched frame — never re-baseline on it blindly.
                     Native.SendWheel(notches);
                     await Task.Delay(delay);
                     notches = Math.Max(1, notches / 2);
-                    var back = ScreenGrabber.Capture(region);
-                    prevSig = Core.Capture.ImageStitcher.RowSignatures(back.Pixels, back.Width, back.Height, back.Stride);
+                    var (back, backSig) = await GrabSettled(region);
+                    var backAdvance = Core.Capture.ImageStitcher.FindAdvance(stitchedSig, backSig);
+                    if (backAdvance is null)
+                    {
+                        // Lost track of where we are; stop with a correct image rather than a wrong one.
+                        AppHost.Log("scrolling capture: lost the overlap after stepping back, stopping");
+                        break;
+                    }
+                    if (backAdvance > 1)
+                    {
+                        AppendRows(rows, back, back.Height - backAdvance.Value);
+                        stitchedSig = backSig;
+                    }
                     if (notches == 1 && i > 3) { stalls++; if (stalls >= 3) break; }
                     continue;
                 }
@@ -207,7 +230,7 @@ internal static class ScrollingCapture
                 }
                 stalls = 0;
                 AppendRows(rows, frame, frame.Height - advance.Value);
-                prevSig = sig;
+                stitchedSig = sig;
                 // Aim for steps of ~60% of the region so the next frame still overlaps.
                 var perNotch = (double)advance.Value / notches;
                 notches = Math.Clamp((int)(region.Height * 0.6 / Math.Max(1, perNotch)), 1, 20);
@@ -225,6 +248,33 @@ internal static class ScrollingCapture
             Native.SetCursorPos(savedCursor.X, savedCursor.Y);
         }
     }
+
+    private static bool EscPressed() => (Native.GetAsyncKeyState(0x1B) & 0x8000) != 0;
+
+    /// <summary>
+    /// Grabs the region until two consecutive grabs are identical (or <see cref="SettleTimeout"/> passes), so
+    /// a smooth-scroll animation or a half-finished redraw never ends up in the stitch.
+    /// </summary>
+    private static async Task<(Grab Frame, byte[][] Sig)> GrabSettled(Int32Rect region)
+    {
+        var frame = ScreenGrabber.Capture(region);
+        var sig = Signatures(frame);
+        var deadline = DateTime.UtcNow + SettleTimeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(SettlePoll);
+            var next = ScreenGrabber.Capture(region);
+            var nextSig = Signatures(next);
+            var settled = Core.Capture.ImageStitcher.FindAdvance(sig, nextSig) == 0;
+            frame = next;
+            sig = nextSig;
+            if (settled) break;
+        }
+        return (frame, sig);
+    }
+
+    private static byte[][] Signatures(Grab g) =>
+        Core.Capture.ImageStitcher.RowSignatures(g.Pixels, g.Width, g.Height, g.Stride);
 
     private static void AppendRows(List<byte[]> rows, Grab g, int fromRow)
     {
