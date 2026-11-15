@@ -19,6 +19,9 @@ final class ClipboardMonitor {
         let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
             self?.tick()
         }
+        // Lets the system coalesce this wake-up with others; a copy landing in
+        // history up to 100 ms later is invisible.
+        timer.tolerance = 0.1
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
         Log.clipboard.info("Clipboard monitor started")
@@ -219,35 +222,83 @@ final class ClipboardMonitor {
                 duplicateRichText: { self.nativeRichText(from: pb) })
     }
 
+    /// Serial, so two quick image copies are canonicalised — and handed back to
+    /// the main thread for `persist` — in copy order.
+    private let imageQueue = DispatchQueue(label: "ClipboardMonitor.image", qos: .userInitiated)
+
+    /// Reads only the raw pasteboard bytes on the main thread; decoding,
+    /// re-encoding and hashing (hundreds of ms for a 5K screenshot) run on
+    /// `imageQueue`, then the row is persisted back on main exactly as before.
     @MainActor
     private func captureImage(pb: NSPasteboard, sourceApp: String?) {
-        guard let data = pb.data(forType: .png) ?? pb.data(forType: .tiff),
-              let image = NSImage(data: data) else {
-            return
+        guard let data = pb.data(forType: .png) ?? pb.data(forType: .tiff) else { return }
+        // Taken now, not when the background work finishes, so a text copy made
+        // meanwhile still sorts as the newer of the two.
+        let createdAt = Date()
+        // The monitor lives for the whole app run; nothing here races on it —
+        // it is only touched again on the main thread.
+        nonisolated(unsafe) let monitor = self
+        imageQueue.async {
+            guard let image = Self.canonicalImage(from: data) else { return }
+            // `.common` modes, not `DispatchQueue.main`: a capture made while a
+            // menu is tracking must not wait for the menu to close (NSMenu's
+            // tracking loop never drains the main dispatch queue). Blocks run
+            // in submission order, so copy order is preserved.
+            RunLoop.main.perform(inModes: [.common]) {
+                MainActor.assumeIsolated {
+                    monitor.persistImage(image, sourceApp: sourceApp, createdAt: createdAt)
+                }
+            }
         }
-        // Re-encode to PNG for consistent storage
-        guard let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff),
-              let pngData = rep.representation(using: .png, properties: [:]) else { return }
-        let hash = ContentHash.sha256Hex(pngData)
-        let url = AppPaths.imagesDirectory.appendingPathComponent("\(hash).png")
-        // Pixel dimensions from the bitmap rep — image.size is in points and
-        // under-reports retina screenshots by the backing scale factor.
+    }
+
+    @MainActor
+    private func persistImage(_ image: CanonicalImage, sourceApp: String?, createdAt: Date) {
+        let url = AppPaths.imagesDirectory.appendingPathComponent("\(image.hash).png")
         let item = ClipItem(
             id: nil,
             kind: .image,
             textContent: nil,
             imagePath: url.path,
-            imageWidth: rep.pixelsWide,
-            imageHeight: rep.pixelsHigh,
-            previewText: "Image \(rep.pixelsWide)×\(rep.pixelsHigh)",
+            imageWidth: image.width,
+            imageHeight: image.height,
+            previewText: "Image \(image.width)×\(image.height)",
             sourceApp: sourceApp,
-            createdAt: Date(),
+            createdAt: createdAt,
             pinned: false,
-            contentHash: hash,
+            contentHash: image.hash,
             lastUsedAt: nil
         )
-        persist(item, label: "image", sidecar: Sidecar(data: pngData, url: url, isRequired: true))
+        persist(item, label: "image", sidecar: Sidecar(data: image.png, url: url, isRequired: true))
+    }
+
+    /// A pasteboard image re-encoded to the canonical PNG that is stored and hashed.
+    struct CanonicalImage: Equatable {
+        let png: Data
+        let width: Int
+        let height: Int
+        /// `ContentHash` of `png` — the dedupe key and the sidecar's file name.
+        let hash: String
+    }
+
+    /// Re-encodes pasteboard PNG/TIFF bytes to the canonical stored PNG. Pure and
+    /// thread-safe (it only touches objects it creates), so it runs off main.
+    ///
+    /// Deliberately the same NSImage → TIFF → `NSBitmapImageRep` → PNG pipeline
+    /// as earlier builds, not ImageIO: the hash of these exact bytes is the dedupe
+    /// key already stored for every image in users' histories, and ImageIO's
+    /// encoder produces different bytes for common inputs (it drops the 144-dpi
+    /// `pHYs` chunk of a retina screenshot; multi-representation images differ
+    /// too), so a re-copy of an existing image would stop deduplicating.
+    nonisolated static func canonicalImage(from data: Data) -> CanonicalImage? {
+        guard let image = NSImage(data: data),
+              let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return nil }
+        // Pixel dimensions from the bitmap rep — image.size is in points and
+        // under-reports retina screenshots by the backing scale factor.
+        return CanonicalImage(png: png, width: rep.pixelsWide, height: rep.pixelsHigh,
+                              hash: ContentHash.sha256Hex(png))
     }
 
     @MainActor
