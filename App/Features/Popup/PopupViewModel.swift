@@ -84,13 +84,16 @@ final class PopupViewModel: ObservableObject {
 
     private let snippetCache: SnippetCache
     private let clipboardCache: ClipboardCache
+    private let snippetRepo: SnippetRepository
 
     private var cancellables: Set<AnyCancellable> = []
 
     init(snippetCache: SnippetCache = .shared,
-         clipboardCache: ClipboardCache = .shared) {
+         clipboardCache: ClipboardCache = .shared,
+         snippetRepository: SnippetRepository = SnippetRepository()) {
         self.snippetCache = snippetCache
         self.clipboardCache = clipboardCache
+        self.snippetRepo = snippetRepository
 
         // Keep results in sync when the underlying caches change.
         snippetCache.objectWillChange
@@ -275,33 +278,44 @@ final class PopupViewModel: ObservableObject {
 
     // MARK: Add a clip to snippets
 
-    private let snippetRepo = SnippetRepository()
+    enum AddClipError: LocalizedError {
+        case noText
+        case emptyCollectionName
 
-    /// Adds a text clip's content as a snippet in an existing collection.
-    func addClip(_ item: ClipItem, toCollectionId cid: Int64) {
-        guard let text = fullText(of: item), !text.isEmpty else { return }
-        do {
-            try snippetRepo.createSnippet(collectionId: cid, name: snippetName(from: text),
-                                          keyword: nil, content: text)
-            snippetCache.loadAll()
-        } catch {
-            Log.snippets.error("Failed to add clip to collection: \(error.localizedDescription)")
+        var errorDescription: String? {
+            switch self {
+            case .noText: return "This clip has no text to save as a snippet."
+            case .emptyCollectionName: return "The collection needs a name."
+            }
         }
     }
 
-    /// Creates a new collection and adds the text clip into it.
-    func addClip(_ item: ClipItem, toNewCollection name: String) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let text = fullText(of: item), !text.isEmpty else { return }
-        do {
-            let col = try snippetRepo.createCollection(name: trimmed)
-            if let cid = col.id {
-                try snippetRepo.createSnippet(collectionId: cid, name: snippetName(from: text),
-                                              keyword: nil, content: text)
-            }
-            snippetCache.loadAll()
-        } catch {
-            Log.snippets.error("Failed to add clip to new collection: \(error.localizedDescription)")
+    /// The name offered by default when a clip is added to snippets.
+    func suggestedSnippetName(for item: ClipItem) -> String {
+        SnippetNaming.defaultName(from: fullText(of: item) ?? item.previewText ?? "")
+    }
+
+    /// Adds a text clip's content as a snippet named `name` (normalised; an
+    /// empty name falls back to the suggested one) in an existing collection.
+    func addClip(_ item: ClipItem, toCollectionId cid: Int64, name: String) throws {
+        guard let text = fullText(of: item), !text.isEmpty else { throw AddClipError.noText }
+        let snippetName = SnippetNaming.normalized(name, fallback: SnippetNaming.defaultName(from: text))
+        try snippetRepo.createSnippet(collectionId: cid, name: snippetName, keyword: nil, content: text)
+        snippetCache.loadAll()
+    }
+
+    /// Creates a collection named `collectionName` and adds the text clip into
+    /// it as a snippet named `snippetName` (normalised as above).
+    func addClip(_ item: ClipItem, toNewCollection collectionName: String, snippetName: String) throws {
+        guard let colName = SnippetNaming.validated(collectionName) else {
+            throw AddClipError.emptyCollectionName
+        }
+        guard let text = fullText(of: item), !text.isEmpty else { throw AddClipError.noText }
+        let name = SnippetNaming.normalized(snippetName, fallback: SnippetNaming.defaultName(from: text))
+        let col = try snippetRepo.createCollection(name: colName)
+        defer { snippetCache.loadAll() }
+        if let cid = col.id {
+            try snippetRepo.createSnippet(collectionId: cid, name: name, keyword: nil, content: text)
         }
     }
 
@@ -318,15 +332,6 @@ final class PopupViewModel: ObservableObject {
         var copy = item
         copy.textContent = clipboardCache.fullText(for: item) ?? ""
         return copy
-    }
-
-    /// Derives a snippet name from the first non-empty line, truncated.
-    private func snippetName(from text: String) -> String {
-        let firstLine = text.split(whereSeparator: \.isNewline)
-            .first(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
-            .map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
-        let name = firstLine.isEmpty ? "Snippet" : String(firstLine.prefix(50))
-        return name
     }
 
     // MARK: Intent (called from the view; keeps logic out of the view body)

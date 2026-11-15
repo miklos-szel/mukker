@@ -73,20 +73,12 @@ struct PreviewPane: View {
     private func addToSnippetsButton(_ item: ClipItem) -> some View {
         Menu {
             ForEach(SnippetCache.shared.collections) { col in
-                if let cid = col.id {
-                    Button(col.name) {
-                        vm.addClip(item, toCollectionId: cid)
-                        flashAdded()
-                    }
+                if col.id != nil {
+                    Button(col.name) { addClip(item, to: col) }
                 }
             }
             Divider()
-            Button("New Collection…") {
-                if let name = Self.promptCollectionName() {
-                    vm.addClip(item, toNewCollection: name)
-                    flashAdded()
-                }
-            }
+            Button("New Collection…") { addClipToNewCollection(item) }
         } label: {
             Image(systemName: justAdded ? "star.fill" : "star")
                 .font(.system(size: 15, weight: .semibold))
@@ -100,27 +92,36 @@ struct PreviewPane: View {
         .help("Add to snippets")
     }
 
+    /// Asks for the snippet's name, then adds the clip to `collection`. Cancel
+    /// adds nothing; the star only flashes once the write has succeeded.
+    private func addClip(_ item: ClipItem, to collection: SnippetCollection) {
+        guard let cid = collection.id,
+              let name = SnippetNamePrompt.askSnippetName(
+                collectionName: collection.name,
+                suggested: vm.suggestedSnippetName(for: item)) else { return }
+        do {
+            try vm.addClip(item, toCollectionId: cid, name: name)
+            flashAdded()
+        } catch {
+            SnippetNamePrompt.showError(error)
+        }
+    }
+
+    /// Asks for a new collection's name and the snippet's, then creates both.
+    private func addClipToNewCollection(_ item: ClipItem) {
+        guard let names = SnippetNamePrompt.askNewCollection(
+            suggestedSnippetName: vm.suggestedSnippetName(for: item)) else { return }
+        do {
+            try vm.addClip(item, toNewCollection: names.collection, snippetName: names.snippet)
+            flashAdded()
+        } catch {
+            SnippetNamePrompt.showError(error)
+        }
+    }
+
     private func flashAdded() {
         justAdded = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { justAdded = false }
-    }
-
-    /// Modal prompt for a new collection name (the popup is a borderless
-    /// non-activating panel, so a native NSAlert is more reliable than a sheet).
-    private static func promptCollectionName() -> String? {
-        let alert = NSAlert()
-        alert.messageText = "New Collection"
-        alert.informativeText = "Name the collection to add this snippet to."
-        alert.addButton(withTitle: "Create")
-        alert.addButton(withTitle: "Cancel")
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
-        field.placeholderString = "Collection name"
-        alert.accessoryView = field
-        alert.window.initialFirstResponder = field
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return nil }
-        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? nil : name
     }
 
     private func fileList(_ item: ClipItem) -> some View {
