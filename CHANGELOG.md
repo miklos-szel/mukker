@@ -3,9 +3,14 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.3.2] - 2026-11-15
 
 ### Added
+- **Translate into German.** German joins English and Hungarian: ⌃⌘E on the Mac and Ctrl+Shift+G
+  on Windows (change either in Settings), also in the menu bar and tray menus. The translate panel
+  now has one button per language — the current one highlighted, ⌘↩ / Ctrl+Enter repeats it — so
+  re-translating into any of the three is one click. German text was already translatable *from*,
+  since the source language is detected.
 - **Windows version** in `windows/` (clipboard history and snippets, capture with annotation,
   translate), now kept in this repository. It gains the 1.3.1 translate panel: Chromium and
   Electron selections, an editable source text (Ctrl+Enter translates it), a movable and resizable
@@ -13,6 +18,13 @@ All notable changes to Mukker are documented here. The format loosely follows
   Mukker icon — left click for translate, the clipboard popup and capture, right click for the
   Snippets Manager, Clear History, Settings and Quit; the calendar is left out, since Windows has
   its own.
+
+### Fixed
+- **Windows: scrolling capture no longer drops or repeats lines.** With Windows 11's smooth
+  scrolling, frames could be grabbed mid-animation and the stitch lost its place after stepping
+  back from an overshoot, so runs of lines went missing or appeared twice and seams were torn.
+  Frames are now taken only once the view has settled, and every step is matched against the last
+  stitched frame.
 
 ### Changed
 - **New app icon**: the orange Mukker keys, shared with the Windows version. Both are drawn by
