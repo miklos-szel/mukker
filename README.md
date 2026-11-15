@@ -89,10 +89,16 @@ window to half the screen.
   copied so you can paste it straight away. A button in the panel redoes it in the other language.
 - **A selection is never copied.** It is read through the Accessibility permission, so it doesn't
   replace what is on your clipboard and doesn't appear in the history. Native Mac apps (TextEdit,
-  Notes, Mail, …) expose their selection, and Safari pages usually do; many Chromium-based browsers, Electron
-  apps and some terminals don't, and password fields never do — there the shortcut translates the
-  newest clipboard text instead. So does it without the Accessibility permission, and for apps
+  Notes, Mail, …) expose their selection, and Safari pages usually do. Chromium-based browsers
+  (Chrome, Brave, Edge, …) and Electron apps (VS Code, Slack, …) work too, though the first press
+  in one can take a second or two while it gets ready. Some terminals don't expose a selection,
+  and password fields never do — there the shortcut translates the newest clipboard text instead. So does it without the Accessibility permission, and for apps
   you excluded from the clipboard history.
+- **The panel is yours to arrange.** Drag it by its header and resize it by its edges (or set
+  the size in **Settings → Translate**); it reopens where you left it, with an optional colored
+  border like the clipboard popup's. The original text is editable — type or paste more and press
+  ⌘↩ to translate again. Esc closes the panel, but not while it holds text you've typed and not
+  yet translated; Close or ⌘W discard it.
 - **Uses the subscription you already have, no API key.** Mukker hands the text to a command-line
   tool signed in with your own account: the **Codex CLI** for ChatGPT (`brew install codex`, then
   `codex login`) or the **Claude Code CLI** for Claude. Pick the engine, and optionally a model or

@@ -3,6 +3,25 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.1] - 2026-11-15
+
+### Fixed
+- **Translating a selection now works in Chrome and Electron apps.** Chromium-based browsers
+  (Chrome, Brave, Edge, …) and Electron apps (VS Code, Slack, Obsidian, …) only expose what is
+  selected once asked, so the shortcut used to fall back to the clipboard text there. Mukker now
+  asks them; the first press in such an app shows "Reading the selection…" for a second or two.
+  Window tiling is unaffected by the switch this needs.
+
+### Added
+- **Editable translation source.** The original text in the translate panel can be edited — type
+  or paste more and press ⌘↩ (or a Translate button) to translate it. While it holds text you
+  haven't translated yet, Esc no longer closes the panel (Close or ⌘W do) and the translate
+  shortcuts translate that text.
+- **Move and resize the translate panel.** Drag it by its header and resize it by its edges; it
+  reopens where and as you left it. Width and height are also in **Settings → Translate → Panel**.
+- **Optional border around the translate panel**, like the clipboard popup's bezel — on by
+  default; color and width in **Settings → Translate → Panel**.
+
 ## [1.3.0] - 2026-11-15
 
 ### Added
