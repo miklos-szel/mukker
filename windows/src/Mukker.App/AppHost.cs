@@ -3,7 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Win32;
-using Mukker.App.Calendar;
+using Mukker.App.Chime;
 using Mukker.App.Capture;
 using Mukker.App.Clipboard;
 using Mukker.App.Editor;
@@ -66,7 +66,7 @@ public sealed class AppHost : IDisposable
         Monitor = new ClipboardMonitor(MessageWindow, Clips, Retention, Paths, () => Settings.Current.Clipboard);
         Paster = new Paster(Clips, Monitor, () => Settings.Current.Clipboard);
         FastAppend = new FastAppendService(Clips, Monitor, () => Settings.Current.Clipboard);
-        Chime = new ChimeService(() => Settings.Current.Calendar);
+        Chime = new ChimeService(() => Settings.Current.Chime);
         Popup = new PopupController(this);
         Translation = new TranslationController(this);
         Capture = new CaptureCoordinator(this);
@@ -110,23 +110,22 @@ public sealed class AppHost : IDisposable
             HotKeys.ReRegister();
             FastAppend.Sync();
             Chime.Reschedule();
-            Tray.Refresh();
             SyncStartup();
             _settingsDebounce.Stop();
             _settingsDebounce.Start();
         };
         SystemEvents.PowerModeChanged += (_, e) =>
         {
-            if (e.Mode == PowerModes.Resume) Application.Current.Dispatcher.BeginInvoke(() => { Chime.Reschedule(); Tray.Refresh(); });
+            if (e.Mode == PowerModes.Resume) Application.Current.Dispatcher.BeginInvoke(() => Chime.Reschedule());
         };
-        SystemEvents.TimeChanged += (_, _) => Application.Current.Dispatcher.BeginInvoke(() => { Chime.Reschedule(); Tray.Refresh(); });
+        SystemEvents.TimeChanged += (_, _) => Application.Current.Dispatcher.BeginInvoke(() => Chime.Reschedule());
 
         Log("started");
         RunDebugHook();
     }
 
     /// <summary>
-    /// MUKKER_OPEN=popup|settings[:tab]|snippets|calendar|editor|translate-en|translate-hu opens a surface at
+    /// MUKKER_OPEN=popup|settings[:tab]|snippets|menu|menu-right|editor|translate-en|translate-hu opens a surface at
     /// launch, so it can be screenshotted in a VM without a human clicking.
     /// </summary>
     private void RunDebugHook()
@@ -141,7 +140,8 @@ public sealed class AppHost : IDisposable
                 case "popup": Popup.Show(); break;
                 case "settings": OpenSettings(parts.Length > 1 ? parts[1] : null); break;
                 case "snippets": OpenSnippetsManager(); break;
-                case "calendar": Tray.ShowCalendar(); break;
+                case "menu": Tray.ShowActionsMenu(); break;
+                case "menu-right": Tray.ShowSettingsMenu(); break;
                 case "editor": EditorWindow.OpenSample(this); break;
                 case "translate-en": Translation.Request(Core.Translate.TranslationLanguage.English); break;
                 case "translate-hu": Translation.Request(Core.Translate.TranslationLanguage.Hungarian); break;

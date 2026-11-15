@@ -9,11 +9,10 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using Mukker.App.Calendar;
+using Mukker.App.Chime;
 using Mukker.App.Editor;
 using Mukker.App.Popup;
 using Mukker.Core;
-using Mukker.Core.Calendar;
 using Mukker.Core.Settings;
 using Mukker.Core.Translate;
 
@@ -104,7 +103,6 @@ internal sealed class SettingsWindow : Window
 
         AddTab("clipboard", "Clipboard", BuildClipboard());
         AddTab("capture", "Capture", BuildCapture());
-        AddTab("calendar", "Calendar", BuildCalendar());
         AddTab("translate", "Translate", BuildTranslate());
         AddTab("hotkeys", "Hotkeys", BuildHotkeys());
         AddTab("about", "About", BuildAbout());
@@ -342,41 +340,21 @@ internal sealed class SettingsWindow : Window
         return root;
     }
 
-    private UIElement BuildCalendar()
+    /// <summary>The hourly chime — what is left of the Mac calendar feature; Windows has its own calendar.</summary>
+    private void BuildChime(StackPanel root)
     {
-        var root = new StackPanel();
-        var t = Section(root, "Tray icon");
-        Caption(t, "The tray icon shows today's day number. Click it for the month calendar.");
-        var preview = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Foreground = (Brush)FindResource("InkSoft") };
-        void Preview() => preview.Text = DateLabelFormatter.Format(DateTime.Now, S.Calendar.TooltipFormat, S.Calendar.CustomDateFormat);
-        Choice(t, "Tooltip text", new[]
-        {
-            (MenuBarFormat.DayNumberOnly, "Day number"), (MenuBarFormat.Weekday, "Weekday"), (MenuBarFormat.MonthDay, "Month and day"),
-            (MenuBarFormat.WeekdayMonthDay, "Weekday, month and day"), (MenuBarFormat.MonthDayWeekday, "Month day., weekday"), (MenuBarFormat.Custom, "Custom"),
-        }, s => s.Calendar.TooltipFormat, (s, v) => { s.Calendar.TooltipFormat = v; }).SelectionChanged += (_, _) => Dispatcher.BeginInvoke(Preview);
-        TextRow(t, "Custom format", s => s.Calendar.CustomDateFormat, (s, v) => s.Calendar.CustomDateFormat = v,
-            ".NET date pattern, e.g. ddd d MMM", _ => Dispatcher.BeginInvoke(Preview));
-        Row(t, "Preview", preview);
-        Preview();
-
-        var g = Section(root, "Month calendar");
-        Choice(g, "First day of the week", new[] { (0, "System default"), (2, "Monday"), (1, "Sunday"), (7, "Saturday") },
-            s => s.Calendar.FirstWeekday, (s, v) => s.Calendar.FirstWeekday = v);
-        Toggle(g, "Show week numbers", s => s.Calendar.ShowsWeekNumbers, (s, v) => s.Calendar.ShowsWeekNumbers = v);
-
         var c = Section(root, "Hourly chime");
-        Toggle(c, "Play a sound at the top of every hour", s => s.Calendar.HourlyChime, (s, v) => s.Calendar.HourlyChime = v);
+        Toggle(c, "Play a sound at the top of every hour", s => s.Chime.HourlyChime, (s, v) => s.Chime.HourlyChime = v);
         var sounds = ChimeService.AvailableSounds();
-        if (sounds.Length == 0) sounds = new[] { S.Calendar.HourlyChimeSound };
-        var soundCombo = Choice(c, "Sound", sounds.Select(n => (n, n)).ToArray(), s => s.Calendar.HourlyChimeSound, (s, v) => s.Calendar.HourlyChimeSound = v);
+        if (sounds.Length == 0) sounds = new[] { S.Chime.HourlyChimeSound };
+        var soundCombo = Choice(c, "Sound", sounds.Select(n => (n, n)).ToArray(), s => s.Chime.HourlyChimeSound, (s, v) => s.Chime.HourlyChimeSound = v);
         var test = new Button { Content = "Test", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 2, 0, 6) };
         test.Click += (_, _) => _host.Chime.Play(soundCombo.SelectedItem as string);
         Row(c, "", test);
         var hours = Enumerable.Range(0, 24).Select(h => (h, $"{h:00}:00")).ToArray();
-        Choice(c, "From", hours, s => s.Calendar.HourlyChimeStartHour, (s, v) => s.Calendar.HourlyChimeStartHour = v);
-        Choice(c, "Until", hours, s => s.Calendar.HourlyChimeEndHour, (s, v) => s.Calendar.HourlyChimeEndHour = v,
+        Choice(c, "From", hours, s => s.Chime.HourlyChimeStartHour, (s, v) => s.Chime.HourlyChimeStartHour = v);
+        Choice(c, "Until", hours, s => s.Chime.HourlyChimeEndHour, (s, v) => s.Chime.HourlyChimeEndHour = v,
             "Both hours included. A range that ends before it starts runs past midnight.");
-        return root;
     }
 
     private UIElement BuildTranslate()
@@ -490,8 +468,7 @@ internal sealed class SettingsWindow : Window
             _byName.Clear();
             AddTab("clipboard", "Clipboard", BuildClipboard());
             AddTab("capture", "Capture", BuildCapture());
-            AddTab("calendar", "Calendar", BuildCalendar());
-            AddTab("translate", "Translate", BuildTranslate());
+                AddTab("translate", "Translate", BuildTranslate());
             AddTab("hotkeys", "Hotkeys", BuildHotkeys());
             AddTab("about", "About", BuildAbout());
             _tabs.SelectedIndex = selected;
@@ -515,13 +492,14 @@ internal sealed class SettingsWindow : Window
         root.Children.Add(new Image { Source = BitmapFrame.Create(new Uri("pack://application:,,,/Mukker;component/Assets/mukker.ico")), Width = 64, Height = 64, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 8) });
         root.Children.Add(new TextBlock { Text = "Mukker for Windows", FontSize = 20, FontWeight = FontWeights.SemiBold });
         root.Children.Add(new TextBlock { Text = $"Version {version}", Foreground = (Brush)FindResource("InkSoft"), Margin = new Thickness(0, 2, 0, 12) });
-        root.Children.Add(new TextBlock { Text = "Calendar, clipboard history and snippets, screen capture with annotation, and translation — in the notification area.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 14) });
+        root.Children.Add(new TextBlock { Text = "Clipboard history and snippets, screen capture with annotation, and translation — in the notification area.", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 14) });
         var g = Section(root, "General");
         Toggle(g, "Start Mukker when you sign in to Windows", s => s.StartWithWindows, (s, v) => s.StartWithWindows = v);
         var open = new Button { Content = "Open Data Folder", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0) };
         open.Click += (_, _) => Process.Start(new ProcessStartInfo("explorer.exe", $"\"{_host.Paths.DataDirectory}\"") { UseShellExecute = true });
         g.Children.Add(open);
         Caption(g, $"History and snippets: {_host.Paths.DatabasePath}\nSettings: {_host.Paths.SettingsPath}");
+        BuildChime(root);
         return root;
     }
 }

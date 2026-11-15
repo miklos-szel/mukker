@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using Mukker.Core.Calendar;
+using Mukker.Core.Chime;
 using Mukker.Core.Capture;
 using Mukker.Core.Clipboard;
 using Mukker.Core.Settings;
@@ -227,33 +227,8 @@ public class TranslationTests
     }
 }
 
-public class CalendarTests
+public class ChimeTests
 {
-    [Fact]
-    public void GridAlwaysHas42DaysStartingOnFirstWeekday()
-    {
-        var days = MonthGrid.Days(2026, 11, DayOfWeek.Monday);
-        Assert.Equal(42, days.Length);
-        Assert.Equal(DayOfWeek.Monday, days[0].DayOfWeek);
-        Assert.Equal(new DateOnly(2026, 10, 26), days[0]); // Nov 1 2026 is a Sunday
-        Assert.Contains(new DateOnly(2026, 11, 30), days);
-        var sunday = MonthGrid.Days(2026, 11, DayOfWeek.Sunday);
-        Assert.Equal(new DateOnly(2026, 11, 1), sunday[0]);
-    }
-
-    [Fact]
-    public void FirstWeekdaySettingMapping()
-    {
-        Assert.Equal(DayOfWeek.Sunday, MonthGrid.FirstDay(1));
-        Assert.Equal(DayOfWeek.Monday, MonthGrid.FirstDay(2));
-        Assert.Equal(DayOfWeek.Saturday, MonthGrid.FirstDay(7));
-        Assert.Equal(DayOfWeek.Monday, MonthGrid.FirstDay(0, new CultureInfo("hu-HU")));
-    }
-
-    [Fact]
-    public void IsoWeekNumbers() =>
-        Assert.Equal(53, MonthGrid.WeekNumber(new DateOnly(2026, 12, 28), DayOfWeek.Monday));
-
     [Fact]
     public void ChimeRangeWrapsPastMidnight()
     {
@@ -271,17 +246,6 @@ public class CalendarTests
         Assert.Equal(new DateTime(2026, 1, 1, 11, 0, 1), ChimeSchedule.NextFire(new DateTime(2026, 1, 1, 10, 59, 59)));
         Assert.Equal(new DateTime(2026, 1, 1, 10, 0, 1), ChimeSchedule.NextFire(new DateTime(2026, 1, 1, 10, 0, 0)));
         Assert.Equal(new DateTime(2026, 1, 1, 11, 0, 1), ChimeSchedule.NextFire(new DateTime(2026, 1, 1, 10, 0, 1)));
-    }
-
-    [Fact]
-    public void Labels()
-    {
-        var c = CultureInfo.InvariantCulture;
-        var d = new DateTime(2026, 9, 2);
-        Assert.Equal("Sep 2., Wed", DateLabelFormatter.Format(d, MenuBarFormat.MonthDayWeekday, "", c));
-        Assert.Equal("Sep 2", DateLabelFormatter.Format(d, MenuBarFormat.Custom, "", c));
-        Assert.Equal("Today", MonthGrid.DayHeader(new DateOnly(2026, 9, 2), new DateOnly(2026, 9, 2)));
-        Assert.Equal("Tomorrow", MonthGrid.DayHeader(new DateOnly(2026, 9, 3), new DateOnly(2026, 9, 2)));
     }
 }
 

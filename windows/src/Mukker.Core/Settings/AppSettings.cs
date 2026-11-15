@@ -7,7 +7,7 @@ public sealed class AppSettings
 {
     public ClipboardSettings Clipboard { get; set; } = new();
     public CaptureSettings Capture { get; set; } = new();
-    public CalendarSettings Calendar { get; set; } = new();
+    public ChimeSettings Chime { get; set; } = new();
     public TranslationSettings Translation { get; set; } = new();
     public ShortcutSettings Shortcuts { get; set; } = new();
     public bool StartWithWindows { get; set; } = false;
@@ -162,15 +162,9 @@ public sealed class CaptureSettings
     public double ScrollSpeed { get; set; } = 0.6;
 }
 
-public enum MenuBarFormat { DayNumberOnly, Weekday, MonthDay, WeekdayMonthDay, MonthDayWeekday, Custom }
-
-public sealed class CalendarSettings
+/// <summary>The hourly chime — the one piece of the Mac calendar feature the Windows port keeps.</summary>
+public sealed class ChimeSettings
 {
-    public MenuBarFormat TooltipFormat { get; set; } = MenuBarFormat.WeekdayMonthDay;
-    public string CustomDateFormat { get; set; } = "ddd d MMM";
-    /// <summary>0 = system, 1 = Sunday, 2 = Monday, 7 = Saturday (macOS numbering).</summary>
-    public int FirstWeekday { get; set; } = 0;
-    public bool ShowsWeekNumbers { get; set; } = false;
     public bool HourlyChime { get; set; } = false;
     /// <summary>A .wav file name (without extension) from C:\Windows\Media.</summary>
     public string HourlyChimeSound { get; set; } = "Windows Notify System Generic";
