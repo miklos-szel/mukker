@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 
@@ -181,6 +182,34 @@ final class TranslationSettings: ObservableObject {
         didSet { defaults.set(claudeModel, forKey: K.claudeModel) }
     }
 
+    /// The result panel's size in points, set in the Translate pane.
+    @Published var panelWidth: Double {
+        didSet { defaults.set(panelWidth, forKey: K.panelWidth) }
+    }
+
+    @Published var panelHeight: Double {
+        didSet { defaults.set(panelHeight, forKey: K.panelHeight) }
+    }
+
+    nonisolated static let panelWidthRange: ClosedRange<Double> = 380...1200
+    nonisolated static let panelHeightRange: ClosedRange<Double> = 260...1000
+    nonisolated static let defaultPanelSize = (width: 560.0, height: 380.0)
+
+    /// Where the user last dragged the panel (its top-left corner, in screen
+    /// coordinates), so it reopens there; nil until it has been moved, which
+    /// centres it on the screen holding the mouse.
+    var panelTopLeft: NSPoint? {
+        get {
+            guard let string = defaults.string(forKey: K.panelTopLeft) else { return nil }
+            let point = NSPointFromString(string)
+            return point == .zero ? nil : point
+        }
+        set {
+            if let newValue { defaults.set(NSStringFromPoint(newValue), forKey: K.panelTopLeft) }
+            else { defaults.removeObject(forKey: K.panelTopLeft) }
+        }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         // A plain `defaults.bool(forKey:)` cannot express default-on.
@@ -191,6 +220,14 @@ final class TranslationSettings: ObservableObject {
         codexModel = defaults.string(forKey: K.codexModel) ?? TranslationBackend.codex.defaultModel
         claudePath = defaults.string(forKey: K.claudePath) ?? ""
         claudeModel = defaults.string(forKey: K.claudeModel) ?? TranslationBackend.claude.defaultModel
+        let width = defaults.object(forKey: K.panelWidth) as? Double ?? Self.defaultPanelSize.width
+        let height = defaults.object(forKey: K.panelHeight) as? Double ?? Self.defaultPanelSize.height
+        panelWidth = Self.clamp(width, to: Self.panelWidthRange)
+        panelHeight = Self.clamp(height, to: Self.panelHeightRange)
+    }
+
+    nonisolated static func clamp(_ value: Double, to range: ClosedRange<Double>) -> Double {
+        min(max(value, range.lowerBound), range.upperBound)
     }
 
     func path(for backend: TranslationBackend) -> String {
@@ -229,5 +266,8 @@ final class TranslationSettings: ObservableObject {
         static let codexModel = "translationCodexModel"
         static let claudePath = "translationClaudePath"
         static let claudeModel = "translationClaudeModel"
+        static let panelWidth = "translationPanelWidth"
+        static let panelHeight = "translationPanelHeight"
+        static let panelTopLeft = "translationPanelTopLeft"
     }
 }

@@ -8,13 +8,24 @@ enum TranslationOrigin: Equatable {
     case selection
     /// The newest text entry of the clipboard history.
     case history
+    /// Text typed or pasted into the panel's source field.
+    case edited
 
     var label: String {
         switch self {
         case .selection: return "Selection"
         case .history: return "Clipboard"
+        case .edited: return "Edited text"
         }
     }
+}
+
+/// What reading the selection gave: an answer now, or an app that was just
+/// asked to build its accessibility tree and has to be polled
+/// (`SelectedTextReader.Outcome.waking`).
+enum SelectionRead: Equatable {
+    case ready(String?)
+    case waking(pid: pid_t)
 }
 
 /// Translates text by handing it to a command-line client signed in
@@ -101,7 +112,79 @@ final class TranslationService: ObservableObject {
     /// beside `state` rather than in it: every state carries the same value.
     @Published private(set) var origin: TranslationOrigin?
 
+    /// The panel's editable source field. Reset to the source by every
+    /// request; anything the user types or pastes into it differs from
+    /// `state.source` until translated, which is what `isDraftEdited` reports
+    /// and what keeps Esc from throwing it away.
+    @Published var draft = ""
+
+    var isDraftEdited: Bool {
+        draft != (state.source ?? "")
+    }
+
+    /// The poll after `SelectionRead.waking`. Invalidated by `cancel()`.
+    private var selectionPoll: Timer?
+
+    /// How long a just-woken Chromium app gets to build its tree — measured at
+    /// about two seconds for a freshly started Chrome — and how often it is
+    /// asked in the meantime.
+    private static let selectionWakeTimeout: TimeInterval = 3
+    private static let selectionPollInterval: TimeInterval = 0.15
+
     // MARK: - Requests
+
+    /// Translates what `readSelection()` found: the selection or the newest
+    /// history entry at once, or — for an app that is still building its
+    /// accessibility tree — after polling it for up to
+    /// `selectionWakeTimeout`. The panel shows "Reading the selection…"
+    /// meanwhile (a running state with an empty source).
+    func translate(_ read: SelectionRead, to language: TranslationLanguage) {
+        switch read {
+        case .ready(let selection):
+            translateSelectionOrLatest(to: language, selection: selection)
+        case .waking(let pid):
+            awaitSelection(inApp: pid, language: language)
+        }
+    }
+
+    private func awaitSelection(inApp pid: pid_t, language: TranslationLanguage) {
+        cancel()
+        let token = generation
+        origin = .selection
+        draft = ""
+        state = .running(source: "", language: language, backend: settings.backend)
+        Log.translate.info("translate: waiting for pid \(pid) to build its accessibility tree")
+        let deadline = Date().addingTimeInterval(Self.selectionWakeTimeout)
+        // A run-loop timer in `.common`, not `asyncAfter`: it must keep firing
+        // while a menu is tracking (the menu items take this path too).
+        let timer = Timer(timeInterval: Self.selectionPollInterval, repeats: true) { [weak self] timer in
+            MainActor.assumeIsolated {
+                guard let self, token == self.generation else {
+                    timer.invalidate()
+                    return
+                }
+                let outcome = SelectedTextReader.shared.readFocused(inApp: pid)
+                let keepWaiting: Bool
+                switch outcome {
+                case .noFocusedElement, .nothingSelected: keepWaiting = Date() < deadline
+                default: keepWaiting = false
+                }
+                guard !keepWaiting else { return }
+                timer.invalidate()
+                self.selectionPoll = nil
+                self.translateSelectionOrLatest(to: language, selection: self.accept(outcome))
+            }
+        }
+        selectionPoll = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    /// Translates the panel's source field — edited or not — into `language`.
+    func translateDraft(to language: TranslationLanguage) {
+        let text = draft
+        guard !SelectedTextReader.isBlank(text) else { return }
+        translate(text, to: language, origin: isDraftEdited ? .edited : (origin ?? .history))
+    }
 
     /// Translates `selection` — text selected in the focused app, read through
     /// Accessibility by the caller *before* the panel took focus — or, when
@@ -135,8 +218,15 @@ final class TranslationService: ObservableObject {
     /// same rule history applies, so a password manager's text is never sent).
     /// Must run before anything takes focus; never prompts. Logs why, never
     /// the text.
-    func readSelection() -> String? {
+    func readSelection() -> SelectionRead {
         let outcome = SelectedTextReader.shared.read()
+        if case .waking(let pid) = outcome { return .waking(pid: pid) }
+        return .ready(accept(outcome))
+    }
+
+    /// The selection text an outcome carries, unless it came from an app the
+    /// clipboard ignores. Logs why there is none.
+    private func accept(_ outcome: SelectedTextReader.Outcome) -> String? {
         switch outcome {
         case .selection(let selection):
             if let app = selection.bundleIdentifier,
@@ -147,8 +237,8 @@ final class TranslationService: ObservableObject {
             return selection.text
         case .notTrusted:
             Log.translate.info("translate: no Accessibility grant, selection not read")
-        case .noFocusedElement, .ownApp, .nothingSelected, .timedOut:
-            Log.translate.debug("translate: no selection (\(String(describing: outcome), privacy: .public))")
+        case .noFocusedElement, .ownApp, .nothingSelected, .timedOut, .waking:
+            Log.translate.info("translate: no selection (\(String(describing: outcome), privacy: .public))")
         }
         return nil
     }
@@ -162,6 +252,7 @@ final class TranslationService: ObservableObject {
     private func fail(_ message: String, language: TranslationLanguage, origin: TranslationOrigin) {
         cancel()
         self.origin = origin
+        draft = ""
         state = .failed(source: "", message: message, language: language, backend: settings.backend)
     }
 
@@ -173,6 +264,7 @@ final class TranslationService: ObservableObject {
         let token = generation
         let backend = settings.backend
         self.origin = origin
+        draft = text
         state = .running(source: text, language: language, backend: backend)
 
         guard let executable = resolvedExecutablePath(for: backend) else {
@@ -200,6 +292,8 @@ final class TranslationService: ObservableObject {
     /// idle; a finished one is left for the panel to keep showing.
     func cancel() {
         generation += 1
+        selectionPoll?.invalidate()
+        selectionPoll = nil
         if let job {
             job.cancel()
             self.job = nil

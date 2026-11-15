@@ -140,6 +140,15 @@ final class WindowTiler {
         let target = Self.rect(for: slot, in: screen.visibleFrame, gap: settings.gap)
         let targetAX = Self.axRect(fromCocoa: target, primaryHeight: primaryHeight)
 
+        // An app with `AXEnhancedUserInterface` on — which `SelectedTextReader`
+        // sets on Chromium apps to read their selection, as VoiceOver does —
+        // animates AX moves and can drop the second write. Switched off for
+        // the move and back on after, the same workaround other tilers use.
+        let app = owningApp(of: window)
+        let enhanced = app.map(isEnhancedUserInterface) ?? false
+        if enhanced, let app { setEnhancedUserInterface(false, on: app) }
+        defer { if enhanced, let app { setEnhancedUserInterface(true, on: app) } }
+
         // Twice, deliberately — see the type's doc comment.
         setPosition(targetAX.origin, on: window)
         setSize(targetAX.size, on: window)
@@ -158,6 +167,26 @@ final class WindowTiler {
     }
 
     // MARK: - AX plumbing
+
+    private func owningApp(of window: AXUIElement) -> AXUIElement? {
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(window, &pid) == .success, pid > 0 else { return nil }
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.5)
+        return app
+    }
+
+    private func isEnhancedUserInterface(_ app: AXUIElement) -> Bool {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, "AXEnhancedUserInterface" as CFString, &value) == .success
+        else { return false }
+        return (value as? Bool) ?? false
+    }
+
+    private func setEnhancedUserInterface(_ on: Bool, on app: AXUIElement) {
+        AXUIElementSetAttributeValue(app, "AXEnhancedUserInterface" as CFString,
+                                     (on ? kCFBooleanTrue : kCFBooleanFalse) as CFTypeRef)
+    }
 
     /// The window to move, resolved through the **system-wide** AX element rather
     /// than `NSWorkspace.frontmostApplication`. The workspace answer is not

@@ -282,6 +282,36 @@ final class TranslationTests: XCTestCase {
     func testOriginLabels() {
         XCTAssertEqual(TranslationOrigin.selection.label, "Selection")
         XCTAssertEqual(TranslationOrigin.history.label, "Clipboard")
+        XCTAssertEqual(TranslationOrigin.edited.label, "Edited text")
+    }
+
+    // MARK: - Panel size
+
+    func testPanelSizeIsClampedToItsRange() {
+        let range = TranslationSettings.panelWidthRange
+        XCTAssertEqual(TranslationSettings.clamp(10, to: range), range.lowerBound)
+        XCTAssertEqual(TranslationSettings.clamp(99_999, to: range), range.upperBound)
+        XCTAssertEqual(TranslationSettings.clamp(600, to: range), 600)
+    }
+
+    @MainActor
+    func testPanelSizeDefaultsAndStoredValuesOutOfRange() {
+        let suite = "TranslationTests.panel.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var settings = TranslationSettings(defaults: defaults)
+        XCTAssertEqual(settings.panelWidth, TranslationSettings.defaultPanelSize.width)
+        XCTAssertEqual(settings.panelHeight, TranslationSettings.defaultPanelSize.height)
+        XCTAssertNil(settings.panelTopLeft)
+
+        defaults.set(5.0, forKey: "translationPanelWidth")
+        defaults.set(50_000.0, forKey: "translationPanelHeight")
+        settings = TranslationSettings(defaults: defaults)
+        XCTAssertEqual(settings.panelWidth, TranslationSettings.panelWidthRange.lowerBound)
+        XCTAssertEqual(settings.panelHeight, TranslationSettings.panelHeightRange.upperBound)
+
+        settings.panelTopLeft = NSPoint(x: 120, y: 900)
+        XCTAssertEqual(TranslationSettings(defaults: defaults).panelTopLeft, NSPoint(x: 120, y: 900))
     }
 
     // MARK: - Languages and backends
