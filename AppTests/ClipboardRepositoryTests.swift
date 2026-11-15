@@ -26,7 +26,10 @@ final class ClipboardRepositoryTests: XCTestCase {
         XCTAssertEqual(try repo.recent().first?.contentHash, "n")
 
         // Bump the older one — it should move to the top via lastUsedAt.
-        try repo.bumpLastUsed(id: try XCTUnwrap(older.id))
+        // An explicit, strictly later time: stored dates have millisecond
+        // resolution, so a bump at `Date()` can tie with `now` and leave the
+        // order of the two rows to the query planner.
+        try repo.bumpLastUsed(id: try XCTUnwrap(older.id), at: now.addingTimeInterval(1))
         XCTAssertEqual(try repo.recent().first?.contentHash, "o")
     }
 
