@@ -613,7 +613,8 @@ AX selection read are verified by hand (`MUKKER_TRANSLATE=en|hu`).
   translates the draft — only ⌘W/Close discard it. Esc and ⌘↩ are taken in
   `TranslationPanel.sendEvent` before the text view sees them (it would turn Esc into `complete:`
   and let ⌘↩ both fire a button shortcut and insert a newline). Size comes from
-  `TranslationSettings.panelWidth/Height` (Translate pane, applied live); the header is the drag
+  `TranslationSettings.panelWidth/Height` (Translate pane, applied live; the borderless panel is
+  `.resizable` and an edge drag writes back to them — the hosting view has `sizingOptions = []`); the header is the drag
   handle and a user drag is remembered (`panelTopLeft`), our own placement is not. It captures
   the frontmost app before activating and hands focus back on close, as the popup does.
 - Never log the text — `Log.translate` records the source used (selection/history, or why no
