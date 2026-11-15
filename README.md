@@ -82,11 +82,11 @@ window to half the screen.
 
 ### Translate
 
-- **Translate what you selected or just copied** — ⌘⇧E into English, ⌘⌥E into Hungarian. The
+- **Translate what you selected or just copied** — ⌘⇧E into English, ⌘⌥E into Hungarian, ⌃⌘E into German. The
   text selected in the frontmost app is translated; with nothing selected, the newest text in the
   clipboard history is (the source language is detected either way). The result is shown in a
   small floating panel next to the original, marked *from Selection* or *from Clipboard*, and
-  copied so you can paste it straight away. A button in the panel redoes it in the other language.
+  copied so you can paste it straight away. Buttons in the panel redo it in another language.
 - **A selection is never copied.** It is read through the Accessibility permission, so it doesn't
   replace what is on your clipboard and doesn't appear in the history. Native Mac apps (TextEdit,
   Notes, Mail, …) expose their selection, and Safari pages usually do. Chromium-based browsers
@@ -142,7 +142,7 @@ Every feature set has its own tab; Hotkeys, Permissions and About are shared.
 | ⌃⇧⌘4 / ⌃⇧⌘3 / ⌃⇧⌘5 | Capture area / screen / scrolling |
 | ⌃⌘← / ⌃⌘→ | Tile the frontmost window to the left / right half |
 | ⌃⌘↓ / ⌃⌘↑ | Tile the frontmost window to the top / bottom half |
-| ⌘⇧E / ⌘⌥E | Translate the selection (or the latest clipboard text) into English / Hungarian |
+| ⌘⇧E / ⌘⌥E / ⌃⌘E | Translate the selection (or the latest clipboard text) into English / Hungarian / German |
 | ↑ / ↓ | Move selection in the popup |
 | Return | Paste selected item (with formatting) |
 | ⌘⇧V | Paste **without** formatting (plain text) |

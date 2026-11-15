@@ -123,6 +123,7 @@ internal sealed class TrayController : IDisposable
         {
             menu.Items.Add(new ToolStripMenuItem("Translate to English", null, (_, _) => _host.Translation.Request(TranslationLanguage.English)) { ShortcutKeyDisplayString = Keys(s.Shortcuts.TranslateEnglish) });
             menu.Items.Add(new ToolStripMenuItem("Translate to Hungarian", null, (_, _) => _host.Translation.Request(TranslationLanguage.Hungarian)) { ShortcutKeyDisplayString = Keys(s.Shortcuts.TranslateHungarian) });
+            menu.Items.Add(new ToolStripMenuItem("Translate to German", null, (_, _) => _host.Translation.Request(TranslationLanguage.German)) { ShortcutKeyDisplayString = Keys(s.Shortcuts.TranslateGerman) });
             menu.Items.Add(new ToolStripSeparator());
         }
 

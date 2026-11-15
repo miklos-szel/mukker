@@ -6,17 +6,20 @@ using Mukker.Core.Storage;
 
 namespace Mukker.Core.Translate;
 
-public enum TranslationLanguage { English, Hungarian }
+public enum TranslationLanguage { English, Hungarian, German }
 
 /// <summary>Where the translated text came from: the focused app's selection, the newest history entry, or the panel's edited source.</summary>
 public enum TranslationOrigin { Selection, History, Edited }
 
 public static class TranslationText
 {
-    public static string Label(this TranslationLanguage l) => l == TranslationLanguage.English ? "English" : "Hungarian";
-
-    public static TranslationLanguage Other(this TranslationLanguage l) =>
-        l == TranslationLanguage.English ? TranslationLanguage.Hungarian : TranslationLanguage.English;
+    public static string Label(this TranslationLanguage l) => l switch
+    {
+        TranslationLanguage.English => "English",
+        TranslationLanguage.Hungarian => "Hungarian",
+        TranslationLanguage.German => "German",
+        _ => l.ToString(),
+    };
 
     public static string Label(this TranslationBackend b) =>
         b == TranslationBackend.Codex ? "ChatGPT (Codex CLI)" : "Claude (Claude Code CLI)";

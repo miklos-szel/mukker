@@ -30,7 +30,7 @@ separate apps:
   drawn as an inverted badge to the *left* of the date glyph (`↓1,1 ↑0,3 Mbps`), sampled every
   **5 s** by default; plus per-interface transfer totals (today, optionally this week/month) in a
   *Network* submenu. Needs no permissions and never touches the database.
-- **Translate.** Two global shortcuts (⌘⇧E → English, ⌘⌥E → Hungarian by default) send the text
+- **Translate.** Three global shortcuts (⌘⇧E → English, ⌘⌥E → Hungarian, ⌃⌘E → German by default) send the text
   selected in the frontmost app — read through Accessibility, never copied — or, with nothing
   selected, the newest text entry of the clipboard history to a command-line client signed in with
   the user's own subscription — the Codex CLI (ChatGPT, the default) or the Claude Code CLI — and
@@ -164,9 +164,9 @@ point is a plain AppKit `App/App/main.swift`.
   read-only and feeds the menu bar calendar's event rows; requesting it without
   `NSCalendarsFullAccessUsageDescription` in `project.yml` terminates the app.
   Don't add a second permissions type.
-- **`ShortcutSettings`** holds all ten global combos (`popupCombo`, `areaCombo`,
+- **`ShortcutSettings`** holds all eleven global combos (`popupCombo`, `areaCombo`,
   `fullscreenCombo`, `scrollCombo`, `tileLeftCombo`/`tileRightCombo`/`tileTopCombo`/
-  `tileBottomCombo`, plus `translateEnglishCombo`/`translateHungarianCombo`) as `HotKey.KeyCombo`s persisted to `UserDefaults`, and publishes
+  `tileBottomCombo`, plus `translateEnglishCombo`/`translateHungarianCombo`/`translateGermanCombo`) as `HotKey.KeyCombo`s persisted to `UserDefaults`, and publishes
   `comboChanges` — whose `dropFirst(n)` **must equal the number of merged publishers**, because
   `@Published` replays on subscribe. `@Published` also emits from `willSet`, *before* the new
   value is stored, so a subscriber must either use the emitted value or be delivered on a later
@@ -554,7 +554,7 @@ and `refreshInterval`. The pure halves — `BandwidthFormat`, `NetworkCounters.d
 argument lists, executable resolution, environment, error mapping, `latestTextItem` — are
 `nonisolated static` and covered by `AppTests/TranslationTests.swift`, as is `source(selection:
 history:characterLimit:)`, the selection-vs-history decision; the child process, the panel and the
-AX selection read are verified by hand (`MUKKER_TRANSLATE=en|hu`).
+AX selection read are verified by hand (`MUKKER_TRANSLATE=en|hu|de`).
 
 - **The source is the focused app's selection, else the clipboard history — never
   `NSPasteboard.general`.** `SelectedTextReader` (`Core/`) reads the selection through AX:
@@ -670,7 +670,7 @@ without a real window or a permission grant; the AX half is verified by hand.
   `#if DEBUG` env hooks in `AppDelegate`: `MUKKER_OPEN_MENU=1` (pops the menu open so it can be
   screenshotted), `MUKKER_DUMP_MENU=1` (prints the whole menu tree and exits),
   `MUKKER_OPEN_EDITOR=1` (the editor on a sample canvas), `MUKKER_OPEN_SETTINGS=<tab>` (Settings
-  on a `SettingsTab` raw value, e.g. `network`), `MUKKER_OPEN_POPUP=1` and `MUKKER_TRANSLATE=en|hu` (the translate panel on
+  on a `SettingsTab` raw value, e.g. `network`), `MUKKER_OPEN_POPUP=1` and `MUKKER_TRANSLATE=en|hu|de` (the translate panel on
   the newest history entry — it really sends that entry to the selected CLI), which exist because
   there is no other way to reach those surfaces without a human clicking.
 - **README screenshots** (`docs/screenshots/`) are taken from a demo run that never shows real

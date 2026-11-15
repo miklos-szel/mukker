@@ -96,7 +96,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .init(combo: \.translateEnglishCombo, isEnabled: translationEnabled,
                       handler: { [weak self] in self?.translateSelectionOrLatest(.english) }),
                 .init(combo: \.translateHungarianCombo, isEnabled: translationEnabled,
-                      handler: { [weak self] in self?.translateSelectionOrLatest(.hungarian) })
+                      handler: { [weak self] in self?.translateSelectionOrLatest(.hungarian) }),
+                .init(combo: \.translateGermanCombo, isEnabled: translationEnabled,
+                      handler: { [weak self] in self?.translateSelectionOrLatest(.german) })
             ],
             // Either switch re-registers. Each drops its subscribe-time replay;
             // the manager delivers on the run loop, after the new value is stored.
@@ -144,7 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             RunLoop.main.add(timer, forMode: .common)
         }
-        // The translate panel on the selection or newest history entry (`MUKKER_TRANSLATE=en|hu`),
+        // The translate panel on the selection or newest history entry (`MUKKER_TRANSLATE=en|hu|de`),
         // after the cache has loaded — the hotkey is otherwise the only way in.
         if let code = ProcessInfo.processInfo.environment["MUKKER_TRANSLATE"],
            let language = TranslationLanguage(shortCode: code) {
@@ -173,6 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             openSettings: { [weak self] in self?.openSettings() })
         actions.translateToEnglish = { [weak self] in self?.translateSelectionOrLatest(.english) }
         actions.translateToHungarian = { [weak self] in self?.translateSelectionOrLatest(.hungarian) }
+        actions.translateToGerman = { [weak self] in self?.translateSelectionOrLatest(.german) }
 #if DEBUG
         actions.openDebugSample = { [weak self] in self?.openDebugSample() }
 #endif

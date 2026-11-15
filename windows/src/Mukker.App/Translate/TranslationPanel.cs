@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -38,8 +40,9 @@ internal sealed class TranslationPanel : Window
     private readonly Border _sourceBox;
     private readonly TextBlock _editedHint = new() { Text = "Edited — Esc keeps it open", FontSize = 11, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _copy = new() { Content = "Copy", MinWidth = 72 };
-    private readonly Button _target = new() { MinWidth = 140, ToolTip = "Ctrl+Enter" };
-    private readonly Button _other = new() { MinWidth = 140 };
+    /// <summary>One "translate to" button per language; the last request's language is bold and Ctrl+Enter repeats it.</summary>
+    private readonly Dictionary<TranslationLanguage, Button> _languageButtons =
+        Enum.GetValues<TranslationLanguage>().ToDictionary(l => l, l => new Button { Content = l.Label(), MinWidth = 84 });
     private readonly Button _close = new() { Content = "Close", MinWidth = 72, ToolTip = "Close (Ctrl+W)" };
     private PanelState? _state;
     private TranslationOrigin _origin;
@@ -89,10 +92,19 @@ internal sealed class TranslationPanel : Window
 
         var footer = new DockPanel { Margin = new Thickness(0, 10, 0, 0), LastChildFill = false };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal };
-        _close.Margin = _other.Margin = _target.Margin = new Thickness(0, 0, 8, 0);
+        _close.Margin = new Thickness(0, 0, 16, 0);
         buttons.Children.Add(_close);
-        buttons.Children.Add(_other);
-        buttons.Children.Add(_target);
+        buttons.Children.Add(new TextBlock
+        {
+            Text = "Translate to", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0),
+            Foreground = (Brush)FindResource("InkSoft"),
+        });
+        foreach (var b in _languageButtons.Values)
+        {
+            b.Margin = new Thickness(0, 0, 6, 0);
+            buttons.Children.Add(b);
+        }
+        _copy.Margin = new Thickness(10, 0, 0, 0);
         buttons.Children.Add(_copy);
         DockPanel.SetDock(buttons, Dock.Right);
         DockPanel.SetDock(_editedHint, Dock.Left);
@@ -121,8 +133,8 @@ internal sealed class TranslationPanel : Window
         };
         _close.Click += (_, _) => _controller.Close();
         _copy.Click += (_, _) => { if (_state is PanelState.Done d) Paster.CopyText(d.Result); };
-        _target.Click += (_, _) => { if (_state != null) _controller.TranslateDraft(_state.Language); };
-        _other.Click += (_, _) => { if (_state != null) _controller.TranslateDraft(_state.Language.Other()); };
+        foreach (var (language, button) in _languageButtons)
+            button.Click += (_, _) => _controller.TranslateDraft(language);
         // Window-level, so these are seen before the source TextBox (which would insert a newline for Ctrl+Enter).
         PreviewKeyDown += (_, e) =>
         {
@@ -227,8 +239,12 @@ internal sealed class TranslationPanel : Window
             _source.CaretIndex = _source.Text.Length;
             _syncing = false;
         }
-        _target.Content = $"Translate to {state.Language.Label()}";
-        _other.Content = $"Translate to {state.Language.Other().Label()}";
+        foreach (var (language, button) in _languageButtons)
+        {
+            var current = language == state.Language;
+            button.FontWeight = current ? FontWeights.Bold : FontWeights.Normal;
+            button.ToolTip = current ? $"Translate to {language.Label()} again (Ctrl+Enter)" : $"Translate to {language.Label()}";
+        }
         _sourceBox.Visibility = state is PanelState.Reading ? Visibility.Collapsed : Visibility.Visible;
         _body.Children.Clear();
         switch (state)
@@ -279,7 +295,7 @@ internal sealed class TranslationPanel : Window
         _source.Foreground = edited ? (Brush)FindResource("Ink") : (Brush)FindResource("InkSoft");
         _sourceBox.BorderBrush = edited ? (Brush)FindResource("Accent") : Brushes.Transparent;
         var canTranslate = !_state.IsBusy && !ClipText.IsBlank(_controller.Draft);
-        _target.IsEnabled = _other.IsEnabled = canTranslate;
+        foreach (var button in _languageButtons.Values) button.IsEnabled = canTranslate;
         _copy.IsEnabled = _state is PanelState.Done;
     }
 

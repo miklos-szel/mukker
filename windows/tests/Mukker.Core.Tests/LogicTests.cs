@@ -131,6 +131,15 @@ public class TranslationTests
     }
 
     [Fact]
+    public void LanguagesAndGermanPrompt()
+    {
+        Assert.Equal(new[] { "English", "Hungarian", "German" }, Enum.GetValues<TranslationLanguage>().Select(l => l.Label()));
+        Assert.StartsWith("Translate the text between the <<<TEXT and TEXT>>> markers into German.",
+            TranslationPrompt.Combined(TranslationLanguage.German, "Hallo"));
+        Assert.Equal(new KeyCombo(KeyModifiers.Control | KeyModifiers.Shift, 0x47), new ShortcutSettings().TranslateGerman);
+    }
+
+    [Fact]
     public void CodexArguments()
     {
         var args = CliArguments.Codex("out.txt", "gpt-5");

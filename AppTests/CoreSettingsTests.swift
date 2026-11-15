@@ -56,6 +56,7 @@ final class CoreSettingsTests: XCTestCase {
         XCTAssertEqual(shortcuts.tileBottomCombo, KeyCombo(key: .upArrow, modifiers: [.control, .command]))
         XCTAssertEqual(shortcuts.translateEnglishCombo, KeyCombo(key: .e, modifiers: [.command, .shift]))
         XCTAssertEqual(shortcuts.translateHungarianCombo, KeyCombo(key: .e, modifiers: [.command, .option]))
+        XCTAssertEqual(shortcuts.translateGermanCombo, KeyCombo(key: .e, modifiers: [.command, .control]))
     }
 
     @MainActor
@@ -64,14 +65,17 @@ final class CoreSettingsTests: XCTestCase {
         let first = ShortcutSettings(defaults: defaults)
         first.translateEnglishCombo = KeyCombo(key: .t, modifiers: [.command, .control])
         first.translateHungarianCombo = KeyCombo(key: .y, modifiers: [.command, .control])
+        first.translateGermanCombo = KeyCombo(key: .g, modifiers: [.command, .option])
 
         let second = ShortcutSettings(defaults: defaults)
         XCTAssertEqual(second.translateEnglishCombo, KeyCombo(key: .t, modifiers: [.command, .control]))
         XCTAssertEqual(second.translateHungarianCombo, KeyCombo(key: .y, modifiers: [.command, .control]))
+        XCTAssertEqual(second.translateGermanCombo, KeyCombo(key: .g, modifiers: [.command, .option]))
 
         second.resetToDefaults()
         XCTAssertEqual(second.translateEnglishCombo, ShortcutSettings.defaultTranslateEnglishCombo)
         XCTAssertEqual(second.translateHungarianCombo, ShortcutSettings.defaultTranslateHungarianCombo)
+        XCTAssertEqual(second.translateGermanCombo, ShortcutSettings.defaultTranslateGermanCombo)
     }
 
     @MainActor
