@@ -61,7 +61,7 @@ All notable changes to Mukker are documented here. The format loosely follows
   listed and paste nothing.
 - Image and rich-text files left behind by earlier versions with no history item pointing at them
   are cleaned up at launch. Re-copying text that was first stored without formatting now adds the
-  formatting.
+  formatting when the app you copy from supplies rich text itself.
 - A single click in the popup selects a row immediately instead of waiting out the double-click
   delay.
 
