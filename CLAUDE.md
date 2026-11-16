@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Mukker is a native macOS menu-bar utility combining seven feature sets — two of which used to be
+Mukker is a native macOS menu-bar utility combining eight feature sets — two of which used to be
 separate apps:
 
 - **Clipboard history + snippets** (with rich-text support; no auto-expansion). A global shortcut
@@ -30,6 +30,9 @@ separate apps:
   drawn as an inverted badge to the *left* of the date glyph (`↓1,1 ↑0,3 Mbps`), sampled every
   **5 s** by default; plus per-interface transfer totals (today, optionally this week/month) in a
   *Network* submenu. Needs no permissions and never touches the database.
+- **Mouse battery.** The battery level of a connected wireless Razer Viper, read over USB, as a
+  coloured dot + percentage in a *Mouse* submenu, with a warning row at the top of the menu below
+  **15%**. Needs no permissions and never touches the database. macOS only — not ported.
 - **Translate.** Three global shortcuts (⌘⇧E → English, ⌘⌥E → Hungarian, ⌃⌘E → German by default) send the text
   selected in the frontmost app — read through Accessibility, never copied — or, with nothing
   selected, the newest text entry of the clipboard history to a command-line client signed in with
@@ -142,7 +145,7 @@ Higher layers may import lower; never the reverse.
 `ClipThumbnailCache`, `KeepAwakeSettings`, `KeepAwakeService`, `WindowTilingSettings`,
 `WindowTiler`, `CalendarSettings`, `CalendarEventsService`, `HourlyChimeService`,
 `BandwidthSettings`, `BandwidthService`, `TranslationSettings`, `TranslationService`,
-`TranslationPanelController`, `SelectedTextReader`. Four are plain (non-isolated) classes: `AppDatabase`,
+`TranslationPanelController`, `SelectedTextReader`, `MouseBatterySettings`, `MouseBatteryService`. Four are plain (non-isolated) classes: `AppDatabase`,
 `ClipboardMonitor` and `Paster` (whose entry points are individually `@MainActor`, and
 `ClipboardMonitor` hands work to a background queue) and `ActiveAppTracker`.
 `AppDelegate.applicationDidFinishLaunching` wires them together — start there to follow runtime
@@ -189,8 +192,8 @@ point is a plain AppKit `App/App/main.swift`.
   or the button is deallocated.
 - **Menu bar:** one `NSStatusItem` owned by `MenuBarController` (`App/App/MenuBarController.swift`)
   — *not* a SwiftUI `MenuBarExtra`, which in `.menu` style can only hold buttons and text and so
-  cannot host the calendar. Order: the calendar, the selected day's event rows, then (while enabled)
-  a *Network*, a *Clipboard & Snippets*, a *Capture* and a *Keep Awake* submenu, with only Settings and Quit at the top
+  cannot host the calendar. Order: the low-mouse-battery warning row (only below 15%), the calendar, the selected day's event rows, then (while enabled)
+  a *Network*, a *Mouse* (while a supported mouse is attached), a *Clipboard & Snippets*, a *Capture* and a *Keep Awake* submenu, with only Settings and Quit at the top
   level. The menu is **rebuilt from scratch in `menuNeedsUpdate(_:)`**, so the Keep Awake label,
   its countdown line and every shortcut glyph are re-read from their settings objects on each open
   rather than observed — and `calendarModel.reset()` belongs there too, *before* `buildItems()`,
@@ -199,8 +202,8 @@ point is a plain AppKit `App/App/main.swift`.
   equivalents only fire while the menu is open, so they advertise the global hotkey rather than
   competing with it.
 - **Settings:** one `TabView` (`Features/Settings/SettingsWindow.swift`) — `ClipboardPane`,
-  `CapturePane`, `KeepAwakePane`, `WindowTilingPane`, `CalendarPane`, `NetworkPane`, `TranslatePane`,
-  `HotkeysPane`, `PermissionsPane`, `AboutPane`. The first seven are per-feature-set; the last three are shared. Add a
+  `CapturePane`, `KeepAwakePane`, `WindowTilingPane`, `CalendarPane`, `NetworkPane`, `MousePane`, `TranslatePane`,
+  `HotkeysPane`, `PermissionsPane`, `AboutPane`. The first eight are per-feature-set; the last three are shared. Add a
   feature-specific setting to its own pane, not to the shared ones. (`WindowTilingPane` keeps its
   four shortcut recorders next to its on/off switch rather than in `HotkeysPane`, since the switch
   is what decides whether they exist, and `TranslatePane` does the same with its two — but *not* the Accessibility grant it needs: permissions are
@@ -545,6 +548,37 @@ and `refreshInterval`. The pure halves — `BandwidthFormat`, `NetworkCounters.d
   interface (`State:/Network/Global/IPv4` → `PrimaryInterface`) gets the native checkmark. While
   the submenu is open their titles are rewritten on each sample.
 
+### Mouse battery
+
+`RazerBattery` (`Core/`) is the only thing in the app that talks to a USB device; it is a Swift port
+of librazermacos's battery read and nothing else. `MouseBatteryService` is its only caller and
+`MouseBatterySettings` holds the switch (on by default) and `lowThreshold` (15). The pure halves —
+report layout/CRC, `parse`, `percent(fromRaw:)`, the colour `band(for:)` and `isLow` — are covered
+by `AppTests/RazerBatteryTests.swift`; the USB half is verified by hand with a mouse attached.
+
+- **Protocol.** A 90-byte report (`status, transaction_id, remaining_packets(2), protocol_type,
+  data_size, class, id, args[80], crc, reserved`, crc = XOR of bytes 2..<88). Battery is class
+  `0x07` id `0x80`, charging `0x07`/`0x84`; the answer is `args[1]`, battery on a 0–255 scale. A
+  response counts only if it echoes class+id with status `0x02`; `0x01` busy / `0x04` timeout mean
+  the mouse is asleep or out of range, which keeps the last percentage and says so.
+- **Transport is a control transfer on the default pipe** (`IOUSBDeviceInterface.DeviceRequest`:
+  SET_REPORT `0x21/0x09`, wait **60 ms**, GET_REPORT `0xA1/0x01`, `wValue 0x0300`, `wIndex 0`) —
+  the same path razer-macos uses. It needs no `USBDeviceOpen` and no TCC grant; opening the HID
+  interface instead could require Input Monitoring. The CFPlugIn UUIDs are C macros Swift doesn't
+  import, so they are spelled out in `DeviceInterface`.
+- **Transaction ID** differs by model (`0xFF` in librazermacos for the Viper Ultimate, `0x1F` in
+  openrazer for newer Vipers): both are tried and the one that answered is remembered per product.
+- **Supported products** are one table (`RazerBattery.supportedModels`, VID `0x1532`, both the
+  wired and receiver product ID of each wireless Viper); adding a model is one line — check the ID
+  with `ioreg -p IOUSB -l | grep -A3 Razer`.
+- **Reads run on a serial background queue** (each round trip sleeps 60 ms) and come back via
+  `RunLoop.main.perform(inModes: [.common])` so an open menu sees them. Polled every **5 min** on a
+  `.common` timer so the warning row is current when `buildItems()` runs, plus on every root-menu
+  open, on wake, and from the submenu's Refresh. The menu observes `$reading` **synchronously**
+  (like `$rate`) and fills the open submenu from the emitted value.
+- `MUKKER_MOUSE_BATTERY=<n>` (DEBUG) fakes a reading of *n*% so the warning row can be
+  screenshotted without a flat mouse.
+
 ### Translate
 
 `TranslationService` (`Core/`) is the only thing in the app that spawns a process;
@@ -670,7 +704,7 @@ without a real window or a permission grant; the AX half is verified by hand.
   `#if DEBUG` env hooks in `AppDelegate`: `MUKKER_OPEN_MENU=1` (pops the menu open so it can be
   screenshotted), `MUKKER_DUMP_MENU=1` (prints the whole menu tree and exits),
   `MUKKER_OPEN_EDITOR=1` (the editor on a sample canvas), `MUKKER_OPEN_SETTINGS=<tab>` (Settings
-  on a `SettingsTab` raw value, e.g. `network`), `MUKKER_OPEN_POPUP=1` and `MUKKER_TRANSLATE=en|hu|de` (the translate panel on
+  on a `SettingsTab` raw value, e.g. `network`), `MUKKER_OPEN_POPUP=1`, `MUKKER_MOUSE_BATTERY=<percent>` (a fake mouse reading) and `MUKKER_TRANSLATE=en|hu|de` (the translate panel on
   the newest history entry — it really sends that entry to the selected CLI), which exist because
   there is no other way to reach those surfaces without a human clicking.
 - **README screenshots** (`docs/screenshots/`) are taken from a demo run that never shows real
@@ -687,7 +721,7 @@ without a real window or a permission grant; the AX half is verified by hand.
   `KeyEventCatcher`, `ShortcutRecorderField`, `InlineTextField`). Follow these patterns rather than
   fighting SwiftUI.
 - **Logging:** use `Log.<category>` from `Support/Logger.swift` (categories: `app`, `hotkey`,
-  `keepAwake`, `window`, `calendar`, `network`, `translate`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`,
+  `keepAwake`, `window`, `calendar`, `network`, `mouse`, `translate`, `clipboard`, `snippets`, `db`, `paste`, `capture`, `editor`,
   `export`). View with
   `log show --predicate 'subsystem == "com.mukker.Mukker"' --info --last 1m` (the subsystem is the
   bundle ID).

@@ -3,6 +3,14 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- **Razer mouse battery.** With a wireless Razer Viper (Ultimate, V2 Pro, V3 Pro, Mini SE) or its
+  receiver plugged in, the menu gains a *Mouse* submenu showing the battery as a coloured dot and
+  a percentage, plus whether it is charging; below 15% a warning heads the menu. Read directly over
+  USB — no Razer software, no permissions. On by default; switch it off in Settings → Mouse.
+
 ## [1.3.2] - 2026-11-15
 
 ### Added

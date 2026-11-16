@@ -69,6 +69,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // and the per-interface daily totals.
         BandwidthService.shared.start()
 
+        // Razer mouse battery: polls a connected wireless Viper over USB for the
+        // menu's Mouse submenu and its low-battery warning row.
+        MouseBatteryService.shared.start()
+
         // One manager owns all eight system-wide shortcuts. The menu items carry
         // the same key equivalents for discoverability; CaptureCoordinator's
         // in-flight guard keeps a double-trigger from starting two captures.
