@@ -3,7 +3,7 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.3.3] - 2026-11-16
 
 ### Added
 - **Razer mouse battery.** With a wireless Razer Viper (Ultimate, V2 Pro, V3 Pro, Mini SE) or its
