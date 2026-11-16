@@ -83,6 +83,12 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private var networkRows: [(item: NSMenuItem, period: BandwidthPeriod, interface: String)] = []
     private var networkColumns = NetworkColumns(name: 0)
 
+    /// The Mouse submenu's rows, rewritten in place when a read lands while
+    /// it is open (the open itself triggers one).
+    private weak var mouseMenu: NSMenu?
+    private var isMouseMenuOpen = false
+    private var mouseRows: (level: NSMenuItem, detail: NSMenuItem)?
+
     init(actions: Actions) {
         self.actions = actions
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -123,6 +129,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         BandwidthSettings.shared.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.applyTitle() }
+            .store(in: &cancellables)
+
+        // Synchronous, like `$rate` above, and for the same reasons: the value
+        // is emitted before it is stored, and a `receive(on:)` hop may not run
+        // while the menu tracks.
+        MouseBatteryService.shared.$reading
+            .removeDuplicates()
+            .sink { [weak self] reading in self?.updateMouseRows(reading) }
             .store(in: &cancellables)
 
         observeDayRollover()
@@ -281,10 +295,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         makeMenuWindowsOpaqueSoon()
         if menu === networkMenu { isNetworkMenuOpen = true }
+        if menu === mouseMenu { isMouseMenuOpen = true }
+        // A fresh read for the Mouse rows; the warning row was built from the
+        // last poll, which is at most five minutes old.
+        if menu === self.menu { MouseBatteryService.shared.refresh() }
     }
 
     func menuDidClose(_ menu: NSMenu) {
         if menu === networkMenu { isNetworkMenuOpen = false }
+        if menu === mouseMenu { isMouseMenuOpen = false }
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -305,6 +324,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func buildItems() -> [NSMenuItem] {
         let shortcuts = ShortcutSettings.shared
         var items: [NSMenuItem] = []
+
+        // The one alarm the menu raises: a nearly flat mouse, above everything.
+        let mouse = MouseBatterySettings.shared.isEnabled ? MouseBatteryService.shared.reading : nil
+        if let mouse, mouse.isLow(threshold: MouseBatterySettings.shared.lowThreshold),
+           let percent = mouse.percent {
+            items.append(mouseWarningItem(percent))
+            items.append(.separator())
+        }
 
         sizeCalendarItem()
         items.append(calendarItem)
@@ -363,6 +390,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         items.append(submenu("Capture", of: captureItems))
 
         items.append(submenu("Keep Awake", of: keepAwakeItems()))
+
+        // Only while a supported mouse is attached — nothing to say otherwise.
+        if let mouse {
+            // Just "Mouse": the level is only shown inside the submenu.
+            let item = submenu("Mouse", of: mouseItems(mouse))
+            mouseMenu = item.submenu
+            isMouseMenuOpen = false
+            items.append(item)
+        } else {
+            mouseMenu = nil
+            mouseRows = nil
+        }
 
         items.append(.separator())
         items.append(ActionMenuItem("Settings…", keyEquivalent: ",", modifiers: .command,
@@ -476,6 +515,70 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             .paragraphStyle: networkColumns.paragraphStyle
         ]))
         return text
+    }
+
+    // MARK: - Mouse
+
+    private func mouseWarningItem(_ percent: Int) -> NSMenuItem {
+        let item = NSMenuItem()
+        item.isEnabled = true    // same rule as the event rows: content, not an aside
+        item.attributedTitle = NSAttributedString(
+            string: "⚠︎ Mouse battery low — \(percent)%",
+            attributes: [.font: NSFont.menuFont(ofSize: 0).withWeight(.semibold),
+                         .foregroundColor: NSColor.systemRed])
+        return item
+    }
+
+    private func mouseItems(_ reading: MouseBatteryReading) -> [NSMenuItem] {
+        let level = NSMenuItem()
+        level.isEnabled = true
+        let detail = disabled("")
+        mouseRows = (level, detail)
+        fillMouseRows(reading)
+        return [level, detail, .separator(),
+                ActionMenuItem("Refresh", handler: { MouseBatteryService.shared.refresh() })]
+    }
+
+    private func fillMouseRows(_ reading: MouseBatteryReading) {
+        guard let rows = mouseRows else { return }
+        let threshold = MouseBatterySettings.shared.lowThreshold
+        let text = NSMutableAttributedString(string: reading.modelName + "  ", attributes: [
+            .font: NSFont.menuFont(ofSize: 0)
+        ])
+        if let percent = reading.percent {
+            text.append(NSAttributedString(string: "\(percent)%", attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .semibold),
+                .foregroundColor: MouseBatteryService.color(for: percent, threshold: threshold)
+            ]))
+            if reading.isCharging {
+                text.append(NSAttributedString(string: " · Charging", attributes: [
+                    .font: NSFont.menuFont(ofSize: 0), .foregroundColor: NSColor.secondaryLabelColor
+                ]))
+            }
+            rows.level.image = Self.swatch(MouseBatteryService.color(for: percent, threshold: threshold))
+        } else {
+            text.append(NSAttributedString(string: "–", attributes: [.font: NSFont.menuFont(ofSize: 0)]))
+            rows.level.image = nil
+        }
+        rows.level.attributedTitle = text
+
+        if reading.isAsleep {
+            rows.detail.title = reading.percent == nil
+                ? "Mouse asleep or off — no reading yet"
+                : "Mouse asleep or off — showing last reading"
+        } else if let updated = reading.updated {
+            let minutes = Int(Date().timeIntervalSince(updated) / 60)
+            rows.detail.title = minutes < 1 ? "Updated just now" : "Updated \(minutes) min ago"
+        } else {
+            rows.detail.title = "Reading…"
+        }
+    }
+
+    /// Rewrites the open submenu when a read lands. `reading` is the value
+    /// just emitted (the property still holds the previous one).
+    private func updateMouseRows(_ reading: MouseBatteryReading?) {
+        guard let reading, mouseRows != nil else { return }
+        fillMouseRows(reading)
     }
 
     // MARK: - Events

@@ -14,6 +14,7 @@ enum Log {
     static let calendar = Logger(subsystem: subsystem, category: "calendar")
     static let network = Logger(subsystem: subsystem, category: "network")
     static let translate = Logger(subsystem: subsystem, category: "translate")
+    static let mouse = Logger(subsystem: subsystem, category: "mouse")
 
     // Clipboard / snippets
     static let clipboard = Logger(subsystem: subsystem, category: "clipboard")

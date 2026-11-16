@@ -1,7 +1,7 @@
 # Mukker
 
 A native macOS menu-bar utility that combines a **calendar**, **clipboard history**, **text
-snippets**, **screen capture with annotation**, **window tiling**, a **bandwidth monitor**,
+snippets**, **screen capture with annotation**, **window tiling**, a **bandwidth monitor**, a **Razer mouse battery** readout,
 **translation of what you select or copy** and **keeping your Mac awake** in one app. The menu bar shows today's date and drops down a month calendar with the day's
 events; a quick popup on a global shortcut pastes back into the app you were just using; a
 capture shortcut opens a screenshot in a full annotation editor; a ⌃⌘arrow snaps the frontmost
@@ -79,6 +79,17 @@ window to half the screen.
 - **Data transferred per interface** — Wi-Fi, Ethernet, Thunderbolt… — in the menu's *Network*
   submenu, with the active interface checked. Today by default; this week and this month can be
   switched on. VPN tunnels aren't counted twice, and only traffic while Mukker runs is recorded.
+
+### Razer mouse battery
+
+- **The battery level of a wireless Razer Viper** (Ultimate, V2 Pro, V3 Pro, Mini SE) in the
+  menu's *Mouse* submenu — a coloured dot and a percentage (green, orange below 50%, red below
+  the warning level), plus whether it is charging. Shown while the mouse or its receiver is
+  plugged in.
+- **A warning at the top of the menu** when the battery drops below 15% (5–40%, set in
+  **Settings → Mouse**) and it isn't charging.
+- Read straight over USB every five minutes and whenever the menu opens — no Razer software and
+  no permissions needed. Switch it off in **Settings → Mouse**.
 
 ### Translate
 
