@@ -121,15 +121,19 @@ enum RazerBattery {
     private nonisolated static func attachedDevices() -> [(io_service_t, Model)] {
         var result: [(io_service_t, Model)] = []
         for className in ["IOUSBHostDevice", "IOUSBDevice"] {
-            guard let matching = IOServiceMatching(className) as NSMutableDictionary? else { continue }
-            matching["idVendor"] = vendorID
+            // Every device of the class, filtered here: an `idVendor` key in the
+            // matching dictionary matched nothing on macOS 27 (verified with a
+            // Viper Ultimate dongle attached), so the vendor is checked by hand.
             var iterator: io_iterator_t = 0
-            guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == KERN_SUCCESS else { continue }
+            guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching(className), &iterator)
+                    == KERN_SUCCESS else { continue }
             defer { IOObjectRelease(iterator) }
             while case let service = IOIteratorNext(iterator), service != 0 {
-                let pid = (IORegistryEntryCreateCFProperty(service, "idProduct" as CFString, kCFAllocatorDefault, 0)?
-                    .takeRetainedValue() as? NSNumber)?.intValue
-                if let pid, let model = model(for: pid) {
+                func number(_ key: String) -> Int? {
+                    (IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?
+                        .takeRetainedValue() as? NSNumber)?.intValue
+                }
+                if number("idVendor") == vendorID, let pid = number("idProduct"), let model = model(for: pid) {
                     result.append((service, model))
                 } else {
                     IOObjectRelease(service)
