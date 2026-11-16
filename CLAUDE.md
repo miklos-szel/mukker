@@ -31,8 +31,8 @@ separate apps:
   **5 s** by default; plus per-interface transfer totals (today, optionally this week/month) in a
   *Network* submenu. Needs no permissions and never touches the database.
 - **Mouse battery.** The battery level of a connected wireless Razer Viper, read over USB, as a
-  coloured dot + percentage in a *Mouse* submenu, with a warning row at the top of the menu below
-  **15%**. Needs no permissions and never touches the database. macOS only — not ported.
+  coloured dot + percentage inside a *Mouse* submenu (the submenu's own title is just "Mouse"), with
+  a warning row at the top of the menu below a threshold (**15%** by default, 5–40% in Settings). Needs no permissions and never touches the database. macOS only — not ported.
 - **Translate.** Three global shortcuts (⌘⇧E → English, ⌘⌥E → Hungarian, ⌃⌘E → German by default) send the text
   selected in the frontmost app — read through Accessibility, never copied — or, with nothing
   selected, the newest text entry of the clipboard history to a command-line client signed in with
@@ -192,7 +192,7 @@ point is a plain AppKit `App/App/main.swift`.
   or the button is deallocated.
 - **Menu bar:** one `NSStatusItem` owned by `MenuBarController` (`App/App/MenuBarController.swift`)
   — *not* a SwiftUI `MenuBarExtra`, which in `.menu` style can only hold buttons and text and so
-  cannot host the calendar. Order: the low-mouse-battery warning row (only below 15%), the calendar, the selected day's event rows, then (while enabled)
+  cannot host the calendar. Order: the low-mouse-battery warning row (only below the threshold, not while charging), the calendar, the selected day's event rows, then (while enabled)
   a *Network*, a *Clipboard & Snippets*, a *Capture*, a *Keep Awake* and a *Mouse* (while a supported mouse is attached) submenu, with only Settings and Quit at the top
   level. The menu is **rebuilt from scratch in `menuNeedsUpdate(_:)`**, so the Keep Awake label,
   its countdown line and every shortcut glyph are re-read from their settings objects on each open
@@ -552,8 +552,10 @@ and `refreshInterval`. The pure halves — `BandwidthFormat`, `NetworkCounters.d
 
 `RazerBattery` (`Core/`) is the only thing in the app that talks to a USB device; it is a Swift port
 of librazermacos's battery read and nothing else. `MouseBatteryService` is its only caller and
-`MouseBatterySettings` holds the switch (on by default) and `lowThreshold` (15). The pure halves —
-report layout/CRC, `parse`, `percent(fromRaw:)`, the colour `band(for:)` and `isLow` — are covered
+`MouseBatterySettings` holds the switch (on by default) and `lowThreshold` (15 by default, one of
+`thresholdChoices`, 5–40 — capped so the orange <50% band always exists). The pure halves —
+report layout/CRC, `parse`, `percent(fromRaw:)`, the colour `band(for:threshold:)` and
+`isLow(threshold:)` — are covered
 by `AppTests/RazerBatteryTests.swift`; the USB half is verified by hand with a mouse attached.
 
 - **Protocol.** A 90-byte report (`status, transaction_id, remaining_packets(2), protocol_type,

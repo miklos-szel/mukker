@@ -50,22 +50,24 @@ final class RazerBatteryTests: XCTestCase {
     }
 
     func testBands() {
-        XCTAssertEqual(MouseBatteryService.band(for: 14), .low)
-        XCTAssertEqual(MouseBatteryService.band(for: 15), .medium)
-        XCTAssertEqual(MouseBatteryService.band(for: 49), .medium)
-        XCTAssertEqual(MouseBatteryService.band(for: 50), .ok)
+        XCTAssertEqual(MouseBatteryService.band(for: 14, threshold: 15), .low)
+        XCTAssertEqual(MouseBatteryService.band(for: 15, threshold: 15), .medium)
+        XCTAssertEqual(MouseBatteryService.band(for: 49, threshold: 15), .medium)
+        XCTAssertEqual(MouseBatteryService.band(for: 50, threshold: 15), .ok)
+        XCTAssertEqual(MouseBatteryService.band(for: 25, threshold: 30), .low)
     }
 
     func testLowWarningSkipsChargingAndUnknown() {
         var reading = MouseBatteryReading(modelName: "Viper", percent: 12, isCharging: false,
                                           updated: Date(), isAsleep: false)
-        XCTAssertTrue(reading.isLow)
+        XCTAssertTrue(reading.isLow(threshold: 15))
+        XCTAssertFalse(reading.isLow(threshold: 10))
         reading.isCharging = true
-        XCTAssertFalse(reading.isLow)
+        XCTAssertFalse(reading.isLow(threshold: 15))
         reading = MouseBatteryReading(modelName: "Viper", percent: nil, isCharging: false, updated: nil, isAsleep: true)
-        XCTAssertFalse(reading.isLow)
+        XCTAssertFalse(reading.isLow(threshold: 15))
         reading.percent = 15
-        XCTAssertFalse(reading.isLow)
+        XCTAssertFalse(reading.isLow(threshold: 15))
     }
 
     func testSupportedModelsAreUniqueWirelessVipers() {

@@ -9,11 +9,16 @@ struct MousePane: View {
         Form {
             Section {
                 Toggle("Show Razer mouse battery", isOn: $settings.isEnabled)
+                Picker("Warn below", selection: $settings.lowThreshold) {
+                    ForEach(MouseBatterySettings.thresholdChoices, id: \.self) { Text("\($0)%").tag($0) }
+                }
+                .pickerStyle(.menu)
+                .disabled(!settings.isEnabled)
                 LabeledContent("Status") {
                     HStack(spacing: 8) {
                         if let percent = service.reading?.percent {
                             Circle()
-                                .fill(Color(nsColor: MouseBatteryService.color(for: percent)))
+                                .fill(Color(nsColor: MouseBatteryService.color(for: percent, threshold: settings.lowThreshold)))
                                 .frame(width: 10, height: 10)
                         }
                         Text(statusText).monospacedDigit()
@@ -26,8 +31,8 @@ struct MousePane: View {
             } footer: {
                 Text("Adds a Mouse submenu showing the battery level while a supported Razer mouse "
                      + "(or its wireless receiver) is plugged in, and a warning at the top of the menu "
-                     + "below \(MouseBatterySettings.lowThreshold)%. Read over USB every five minutes "
-                     + "and whenever the menu opens; needs no permissions.")
+                     + "below \(settings.lowThreshold)% unless it is charging. Read over USB every five "
+                     + "minutes and whenever the menu opens; needs no permissions.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

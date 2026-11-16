@@ -86,7 +86,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// The Mouse submenu's rows, rewritten in place when a read lands while
     /// it is open (the open itself triggers one).
     private weak var mouseMenu: NSMenu?
-    private weak var mouseSubmenuItem: NSMenuItem?
     private var isMouseMenuOpen = false
     private var mouseRows: (level: NSMenuItem, detail: NSMenuItem)?
 
@@ -328,7 +327,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         // The one alarm the menu raises: a nearly flat mouse, above everything.
         let mouse = MouseBatterySettings.shared.isEnabled ? MouseBatteryService.shared.reading : nil
-        if let mouse, mouse.isLow, let percent = mouse.percent {
+        if let mouse, mouse.isLow(threshold: MouseBatterySettings.shared.lowThreshold),
+           let percent = mouse.percent {
             items.append(mouseWarningItem(percent))
             items.append(.separator())
         }
@@ -393,15 +393,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         // Only while a supported mouse is attached — nothing to say otherwise.
         if let mouse {
+            // Just "Mouse": the level is only shown inside the submenu.
             let item = submenu("Mouse", of: mouseItems(mouse))
-            item.attributedTitle = mouseSubmenuTitle(mouse)
             mouseMenu = item.submenu
-            mouseSubmenuItem = item
             isMouseMenuOpen = false
             items.append(item)
         } else {
             mouseMenu = nil
-            mouseSubmenuItem = nil
             mouseRows = nil
         }
 
@@ -531,20 +529,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return item
     }
 
-    /// `Mouse  ● 64%`, dot and number in the battery's colour — readable
-    /// without opening the submenu.
-    private func mouseSubmenuTitle(_ reading: MouseBatteryReading) -> NSAttributedString {
-        let font = NSFont.menuFont(ofSize: 0)
-        let text = NSMutableAttributedString(string: "Mouse", attributes: [.font: font])
-        if let percent = reading.percent {
-            text.append(NSAttributedString(string: "  ● \(percent)%", attributes: [
-                .font: NSFont.monospacedDigitSystemFont(ofSize: font.pointSize, weight: .semibold),
-                .foregroundColor: MouseBatteryService.color(for: percent)
-            ]))
-        }
-        return text
-    }
-
     private func mouseItems(_ reading: MouseBatteryReading) -> [NSMenuItem] {
         let level = NSMenuItem()
         level.isEnabled = true
@@ -557,20 +541,21 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private func fillMouseRows(_ reading: MouseBatteryReading) {
         guard let rows = mouseRows else { return }
+        let threshold = MouseBatterySettings.shared.lowThreshold
         let text = NSMutableAttributedString(string: reading.modelName + "  ", attributes: [
             .font: NSFont.menuFont(ofSize: 0)
         ])
         if let percent = reading.percent {
             text.append(NSAttributedString(string: "\(percent)%", attributes: [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .semibold),
-                .foregroundColor: MouseBatteryService.color(for: percent)
+                .foregroundColor: MouseBatteryService.color(for: percent, threshold: threshold)
             ]))
             if reading.isCharging {
                 text.append(NSAttributedString(string: " · Charging", attributes: [
                     .font: NSFont.menuFont(ofSize: 0), .foregroundColor: NSColor.secondaryLabelColor
                 ]))
             }
-            rows.level.image = Self.swatch(MouseBatteryService.color(for: percent))
+            rows.level.image = Self.swatch(MouseBatteryService.color(for: percent, threshold: threshold))
         } else {
             text.append(NSAttributedString(string: "–", attributes: [.font: NSFont.menuFont(ofSize: 0)]))
             rows.level.image = nil
@@ -594,7 +579,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func updateMouseRows(_ reading: MouseBatteryReading?) {
         guard let reading, mouseRows != nil else { return }
         fillMouseRows(reading)
-        mouseSubmenuItem?.attributedTitle = mouseSubmenuTitle(reading)
     }
 
     // MARK: - Events

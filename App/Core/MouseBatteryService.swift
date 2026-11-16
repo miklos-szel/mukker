@@ -12,9 +12,9 @@ struct MouseBatteryReading: Equatable {
     /// The device is attached but the last read got no answer (asleep or off).
     var isAsleep: Bool
 
-    var isLow: Bool {
+    func isLow(threshold: Int) -> Bool {
         guard let percent, !isCharging else { return false }
-        return percent < MouseBatterySettings.lowThreshold
+        return percent < threshold
     }
 }
 
@@ -34,14 +34,14 @@ final class MouseBatteryService: ObservableObject {
 
     enum Band: Equatable { case low, medium, ok }
 
-    nonisolated static func band(for percent: Int) -> Band {
-        if percent < MouseBatterySettings.lowThreshold { return .low }
+    nonisolated static func band(for percent: Int, threshold: Int) -> Band {
+        if percent < threshold { return .low }
         if percent < 50 { return .medium }
         return .ok
     }
 
-    nonisolated static func color(for percent: Int) -> NSColor {
-        switch band(for: percent) {
+    nonisolated static func color(for percent: Int, threshold: Int) -> NSColor {
+        switch band(for: percent, threshold: threshold) {
         case .low: return .systemRed
         case .medium: return .systemOrange
         case .ok: return .systemGreen

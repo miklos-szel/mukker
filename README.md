@@ -84,8 +84,10 @@ window to half the screen.
 
 - **The battery level of a wireless Razer Viper** (Ultimate, V2 Pro, V3 Pro, Mini SE) in the
   menu's *Mouse* submenu — a coloured dot and a percentage (green, orange below 50%, red below
-  15%), plus whether it is charging. Shown while the mouse or its receiver is plugged in.
-- **A warning at the top of the menu** when the battery drops below 15% and it isn't charging.
+  the warning level), plus whether it is charging. Shown while the mouse or its receiver is
+  plugged in.
+- **A warning at the top of the menu** when the battery drops below 15% (5–40%, set in
+  **Settings → Mouse**) and it isn't charging.
 - Read straight over USB every five minutes and whenever the menu opens — no Razer software and
   no permissions needed. Switch it off in **Settings → Mouse**.
 
