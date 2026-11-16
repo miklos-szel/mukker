@@ -353,20 +353,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             networkRows = []
         }
 
-        // Only while a supported mouse is attached — nothing to say otherwise.
-        if let mouse {
-            let item = submenu("Mouse", of: mouseItems(mouse))
-            item.attributedTitle = mouseSubmenuTitle(mouse)
-            mouseMenu = item.submenu
-            mouseSubmenuItem = item
-            isMouseMenuOpen = false
-            items.append(item)
-        } else {
-            mouseMenu = nil
-            mouseSubmenuItem = nil
-            mouseRows = nil
-        }
-
         var clipboardItems: [NSMenuItem] = [
             ActionMenuItem("Show Clipboard & Snippets", combo: shortcuts.popupCombo,
                            handler: actions.showPopup),
@@ -404,6 +390,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         items.append(submenu("Capture", of: captureItems))
 
         items.append(submenu("Keep Awake", of: keepAwakeItems()))
+
+        // Only while a supported mouse is attached — nothing to say otherwise.
+        if let mouse {
+            let item = submenu("Mouse", of: mouseItems(mouse))
+            item.attributedTitle = mouseSubmenuTitle(mouse)
+            mouseMenu = item.submenu
+            mouseSubmenuItem = item
+            isMouseMenuOpen = false
+            items.append(item)
+        } else {
+            mouseMenu = nil
+            mouseSubmenuItem = nil
+            mouseRows = nil
+        }
 
         items.append(.separator())
         items.append(ActionMenuItem("Settings…", keyEquivalent: ",", modifiers: .command,

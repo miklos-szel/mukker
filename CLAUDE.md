@@ -193,7 +193,7 @@ point is a plain AppKit `App/App/main.swift`.
 - **Menu bar:** one `NSStatusItem` owned by `MenuBarController` (`App/App/MenuBarController.swift`)
   — *not* a SwiftUI `MenuBarExtra`, which in `.menu` style can only hold buttons and text and so
   cannot host the calendar. Order: the low-mouse-battery warning row (only below 15%), the calendar, the selected day's event rows, then (while enabled)
-  a *Network*, a *Mouse* (while a supported mouse is attached), a *Clipboard & Snippets*, a *Capture* and a *Keep Awake* submenu, with only Settings and Quit at the top
+  a *Network*, a *Clipboard & Snippets*, a *Capture*, a *Keep Awake* and a *Mouse* (while a supported mouse is attached) submenu, with only Settings and Quit at the top
   level. The menu is **rebuilt from scratch in `menuNeedsUpdate(_:)`**, so the Keep Awake label,
   its countdown line and every shortcut glyph are re-read from their settings objects on each open
   rather than observed — and `calendarModel.reset()` belongs there too, *before* `buildItems()`,
