@@ -696,6 +696,11 @@ halves — the press machine, `DictationLanguagePlan`, the catalog, `sha256(of:)
 settings — are covered by `AppTests/DictationTests.swift`; the mic, key monitor and model are
 verified by hand (`MUKKER_DICTATE_FILE`).
 
+- **Library validation is off** (`com.apple.security.cs.disable-library-validation` in
+  `App/Resources/App.entitlements`). The embedded `CTranscribe.framework` is ad-hoc signed like
+  the app, ad-hoc signatures have no Team ID, and the hardened runtime then refuses to map it —
+  1.4.0 aborted at launch from `/Applications` for exactly that. Keep it until the app gets a real
+  Developer ID, and **launch the `make dmg` build** (not just `make build`) after touching signing.
 - **The engine is vendored.** `Vendor/TranscribeCpp` is a local SwiftPM package: the upstream
   Swift wrapper copied verbatim from a transcribe.cpp tag, plus a remote `binaryTarget` (the
   release's `TranscribeCpp.xcframework.zip`, a dynamic framework embedded in the app) with its

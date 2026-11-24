@@ -5,5 +5,11 @@
 	<!-- Dictation records from the microphone; the hardened runtime blocks audio input without it. -->
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
+	<!-- The embedded CTranscribe.framework (Dictation's engine) is ad-hoc signed like the app. Ad-hoc
+	     signatures carry no Team ID, so the hardened runtime's library validation rejects the
+	     framework and the app aborts at launch ("different Team IDs"). Drop this only once the app
+	     is signed with a real Developer ID. -->
+	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
 </dict>
 </plist>
