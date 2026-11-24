@@ -3,6 +3,13 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.1] - 2026-11-24
+
+### Fixed
+- **1.4.0 didn't start.** macOS refused to load the bundled speech-to-text engine into the
+  ad-hoc-signed app ("different Team IDs") and the app quit at launch. The engine is now allowed
+  to load, and the app starts normally with Dictation working.
+
 ## [1.4.0] - 2026-11-24
 
 ### Added
