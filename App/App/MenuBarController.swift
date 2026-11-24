@@ -398,8 +398,6 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 #endif
         items.append(submenu("Capture", of: captureItems))
 
-        items.append(submenu("Keep Awake", of: keepAwakeItems()))
-
         if DictationSettings.shared.isEnabled {
             items.append(submenu("Dictation", of: dictationItems()))
         }
@@ -415,6 +413,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             mouseMenu = nil
             mouseRows = nil
         }
+
+        // Last of the submenus, on purpose (the user's order).
+        items.append(submenu("Keep Awake", of: keepAwakeItems()))
 
         items.append(.separator())
         items.append(ActionMenuItem("Settings…", keyEquivalent: ",", modifiers: .command,
