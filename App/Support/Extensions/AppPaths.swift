@@ -119,14 +119,19 @@ enum AppPaths {
     }
 
     /// Built once — DateFormatter construction is expensive relative to a save.
+    /// POSIX locale + Gregorian calendar, so the name never picks up the
+    /// user's numbering system or calendar.
     private static let fileNameFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyy-MM-dd'_'HH-mm-ss"
         return formatter
     }()
 
-    /// A timestamped file name like "Mukker 2026-05-29 at 09.41.12.png".
+    /// A timestamped file name with no spaces, like "scr_2026-05-29_09-41-12.png"
+    /// (local time). Deliberately not the product name, so it doesn't follow a rename.
     static func suggestedFileName(date: Date = .now, fileExtension: String = "png") -> String {
-        "\(Branding.name) \(fileNameFormatter.string(from: date)).\(fileExtension)"
+        "scr_\(fileNameFormatter.string(from: date)).\(fileExtension)"
     }
 }

@@ -113,7 +113,7 @@ scripts/vm.sh log
   - Blur re-renders the composite *beneath* it (image + earlier annotations), downscaled, and
     draws it nearest-neighbour.
   - Crop flattens the inside of the rect into the new base image.
-  - `ImageOutput.Save` never overwrites (`FileMode.CreateNew` + " 2", " 3"…).
+  - `ImageOutput.Save` never overwrites (`FileMode.CreateNew`; names are `scr_yyyy-MM-dd_HH-mm-ss` like the Mac app, + "_2", "_3"… on a collision).
 - **Tray icon:**
   - The app icon (`Assets/mukker.ico`), drawn per size by `../scripts/make-icons.py` together
     with the Mac `AppIcon` — edit the design there, never the .ico. Reloaded at `SmallIconSize` on

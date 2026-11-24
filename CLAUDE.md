@@ -75,7 +75,7 @@ Identity is split into two halves that behave differently on a rename:
 
 | Follows the product name | Frozen until deliberately migrated |
 | --- | --- |
-| Window titles, menus, alerts, saved screenshot names (`Branding.name`) | Bundle ID `com.mukker.Mukker` — changing it resets TCC grants and hands the app an empty defaults domain |
+| Window titles, menus, alerts (`Branding.name`) — saved screenshots are `scr_<date>_<time>` and never carry the name | Bundle ID `com.mukker.Mukker` — changing it resets TCC grants and hands the app an empty defaults domain |
 | `project.yml` `name:`, the `.xcodeproj`, the built `.app`, the scheme | `Branding.supportFolderName` + `databaseFileName` → `~/Library/Application Support/Mukker/mukker.sqlite` |
 | Repo/README headings | `Branding.snippetExportFormat` (`mukker.snippets.v1`) and the `Mukker*` exporter/importer types |
 
@@ -366,7 +366,9 @@ native file above 20 MB (`MukkerImporter.maxFileBytes`). Native export uses our 
 → `ScreenCaptureService` grabs the display as a frozen `CGImage` → `SelectionOverlayWindow` lets
 the user drag a region → crop the frozen image → routed by `CaptureSettings.afterCapture`
 (show/copy/save) in `AppDelegate.handleCapture`. `ImageExporter.saveSilently` returns a
-`Result` and **never overwrites** — a taken name gets " 2", " 3", … and the write uses
+`Result` and **never overwrites** — files are named `scr_yyyy-MM-dd_HH-mm-ss.png` (no spaces, POSIX
+locale, `AppPaths.suggestedFileName`; the Windows port's `ExportNaming` matches), a taken name gets
+"_2", "_3", … and the write uses
 `.withoutOverwriting`. A failed after-capture save opens the capture in the editor with an alert;
 the editor's own save flashes the error. Don't drop the failure on the floor.
 

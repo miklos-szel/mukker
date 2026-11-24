@@ -2,17 +2,18 @@ namespace Mukker.Core.Capture;
 
 public static class ExportNaming
 {
-    /// <summary>"Mukker 2026-11-15 at 12.34.56.png".</summary>
-    public static string BaseName(DateTime when) => $"Mukker {when:yyyy-MM-dd} at {when:HH.mm.ss}";
+    /// <summary>"scr_2026-11-15_12-34-56" — no spaces, same as the Mac app.</summary>
+    public static string BaseName(DateTime when) =>
+        "scr_" + when.ToString("yyyy-MM-dd'_'HH-mm-ss", System.Globalization.CultureInfo.InvariantCulture);
 
-    /// <summary>A path in <paramref name="directory"/> that doesn't exist yet: " 2", " 3", … on collisions. Never overwrites.</summary>
+    /// <summary>A path in <paramref name="directory"/> that doesn't exist yet: "_2", "_3", … on collisions. Never overwrites.</summary>
     public static string UniquePath(string directory, DateTime when, string extension, Func<string, bool>? exists = null)
     {
         exists ??= File.Exists;
         var baseName = BaseName(when);
         var path = Path.Combine(directory, $"{baseName}.{extension}");
         for (var n = 2; exists(path); n++)
-            path = Path.Combine(directory, $"{baseName} {n}.{extension}");
+            path = Path.Combine(directory, $"{baseName}_{n}.{extension}");
         return path;
     }
 }

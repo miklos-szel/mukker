@@ -266,10 +266,10 @@ public class CaptureTests
         var taken = new HashSet<string>();
         var when = new DateTime(2026, 11, 15, 9, 5, 7);
         var p1 = ExportNaming.UniquePath("/d", when, "png", taken.Contains);
-        Assert.EndsWith("Mukker 2026-11-15 at 09.05.07.png", p1);
+        Assert.EndsWith("scr_2026-11-15_09-05-07.png", p1);
         taken.Add(p1);
         var p2 = ExportNaming.UniquePath("/d", when, "png", taken.Contains);
-        Assert.EndsWith("Mukker 2026-11-15 at 09.05.07 2.png", p2);
+        Assert.EndsWith("scr_2026-11-15_09-05-07_2.png", p2);
     }
 
     // Pseudo-random rows (seeded per row index), so no shift other than the true one lines up.

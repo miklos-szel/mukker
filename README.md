@@ -201,7 +201,8 @@ Clipboard history and snippets are stored in a SQLite database at
 alongside it. The folder is readable by your user account only (folders `0700`, files `0600`;
 Mukker tightens an existing folder at launch). Saved screenshots go wherever you point
 **Settings → Capture → Screenshots folder**, defaulting to the Desktop, and never overwrite an
-existing file — a second save in the same second is numbered (`… 2.png`). Dictation models live
+existing file. Files are named by date and time without spaces — `scr_2026-11-24_09-41-12.png` —
+and a second save in the same second is numbered (`…_2.png`). Dictation models live
 in `~/Library/Application Support/Mukker/models/` (delete them from **Settings → Dictation**);
 recordings and transcripts are never written anywhere.
 

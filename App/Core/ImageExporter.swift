@@ -61,7 +61,7 @@ enum ImageExporter {
 
     /// Save without prompting, to `directory` using a timestamped name. Never
     /// overwrites: a name already taken (two saves in the same second) gets
-    /// " 2", " 3", … before the extension.
+    /// "_2", "_3", … before the extension.
     @discardableResult
     static func saveSilently(_ cg: CGImage, to directory: URL, format: SaveFormat) -> Result<URL, Error> {
         guard let data = data(from: cg, format: format) else {
@@ -85,7 +85,7 @@ enum ImageExporter {
     }
 
     /// `fileName` if `exists` says it is free, else the first free of
-    /// "name 2.ext", "name 3.ext", …
+    /// "name_2.ext", "name_3.ext", … (no spaces, like the names themselves)
     static func uniqueFileName(_ fileName: String, exists: (String) -> Bool) -> String {
         guard exists(fileName) else { return fileName }
         let ns = fileName as NSString
@@ -93,7 +93,7 @@ enum ImageExporter {
         let stem = ns.deletingPathExtension
         var n = 2
         while true {
-            let candidate = ext.isEmpty ? "\(stem) \(n)" : "\(stem) \(n).\(ext)"
+            let candidate = ext.isEmpty ? "\(stem)_\(n)" : "\(stem)_\(n).\(ext)"
             if !exists(candidate) { return candidate }
             n += 1
         }

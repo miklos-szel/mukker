@@ -18,6 +18,12 @@ All notable changes to Mukker are documented here. The format loosely follows
   starts, stops and downloads. Everything is in the new **Settings → Dictation** tab; the
   Microphone permission joins **Settings → Permissions**.
 
+### Changed
+- **Screenshot file names have no spaces any more**: saved captures are named
+  `scr_2026-11-24_09-41-12.png` (date and time, local) instead of `Mukker 2026-11-24 at 09.41.12.png`,
+  and a second capture in the same second becomes `…_2.png`. Easier to use from Terminal and
+  scripts. The Windows version names its captures the same way.
+
 ## [1.3.3] - 2026-11-16
 
 ### Added

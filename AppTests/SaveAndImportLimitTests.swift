@@ -11,10 +11,20 @@ final class SaveAndImportLimitTests: XCTestCase {
     }
 
     func testUniqueFileNameAppendsCounterBeforeExtension() {
-        let taken: Set<String> = ["Shot at 09.41.12.png", "Shot at 09.41.12 2.png"]
-        XCTAssertEqual(ImageExporter.uniqueFileName("Shot at 09.41.12.png") { taken.contains($0) },
-                       "Shot at 09.41.12 3.png")
-        XCTAssertEqual(ImageExporter.uniqueFileName("noext") { $0 == "noext" }, "noext 2")
+        let taken: Set<String> = ["scr_2026-05-29_09-41-12.png", "scr_2026-05-29_09-41-12_2.png"]
+        XCTAssertEqual(ImageExporter.uniqueFileName("scr_2026-05-29_09-41-12.png") { taken.contains($0) },
+                       "scr_2026-05-29_09-41-12_3.png")
+        XCTAssertEqual(ImageExporter.uniqueFileName("noext") { $0 == "noext" }, "noext_2")
+    }
+
+    func testSuggestedFileNameIsScrDateTimeWithoutSpaces() {
+        var components = DateComponents()
+        (components.year, components.month, components.day) = (2026, 5, 29)
+        (components.hour, components.minute, components.second) = (9, 41, 12)
+        let date = Calendar(identifier: .gregorian).date(from: components)!
+        XCTAssertEqual(AppPaths.suggestedFileName(date: date), "scr_2026-05-29_09-41-12.png")
+        XCTAssertEqual(AppPaths.suggestedFileName(date: date, fileExtension: "jpg"), "scr_2026-05-29_09-41-12.jpg")
+        XCTAssertFalse(AppPaths.suggestedFileName().contains(" "))
     }
 
     // MARK: - Import limits
