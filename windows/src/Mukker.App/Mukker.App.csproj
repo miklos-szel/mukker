@@ -23,6 +23,9 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\mukker.ico" />
+    <Resource Include="Assets\Sounds\dictation-start.wav" />
+    <Resource Include="Assets\Sounds\dictation-stop.wav" />
+    <Resource Include="Assets\Sounds\dictation-paste.wav" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />

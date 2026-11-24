@@ -198,6 +198,17 @@ internal static class Native
     public const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
 
+    public const int GWL_EXSTYLE = -20;
+    public const int WS_EX_TRANSPARENT = 0x20, WS_EX_TOOLWINDOW = 0x80, WS_EX_LAYERED = 0x80000, WS_EX_NOACTIVATE = 0x08000000;
+    public const int WM_KEYUP = 0x0101, WM_SYSKEYUP = 0x0105;
+    public const uint LLKHF_INJECTED = 0x10;
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongW")]
+    public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT { public int X, Y; }
 
