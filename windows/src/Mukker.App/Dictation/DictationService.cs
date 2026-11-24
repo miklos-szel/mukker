@@ -256,7 +256,6 @@ internal sealed class DictationService
                 }
                 else
                 {
-                    AppHost.Log($"dictation: transcribed {duration:0.0} s in {started.ElapsedMilliseconds} ms, language {task.Result.Language ?? "?"}, {task.Result.Text.Length} chars");
                     Deliver(task.Result.Text);
                 }
             });

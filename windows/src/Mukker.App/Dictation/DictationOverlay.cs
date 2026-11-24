@@ -78,6 +78,8 @@ internal sealed class DictationOverlay : Window
     }
 
     /// <summary>Shows or hides the pill for the service's current state.</summary>
+    private StackPanel? _meter;
+
     public void Update()
     {
         var state = _service.State;
@@ -98,9 +100,13 @@ internal sealed class DictationOverlay : Window
         {
             case DictationPhase.Recording:
                 _row.Children.Add(new Ellipse { Width = 9, Height = 9, Fill = Brushes.Red, VerticalAlignment = VerticalAlignment.Center });
-                var meter = new StackPanel { Orientation = Orientation.Horizontal, Height = 20, Margin = new Thickness(10, 0, 10, 0) };
-                foreach (var b in _bars) meter.Children.Add(b);
-                _row.Children.Add(meter);
+                // One meter panel owns the bars for the overlay's lifetime: a WPF element can only have one parent.
+                if (_meter == null)
+                {
+                    _meter = new StackPanel { Orientation = Orientation.Horizontal, Height = 20, Margin = new Thickness(10, 0, 10, 0) };
+                    foreach (var b in _bars) _meter.Children.Add(b);
+                }
+                _row.Children.Add(_meter);
                 _row.Children.Add(Label("Listening"));
                 SetLevel(_service.Level);
                 break;
