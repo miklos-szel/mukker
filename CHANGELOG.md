@@ -3,6 +3,21 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.0] - 2026-11-24
+
+### Added
+- **Dictation, on your Mac.** Hold **fn**, speak and let go: the text is typed into the app in
+  front (and left on the clipboard and in the history). A short tap keeps listening until the next
+  tap; push-to-talk only, tap-to-toggle only, right ⌥ or any custom shortcut are options. Esc
+  cancels. Transcription runs locally on the GPU through transcribe.cpp — nothing is sent anywhere
+  and audio is never written to disk. Models download once from Hugging Face and are verified
+  against a checksum: **Whisper Large v3 Turbo** (default), **Parakeet Ultra** and **Whisper
+  Small**. Choose English, German or Hungarian, or Automatic among the languages you tick; pick
+  the microphone (with a level test), start/stop sounds and an on-screen *Listening /
+  Transcribing* pill. The menu bar icon turns red while recording, and a *Dictation* submenu
+  starts, stops and downloads. Everything is in the new **Settings → Dictation** tab; the
+  Microphone permission joins **Settings → Permissions**.
+
 ## [1.3.3] - 2026-11-16
 
 ### Added

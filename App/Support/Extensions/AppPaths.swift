@@ -36,6 +36,15 @@ enum AppPaths {
         return dir
     }
 
+    /// Downloaded speech-to-text models (Dictation). Large files, but only a
+    /// handful, so the launch-time permission walk stays cheap.
+    static var modelsDirectory: URL {
+        let dir = supportDirectory.appendingPathComponent("models", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
+                                                 attributes: privateDirectoryAttributes)
+        return dir
+    }
+
     // MARK: - Permissions
     //
     // Clipboard history can hold anything the user ever copied, so the support

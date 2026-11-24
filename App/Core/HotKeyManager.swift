@@ -19,13 +19,17 @@ final class HotKeyManager {
         let combo: KeyPath<ShortcutSettings, KeyCombo>
         var isEnabled: () -> Bool = { true }
         let handler: () -> Void
+        /// Only for push-to-talk style actions (dictation); nil for the rest.
+        var releaseHandler: (() -> Void)?
 
         init(combo: KeyPath<ShortcutSettings, KeyCombo>,
              isEnabled: @escaping () -> Bool = { true },
-             handler: @escaping () -> Void) {
+             handler: @escaping () -> Void,
+             releaseHandler: (() -> Void)? = nil) {
             self.combo = combo
             self.isEnabled = isEnabled
             self.handler = handler
+            self.releaseHandler = releaseHandler
         }
     }
 
@@ -72,6 +76,7 @@ final class HotKeyManager {
         for action in actions where action.isEnabled() {
             let key = HotKey(keyCombo: settings[keyPath: action.combo])
             key.keyDownHandler = action.handler
+            key.keyUpHandler = action.releaseHandler
             hotKeys.append(key)
         }
         Log.hotkey.info("registered \(self.hotKeys.count) global hotkeys")

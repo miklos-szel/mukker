@@ -73,7 +73,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // menu's Mouse submenu and its low-battery warning row.
         MouseBatteryService.shared.start()
 
-        // One manager owns all eight system-wide shortcuts. The menu items carry
+        // Dictation: the fn/right-⌥ key monitor, the recording/transcribing
+        // coordinator and its on-screen pill. Its custom-shortcut variant is a
+        // hotkey below. A missing model sends the user to its settings tab.
+        DictationService.shared.onRequestSettings = { [weak self] in self?.openSettings(tab: .dictation) }
+        DictationService.shared.start()
+        DictationOverlayController.shared.start()
+
+        // One manager owns every system-wide shortcut. The menu items carry
         // the same key equivalents for discoverability; CaptureCoordinator's
         // in-flight guard keeps a double-trigger from starting two captures.
         // Window tiling registers only while it is switched on, so that its
@@ -81,6 +88,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let tilingEnabled = { WindowTilingSettings.shared.isEnabled }
         // Translation likewise frees ⌘⇧E/⌘⌥E while it is switched off.
         let translationEnabled = { TranslationSettings.shared.isEnabled }
+        // The dictation combo exists only while the trigger is "Custom shortcut".
+        let dictationComboEnabled = {
+            DictationSettings.shared.isEnabled && DictationSettings.shared.trigger == .combo
+        }
         HotKeyManager.shared.start(
             settings: ShortcutSettings.shared,
             actions: [
@@ -102,13 +113,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .init(combo: \.translateHungarianCombo, isEnabled: translationEnabled,
                       handler: { [weak self] in self?.translateSelectionOrLatest(.hungarian) }),
                 .init(combo: \.translateGermanCombo, isEnabled: translationEnabled,
-                      handler: { [weak self] in self?.translateSelectionOrLatest(.german) })
+                      handler: { [weak self] in self?.translateSelectionOrLatest(.german) }),
+                .init(combo: \.dictationCombo, isEnabled: dictationComboEnabled,
+                      handler: { DictationService.shared.press() },
+                      releaseHandler: { DictationService.shared.release() })
             ],
-            // Either switch re-registers. Each drops its subscribe-time replay;
-            // the manager delivers on the run loop, after the new value is stored.
-            reloadOn: Publishers.Merge(
-                WindowTilingSettings.shared.$isEnabled.dropFirst().map { _ in () },
-                TranslationSettings.shared.$isEnabled.dropFirst().map { _ in () }
+            // Any of these switches re-registers. Each drops its subscribe-time
+            // replay; the manager delivers on the run loop, after the new value is stored.
+            reloadOn: Publishers.MergeMany(
+                WindowTilingSettings.shared.$isEnabled.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+                TranslationSettings.shared.$isEnabled.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+                DictationSettings.shared.$isEnabled.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+                DictationSettings.shared.$trigger.dropFirst().map { _ in () }.eraseToAnyPublisher()
             )
             .eraseToAnyPublisher()
         )
@@ -159,6 +175,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             RunLoop.main.add(timer, forMode: .common)
         }
+        // Transcribes a WAV through the selected model and logs the result
+        // (`MUKKER_DICTATE_FILE=/path/to.wav`) — the engine without a microphone.
+        if let path = ProcessInfo.processInfo.environment["MUKKER_DICTATE_FILE"] {
+            debugTranscribe(path: path)
+        }
 #endif
 
         // We hide the dock icon via LSUIElement; still set activation policy as a guard
@@ -180,6 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         actions.translateToEnglish = { [weak self] in self?.translateSelectionOrLatest(.english) }
         actions.translateToHungarian = { [weak self] in self?.translateSelectionOrLatest(.hungarian) }
         actions.translateToGerman = { [weak self] in self?.translateSelectionOrLatest(.german) }
+        actions.openDictationSettings = { [weak self] in self?.openSettings(tab: .dictation) }
 #if DEBUG
         actions.openDebugSample = { [weak self] in self?.openDebugSample() }
 #endif
@@ -280,6 +302,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func openSettings(tab: SettingsTab? = nil) {
         if let w = settingsWindow {
+            // A specific tab was asked for (e.g. "Dictation Settings…"): swap in a
+            // fresh root on that tab — the old view's @State selection would
+            // otherwise win.
+            if let tab, let host = w.contentViewController as? NSHostingController<SettingsView> {
+                host.rootView = SettingsView(selection: tab)
+            }
             NSApp.activate(ignoringOtherApps: true)
             w.makeKeyAndOrderFront(nil)
             return
@@ -296,6 +324,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
 #if DEBUG
+    /// Reads a WAV (any format AVAudioFile can open), converts to 16 kHz mono
+    /// and prints the transcript to stdout. Debug only — the one place a
+    /// transcript is ever written anywhere.
+    private func debugTranscribe(path: String) {
+        guard let samples = DebugAudio.load(path) else {
+            print("MUKKER_DICTATE_FILE: couldn't read \(path)")
+            return
+        }
+        let settings = DictationSettings.shared
+        let plan = DictationLanguagePlan.plan(model: settings.model, selected: settings.language,
+                                              preferred: settings.preferredLanguages)
+        print("MUKKER_DICTATE_FILE: \(samples.count) samples, model \(settings.model.id), plan \(plan)")
+        TranscriptionEngine.shared.transcribe(samples, model: settings.model, plan: plan) { outcome in
+            switch outcome {
+            case .success(let result): print("MUKKER_DICTATE_FILE [\(result.language ?? "?")]: \(result.text)")
+            case .failure(let error): print("MUKKER_DICTATE_FILE failed: \(error)")
+            }
+            fflush(stdout)   // a pipe is block-buffered; the run is killed afterwards
+        }
+    }
+
     /// Opens the editor with a generated test image — lets us exercise the editor
     /// without Screen Recording permission.
     func openDebugSample() {

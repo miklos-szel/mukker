@@ -1,12 +1,19 @@
 import SwiftUI
 
 /// Tabbed Settings window. One tab per feature set — Clipboard & Snippets,
-/// Capture, Keep Awake, Windows, Calendar, Network, Mouse, Translate — while Hotkeys, Permissions and
+/// Capture, Keep Awake, Windows, Calendar, Network, Mouse, Translate, Dictation — while Hotkeys, Permissions and
 /// About are shared across all of them.
 struct SettingsView: View {
     /// Which tab is showing. Defaults to the first; the `MUKKER_OPEN_SETTINGS`
     /// debug hook opens straight onto another for screenshots.
-    @State var selection: SettingsTab = .clipboard
+    @State private var selection: SettingsTab
+    /// New per construction, so a root swapped in by `openSettings(tab:)`
+    /// re-seeds `selection` instead of keeping the old view's state.
+    private let identity = UUID()
+
+    init(selection: SettingsTab = .clipboard) {
+        _selection = State(initialValue: selection)
+    }
 
     var body: some View {
         TabView(selection: $selection) {
@@ -34,6 +41,9 @@ struct SettingsView: View {
             TranslatePane()
                 .tabItem { Label("Translate", systemImage: "character.bubble") }
                 .tag(SettingsTab.translate)
+            DictationPane()
+                .tabItem { Label("Dictation", systemImage: "mic") }
+                .tag(SettingsTab.dictation)
             HotkeysPane()
                 .tabItem { Label("Hotkeys", systemImage: "keyboard") }
                 .tag(SettingsTab.hotkeys)
@@ -45,13 +55,14 @@ struct SettingsView: View {
                 .tag(SettingsTab.about)
         }
         .focusEffectDisabled()
-        // Eleven tab labels need ~710 pt in a row (ten measured ~642 pt with an
-        // equivalent NSTabView); narrower and AppKit drops the last tabs into overflow.
-        .frame(width: 740, height: 620)
+        .id(identity)
+        // Twelve tab labels need ~780 pt in a row (eleven needed ~710 pt);
+        // narrower and AppKit drops the last tabs into overflow.
+        .frame(width: 820, height: 640)
         .padding()
     }
 }
 
 enum SettingsTab: String, CaseIterable {
-    case clipboard, capture, keepAwake, windows, calendar, network, mouse, translate, hotkeys, permissions, about
+    case clipboard, capture, keepAwake, windows, calendar, network, mouse, translate, dictation, hotkeys, permissions, about
 }

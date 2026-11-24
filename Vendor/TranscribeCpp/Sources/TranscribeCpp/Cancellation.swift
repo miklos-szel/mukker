@@ -1,0 +1,85 @@
+import CTranscribe
+import os
+
+/// A thread-safe cancellation flag. Install it on a `Session`, `DiarizeSession`,
+/// `LangIdSession` or `VadSession` with `setCancellationToken`; the native abort
+/// callback (polled between decode steps / chunks) reads it, so `cancel()` may
+/// be called from any thread to abort an in-flight run/stream. The run then throws
+/// `.aborted` (a `Session` run with the partial transcript preserved).
+public final class CancellationToken: @unchecked Sendable {
+    private let cancelled = OSAllocatedUnfairLock(initialState: false)
+
+    public init() {}
+
+    public func cancel() { cancelled.withLock { $0 = true } }
+    public func reset() { cancelled.withLock { $0 = false } }
+    public var isCancelled: Bool { cancelled.withLock { $0 } }
+}
+
+/// C-ABI abort trampoline: reconstitutes the token from the userdata pointer
+/// and reports its cancellation state. Fires on the native run thread.
+private func abortTrampoline(_ userData: UnsafeMutableRawPointer?) -> Bool {
+    guard let userData else { return false }
+    return Unmanaged<CancellationToken>.fromOpaque(userData).takeUnretainedValue().isCancelled
+}
+
+extension Session {
+    /// Install a cancellation token. The session keeps a strong reference; the
+    /// C side holds an unretained pointer through the abort callback userdata.
+    public func setCancellationToken(_ token: CancellationToken) {
+        cancelToken = token
+        let context = Unmanaged.passUnretained(token).toOpaque()
+        transcribe_set_abort_callback(ptr, abortTrampoline, context)
+    }
+
+    /// Remove any installed cancellation token.
+    public func clearCancellationToken() {
+        transcribe_set_abort_callback(ptr, nil, nil)
+        cancelToken = nil
+    }
+}
+
+extension LangIdSession {
+    /// Install a cancellation token; a cancelled run throws `.aborted`.
+    public func setCancellationToken(_ token: CancellationToken) {
+        cancelToken = token
+        let context = Unmanaged.passUnretained(token).toOpaque()
+        transcribe_langid_set_abort_callback(ptr, abortTrampoline, context)
+    }
+
+    /// Remove any installed cancellation token.
+    public func clearCancellationToken() {
+        transcribe_langid_set_abort_callback(ptr, nil, nil)
+        cancelToken = nil
+    }
+}
+
+extension VadSession {
+    /// Install a cancellation token; a cancelled run, feed or flush throws `.aborted`.
+    public func setCancellationToken(_ token: CancellationToken) {
+        cancelToken = token
+        let context = Unmanaged.passUnretained(token).toOpaque()
+        transcribe_vad_set_abort_callback(ptr, abortTrampoline, context)
+    }
+
+    /// Remove any installed cancellation token.
+    public func clearCancellationToken() {
+        transcribe_vad_set_abort_callback(ptr, nil, nil)
+        cancelToken = nil
+    }
+}
+
+extension DiarizeSession {
+    /// Install a cancellation token; a cancelled run throws `.aborted`.
+    public func setCancellationToken(_ token: CancellationToken) {
+        cancelToken = token
+        let context = Unmanaged.passUnretained(token).toOpaque()
+        transcribe_diarize_set_abort_callback(ptr, abortTrampoline, context)
+    }
+
+    /// Remove any installed cancellation token.
+    public func clearCancellationToken() {
+        transcribe_diarize_set_abort_callback(ptr, nil, nil)
+        cancelToken = nil
+    }
+}
