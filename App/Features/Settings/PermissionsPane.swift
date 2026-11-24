@@ -8,6 +8,7 @@ struct PermissionsPane: View {
     @State private var accessibility = false
     @State private var screenRecording = false
     @State private var calendars = false
+    @State private var microphone = false
     @State private var launchAtLogin = false
 
     private let pollTimer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -24,8 +25,9 @@ struct PermissionsPane: View {
             } footer: {
                 Text("Needed to paste into the active app (⌘V), to merge with double-⌘C, "
                      + "to auto-scroll the target during scrolling capture, to move "
-                     + "windows with the tiling shortcuts, and to translate the selected text. "
-                     + "Without it, translation uses the newest clipboard text instead.")
+                     + "windows with the tiling shortcuts, to translate the selected text, and for "
+                     + "dictation to notice its key and paste what you said. Without it, translation "
+                     + "uses the newest clipboard text instead.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -64,6 +66,25 @@ struct PermissionsPane: View {
             }
 
             Section {
+                PermissionRow(
+                    granted: microphone,
+                    open: { PermissionsService.shared.openMicrophoneSettings(); refresh() },
+                    request: {
+                        Task {
+                            await PermissionsService.shared.requestMicrophonePermission()
+                            refresh()
+                        }
+                    })
+            } header: {
+                Text("Microphone")
+            } footer: {
+                Text("Lets Dictation hear you while its key is held. The audio stays in memory "
+                     + "and is transcribed on this Mac — nothing is sent anywhere.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle("Launch \(Branding.name) at login", isOn: launchAtLoginBinding)
             } header: {
                 Text("Start at Login")
@@ -83,6 +104,7 @@ struct PermissionsPane: View {
         accessibility = PermissionsService.shared.hasAccessibilityPermission
         screenRecording = PermissionsService.shared.hasScreenRecordingPermission
         calendars = PermissionsService.shared.hasCalendarAccess
+        microphone = PermissionsService.shared.hasMicrophonePermission
         launchAtLogin = LoginItemService.shared.isEnabled
     }
 

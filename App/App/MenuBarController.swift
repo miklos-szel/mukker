@@ -31,6 +31,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         var translateToEnglish: () -> Void = {}
         var translateToHungarian: () -> Void = {}
         var translateToGerman: () -> Void = {}
+        var openDictationSettings: () -> Void = {}
 #if DEBUG
         /// Defaulted so the memberwise initialiser stays identical in both
         /// configurations — the debug item is filled in by `AppDelegate`.
@@ -134,6 +135,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         // Synchronous, like `$rate` above, and for the same reasons: the value
         // is emitted before it is stored, and a `receive(on:)` hop may not run
         // while the menu tracks.
+        // Red while dictation records. Taken from the emitted value: `@Published`
+        // fires before the new state is stored.
+        DictationService.shared.$state
+            .map { $0 == .recording }
+            .removeDuplicates()
+            .sink { [weak self] recording in self?.statusItem.button?.contentTintColor = recording ? .systemRed : nil }
+            .store(in: &cancellables)
+
         MouseBatteryService.shared.$reading
             .removeDuplicates()
             .sink { [weak self] reading in self?.updateMouseRows(reading) }
@@ -391,6 +400,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         items.append(submenu("Keep Awake", of: keepAwakeItems()))
 
+        if DictationSettings.shared.isEnabled {
+            items.append(submenu("Dictation", of: dictationItems()))
+        }
+
         // Only while a supported mouse is attached — nothing to say otherwise.
         if let mouse {
             // Just "Mouse": the level is only shown inside the submenu.
@@ -426,6 +439,31 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             items.append(ActionMenuItem(duration.label,
                                         handler: { KeepAwakeService.shared.activate(for: duration) }))
         }
+        return items
+    }
+
+    // MARK: - Dictation
+
+    private func dictationItems() -> [NSMenuItem] {
+        let settings = DictationSettings.shared
+        let model = settings.model
+        let store = DictationModelStore.shared
+        var items: [NSMenuItem] = []
+        if store.isInstalled(model) {
+            let recording = DictationService.shared.isRecording
+            items.append(ActionMenuItem(recording ? "Stop Dictation" : "Start Dictation",
+                                        handler: { DictationService.shared.toggleFromMenu() }))
+            items.append(disabled("Key: \(settings.trigger == .combo ? ShortcutSettings.shared.dictationCombo.description : settings.trigger.label)"))
+        } else if case .downloading(let fraction) = store.phase(for: model) {
+            items.append(disabled("Downloading \(model.name)… \(Int(fraction * 100))%"))
+        } else {
+            let size = ByteCountFormatter.string(fromByteCount: store.remainingBytes(for: model), countStyle: .file)
+            items.append(ActionMenuItem("Download \(model.name) (\(size))",
+                                        handler: { DictationModelStore.shared.download(model) }))
+        }
+        items.append(disabled("Model: \(model.name)"))
+        items.append(.separator())
+        items.append(ActionMenuItem("Dictation Settings…", handler: actions.openDictationSettings))
         return items
     }
 

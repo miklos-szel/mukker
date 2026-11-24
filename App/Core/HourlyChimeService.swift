@@ -1,10 +1,9 @@
 import AppKit
 import Combine
-import CoreAudio
 
-/// Beeps at the top of every hour. The only thing in the app that talks to
-/// CoreAudio (fast-append's optional "Purr" is a plain `NSSound` on the
-/// default effects device).
+/// Beeps at the top of every hour. Its CoreAudio lookups live in
+/// `AudioDevices`, shared with Dictation (fast-append's optional "Purr" is a
+/// plain `NSSound` on the default effects device).
 ///
 /// Two details are load-bearing:
 ///
@@ -15,7 +14,7 @@ import CoreAudio
 ///   is the authority. Never a repeating one-hour timer, which drifts away from
 ///   the hour with every sleep.
 /// - The sound plays on the **current default output device**, looked up through
-///   CoreAudio and handed to `NSSound.playbackDeviceIdentifier`. Left alone,
+///   `AudioDevices` and handed to `NSSound.playbackDeviceIdentifier`. Left alone,
 ///   `NSSound` follows System Settings → Sound → "Play sound effects through",
 ///   which is frequently a different device than the one the user is listening
 ///   to.
@@ -152,33 +151,9 @@ final class HourlyChimeService: ObservableObject {
             NSSound.beep()
             return
         }
-        sound.playbackDeviceIdentifier = Self.defaultOutputDeviceUID()
+        sound.playbackDeviceIdentifier = AudioDevices.defaultOutputDeviceUID()
         playing = sound
         sound.play()
-    }
-
-    /// UID of the system's current default output device, or nil if CoreAudio
-    /// won't say — in which case `NSSound` falls back to the sound-effects
-    /// device, which is still audible, just possibly elsewhere.
-    private static func defaultOutputDeviceUID() -> String? {
-        var deviceID = AudioDeviceID(0)
-        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain)
-
-        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
-                                         &address, 0, nil, &size, &deviceID) == noErr,
-              deviceID != kAudioObjectUnknown else { return nil }
-
-        var uid: CFString?
-        var uidSize = UInt32(MemoryLayout<CFString?>.size)
-        address.mSelector = kAudioDevicePropertyDeviceUID
-
-        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil,
-                                         &uidSize, &uid) == noErr else { return nil }
-        return uid as String?
     }
 
     // MARK: - Sound catalogue

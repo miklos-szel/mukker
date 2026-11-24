@@ -2,7 +2,7 @@
 
 A native macOS menu-bar utility that combines a **calendar**, **clipboard history**, **text
 snippets**, **screen capture with annotation**, **window tiling**, a **bandwidth monitor**, a **Razer mouse battery** readout,
-**translation of what you select or copy** and **keeping your Mac awake** in one app. The menu bar shows today's date and drops down a month calendar with the day's
+**translation of what you select or copy**, **on-device dictation** and **keeping your Mac awake** in one app. The menu bar shows today's date and drops down a month calendar with the day's
 events; a quick popup on a global shortcut pastes back into the app you were just using; a
 capture shortcut opens a screenshot in a full annotation editor; a ⌃⌘arrow snaps the frontmost
 window to half the screen.
@@ -119,6 +119,29 @@ window to half the screen.
   through that tool and counts against that plan.
 - Switch it off in Settings and both shortcuts are released back to other apps.
 
+### Dictation
+
+- **Hold fn, speak, let go** — what you said is typed into the app in front of you. A quick tap
+  instead keeps listening until the next tap, so longer passages don't need a held key. Prefer
+  plain push-to-talk or tap-to-toggle, right ⌥ instead of fn, or any shortcut? It's all in
+  **Settings → Dictation**. Esc cancels a recording; fn combined with another key (fn+arrow,
+  fn+F-key) is left alone.
+- **Runs entirely on your Mac.** Speech is transcribed locally with
+  [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) on the GPU — no account,
+  no cloud, and the audio never touches the disk. The default model is **Whisper Large v3
+  Turbo**; **Parakeet Ultra** (most accurate, detects the language itself) and the lighter
+  **Whisper Small** are one click away. Models are downloaded once from Hugging Face, pinned to
+  an exact version and checked against a checksum.
+- **English, German and Hungarian.** Pick one, or leave it on Automatic and tick the languages you
+  speak — each recording is matched to one of those.
+- **Pick the microphone** (with a live level test), the start/stop sounds and the small
+  *Listening… / Transcribing…* pill at the bottom of the screen; the menu bar icon turns red while
+  recording.
+- The text is pasted and also left on the clipboard and in the history, so it is never lost if the
+  paste lands in the wrong place.
+- macOS also acts on the 🌐 key by itself: set **System Settings → Keyboard → Press 🌐 key to →
+  Do Nothing** (the Dictation tab has a button for it). fn only exists on Apple keyboards.
+
 ### Keep awake
 
 - **Stop the Mac idling to sleep** while a long job runs — one click in the menu bar, no Terminal.
@@ -154,6 +177,7 @@ Every feature set has its own tab; Hotkeys, Permissions and About are shared.
 | ⌃⌘← / ⌃⌘→ | Tile the frontmost window to the left / right half |
 | ⌃⌘↓ / ⌃⌘↑ | Tile the frontmost window to the top / bottom half |
 | ⌘⇧E / ⌘⌥E / ⌃⌘E | Translate the selection (or the latest clipboard text) into English / Hungarian / German |
+| fn (hold, or tap) | Dictate into the frontmost app |
 | ↑ / ↓ | Move selection in the popup |
 | Return | Paste selected item (with formatting) |
 | ⌘⇧V | Paste **without** formatting (plain text) |
@@ -164,7 +188,8 @@ Every feature set has its own tab; Hotkeys, Permissions and About are shared.
 
 The popup and capture shortcuts are configurable in **Settings → Hotkeys**; the four tiling
 shortcuts live in **Settings → Windows** and the two translate shortcuts in
-**Settings → Translate**, each next to the switch that turns them on and off. A new
+**Settings → Translate**, and the dictation key in **Settings → Dictation**, each next to the
+switch that turns them on and off. A new
 shortcut has to include ⌘, ⌃ or ⌥ (F1–F20 may be used on their own), since a global shortcut
 takes its key away from every other app; one recorded before 1.3.0 without a modifier keeps
 working until you record a new one. The calendar has no shortcut — it is the menu bar item itself.
@@ -176,7 +201,9 @@ Clipboard history and snippets are stored in a SQLite database at
 alongside it. The folder is readable by your user account only (folders `0700`, files `0600`;
 Mukker tightens an existing folder at launch). Saved screenshots go wherever you point
 **Settings → Capture → Screenshots folder**, defaulting to the Desktop, and never overwrite an
-existing file — a second save in the same second is numbered (`… 2.png`).
+existing file — a second save in the same second is numbered (`… 2.png`). Dictation models live
+in `~/Library/Application Support/Mukker/models/` (delete them from **Settings → Dictation**);
+recordings and transcripts are never written anywhere.
 
 Upgrading from a build older than 0.5.0, which stored its data under a different name? **Nothing is
 carried over automatically** — 0.6.0 removed the one-shot migration. The old folder is left
@@ -192,9 +219,10 @@ buttons for both).
 ## Permissions
 
 One **Accessibility** grant covers everything that needs it: pasting into the active app,
-double-⌘C merging, auto-scrolling during scrolling capture, window tiling, and reading the selected
-text to translate (without it, translation uses the newest clipboard text). **Screen Recording** is
-additionally required for capture. Both are shown live, with grant buttons, in
+double-⌘C merging, auto-scrolling during scrolling capture, window tiling, reading the selected
+text to translate (without it, translation uses the newest clipboard text), and noticing the
+dictation key. **Screen Recording** is additionally required for capture, and **Microphone** for
+dictation. All are shown live, with grant buttons, in
 **Settings → Permissions**.
 
 ## Build / run

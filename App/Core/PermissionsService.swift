@@ -1,5 +1,6 @@
 import AppKit
 import ApplicationServices
+import AVFoundation
 import CoreGraphics
 import EventKit
 
@@ -13,6 +14,8 @@ import EventKit
 ///   text for translation (`SelectedTextReader`). One grant covers all.
 /// - **Calendars** (TCC): read-only, so the menu bar calendar can list the
 ///   selected day's events. Nothing else in the app touches EventKit.
+/// - **Microphone** (TCC): Dictation records while its key is held. The audio
+///   stays in memory and is transcribed on the Mac.
 ///
 /// Status is read live (`AXIsProcessTrusted` / `CGPreflightScreenCaptureAccess`)
 /// rather than cached: the user can revoke either one in System Settings at any
@@ -115,6 +118,42 @@ final class PermissionsService {
         if let url = URL(string: urlString) {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    // MARK: - Microphone
+
+    var hasMicrophonePermission: Bool {
+        AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+    }
+
+    /// Whether asking would show the system prompt (never asked yet).
+    var canPromptForMicrophone: Bool {
+        AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined
+    }
+
+    @discardableResult
+    func requestMicrophonePermission() async -> Bool {
+        guard !hasMicrophonePermission else { return true }
+        return await AVCaptureDevice.requestAccess(for: .audio)
+    }
+
+    func openMicrophoneSettings() {
+        let urlString = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+        if let url = URL(string: urlString) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// Prompts the first time; after a denial, explains and offers System
+    /// Settings. Returns whether recording may start now.
+    func ensureMicrophone() async -> Bool {
+        if hasMicrophonePermission { return true }
+        if canPromptForMicrophone { return await requestMicrophonePermission() }
+        presentAlert(title: "Microphone permission needed",
+                     body: "\(Branding.name) needs microphone access for dictation. Enable it under "
+                         + "Privacy & Security → Microphone, then try again.",
+                     openSettings: openMicrophoneSettings)
+        return false
     }
 
     // MARK: - Alerts
