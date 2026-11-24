@@ -127,10 +127,13 @@ enum DictationLanguagePlan: Equatable {
 
     /// - `selected`: the Language picker; nil is "Automatic".
     /// - `preferred`: the ticked languages; empty means all three.
+    /// - `forced`: the language of a per-language shortcut; beats everything for models that honour a hint.
     nonisolated static func plan(model: DictationModel,
                                  selected: DictationLanguage?,
-                                 preferred: [DictationLanguage]) -> DictationLanguagePlan {
+                                 preferred: [DictationLanguage],
+                                 forced: DictationLanguage? = nil) -> DictationLanguagePlan {
         guard model.honoursLanguage else { return .modelDecides }
+        if let forced { return .fixed(forced) }
         if let selected { return .fixed(selected) }
         let candidates = DictationLanguage.allCases.filter { preferred.isEmpty || preferred.contains($0) }
         if candidates.count == 1 { return .fixed(candidates[0]) }

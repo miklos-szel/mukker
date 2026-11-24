@@ -56,6 +56,19 @@ struct DictationPane: View {
             Picker("Activation", selection: $settings.activation) {
                 ForEach(DictationActivation.allCases) { Text($0.label).tag($0) }
             }
+            Toggle("Shortcuts for each language", isOn: $settings.languageShortcutsEnabled)
+                .disabled(!settings.model.honoursLanguage)
+            if settings.languageShortcutsEnabled && settings.model.honoursLanguage {
+                LabeledContent("English") {
+                    ShortcutRecorderField(combo: $shortcuts.dictationEnglishCombo).frame(width: 160)
+                }
+                LabeledContent("German") {
+                    ShortcutRecorderField(combo: $shortcuts.dictationGermanCombo).frame(width: 160)
+                }
+                LabeledContent("Hungarian") {
+                    ShortcutRecorderField(combo: $shortcuts.dictationHungarianCombo).frame(width: 160)
+                }
+            }
         } header: {
             Text("Shortcut")
         } footer: {
@@ -72,6 +85,9 @@ struct DictationPane: View {
                     .buttonStyle(.link)
                     .foregroundStyle(Color.accentColor)
                 }
+                Text(settings.model.honoursLanguage
+                     ? "Language shortcuts start dictation in that language, whatever the Language setting says; they work like the key above."
+                     : "\(settings.model.name) detects the language by itself, so per-language shortcuts need a Whisper model.")
                 Text("A press combined with another key (fn+arrow, fn+F-key) is left alone. Esc cancels a recording.")
             }
             .font(.caption)
@@ -202,7 +218,7 @@ struct DictationPane: View {
     private var feedbackSection: some View {
         Section {
             Toggle("Show the recording indicator", isOn: $settings.overlayEnabled)
-            Toggle("Play start and stop sounds", isOn: $settings.soundsEnabled)
+            Toggle("Play sounds", isOn: $settings.soundsEnabled)
             if settings.soundsEnabled {
                 LabeledContent("Volume") {
                     Slider(value: $settings.soundVolume, in: 0...1).frame(width: 160)

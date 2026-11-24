@@ -102,6 +102,19 @@ final class DictationTests: XCTestCase {
                        .fixed(.hungarian))
     }
 
+    func testForcedLanguageWinsOnWhisperOnly() {
+        XCTAssertEqual(DictationLanguagePlan.plan(model: whisper, selected: .english, preferred: [.english, .german],
+                                                  forced: .german), .fixed(.german))
+        XCTAssertEqual(DictationLanguagePlan.plan(model: whisper, selected: nil, preferred: [], forced: .hungarian),
+                       .fixed(.hungarian))
+        XCTAssertEqual(DictationLanguagePlan.plan(model: parakeet, selected: nil, preferred: [], forced: .german),
+                       .modelDecides)
+    }
+
+    func testLanguageShortcutsDefaultOff() {
+        XCTAssertFalse(DictationSettings(defaults: makeDefaults()).languageShortcutsEnabled)
+    }
+
     func testAutomaticDetectsAmongPreferred() {
         XCTAssertEqual(DictationLanguagePlan.plan(model: whisper, selected: nil, preferred: [.hungarian, .english]),
                        .detect(among: [.english, .hungarian]), "in catalog order")
@@ -207,6 +220,30 @@ final class DictationTests: XCTestCase {
         shortcuts.dictationCombo = KeyCombo(key: .d, modifiers: [.command, .option])
         shortcuts.resetToDefaults()
         XCTAssertEqual(shortcuts.dictationCombo, ShortcutSettings.defaultDictationCombo)
+    }
+
+    func testLanguageCombosDefaultAndReset() {
+        let shortcuts = ShortcutSettings(defaults: makeDefaults())
+        XCTAssertEqual(shortcuts.dictationEnglishCombo, KeyCombo(key: .e, modifiers: [.control, .option]))
+        XCTAssertEqual(shortcuts.dictationGermanCombo, KeyCombo(key: .g, modifiers: [.control, .option]))
+        XCTAssertEqual(shortcuts.dictationHungarianCombo, KeyCombo(key: .h, modifiers: [.control, .option]))
+        shortcuts.dictationEnglishCombo = KeyCombo(key: .d, modifiers: [.command, .option])
+        shortcuts.dictationGermanCombo = KeyCombo(key: .d, modifiers: [.command, .option])
+        shortcuts.dictationHungarianCombo = KeyCombo(key: .d, modifiers: [.command, .option])
+        shortcuts.resetToDefaults()
+        XCTAssertEqual(shortcuts.dictationEnglishCombo, ShortcutSettings.defaultDictationEnglishCombo)
+        XCTAssertEqual(shortcuts.dictationGermanCombo, ShortcutSettings.defaultDictationGermanCombo)
+        XCTAssertEqual(shortcuts.dictationHungarianCombo, ShortcutSettings.defaultDictationHungarianCombo)
+    }
+
+    func testLanguageComboChangeIsPublishedOnce() {
+        let shortcuts = ShortcutSettings(defaults: makeDefaults())
+        var count = 0
+        let cancellable = shortcuts.comboChanges.sink { count += 1 }
+        XCTAssertEqual(count, 0)
+        shortcuts.dictationHungarianCombo = KeyCombo(key: .d, modifiers: [.command, .option])
+        XCTAssertEqual(count, 1)
+        cancellable.cancel()
     }
 
     func testDictationComboChangeIsPublishedOnce() {

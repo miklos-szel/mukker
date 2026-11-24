@@ -92,6 +92,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dictationComboEnabled = {
             DictationSettings.shared.isEnabled && DictationSettings.shared.trigger == .combo
         }
+        // The per-language dictation combos need the opt-in and a model that takes a hint.
+        let dictationLanguageEnabled = {
+            let settings = DictationSettings.shared
+            return settings.isEnabled && settings.languageShortcutsEnabled && settings.model.honoursLanguage
+        }
         HotKeyManager.shared.start(
             settings: ShortcutSettings.shared,
             actions: [
@@ -116,6 +121,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       handler: { [weak self] in self?.translateSelectionOrLatest(.german) }),
                 .init(combo: \.dictationCombo, isEnabled: dictationComboEnabled,
                       handler: { DictationService.shared.press() },
+                      releaseHandler: { DictationService.shared.release() }),
+                .init(combo: \.dictationEnglishCombo, isEnabled: dictationLanguageEnabled,
+                      handler: { DictationService.shared.press(language: .english) },
+                      releaseHandler: { DictationService.shared.release() }),
+                .init(combo: \.dictationGermanCombo, isEnabled: dictationLanguageEnabled,
+                      handler: { DictationService.shared.press(language: .german) },
+                      releaseHandler: { DictationService.shared.release() }),
+                .init(combo: \.dictationHungarianCombo, isEnabled: dictationLanguageEnabled,
+                      handler: { DictationService.shared.press(language: .hungarian) },
                       releaseHandler: { DictationService.shared.release() })
             ],
             // Any of these switches re-registers. Each drops its subscribe-time
@@ -124,7 +138,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 WindowTilingSettings.shared.$isEnabled.dropFirst().map { _ in () }.eraseToAnyPublisher(),
                 TranslationSettings.shared.$isEnabled.dropFirst().map { _ in () }.eraseToAnyPublisher(),
                 DictationSettings.shared.$isEnabled.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-                DictationSettings.shared.$trigger.dropFirst().map { _ in () }.eraseToAnyPublisher()
+                DictationSettings.shared.$trigger.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+                DictationSettings.shared.$languageShortcutsEnabled.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+                DictationSettings.shared.$modelID.dropFirst().map { _ in () }.eraseToAnyPublisher()
             )
             .eraseToAnyPublisher()
         )
