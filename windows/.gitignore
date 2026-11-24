@@ -6,3 +6,4 @@ dist/
 *.user
 .DS_Store
 TestResults/
+native/

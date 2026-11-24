@@ -24,4 +24,13 @@
   <ItemGroup>
     <Resource Include="Assets\mukker.ico" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
+  </ItemGroup>
+  <!-- Dictation's engine (transcribe.cpp + ggml), fetched by scripts/fetch-native.sh. Only an x64 build
+       exists, so only the win-x64 publish carries it; publish.sh packs it into the single-file exe. -->
+  <ItemGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <None Include="..\..\native\win-x64\*.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
