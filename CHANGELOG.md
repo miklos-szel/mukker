@@ -3,6 +3,21 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.2] - 2026-11-25
+
+### Added
+- **Dictation in a chosen language with one shortcut.** Optional shortcuts for English, German
+  and Hungarian (⌃⌥E, ⌃⌥G, ⌃⌥H; off by default, **Settings → Dictation**) dictate in that language
+  whatever the Language setting says. They work with the Whisper models — Parakeet picks the
+  language by itself.
+- **Dictation on Windows.** The Windows version gains Dictation too: hold **Ctrl+Win**, speak, let
+  go. Same models, languages and settings as on the Mac, transcribed on the PC (x64 build).
+
+### Changed
+- **Softer dictation sounds**: new gentle start and stop chimes, plus a quiet one when the text is
+  pasted.
+- **Keep Awake is the last submenu** in the menu bar menu.
+
 ## [1.4.1] - 2026-11-24
 
 ### Fixed

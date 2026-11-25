@@ -1,11 +1,12 @@
 # Mukker for Windows
 
-A notification-area utility for Windows 10/11 combining three of the macOS Mukker app's feature
+A notification-area utility for Windows 10/11 combining four of the macOS Mukker app's feature
 sets (the Mac calendar is left out — the taskbar clock already has one):
 
 - **clipboard history + snippets**
 - **screen capture with annotation**
 - **translation** of the selected text or of what you just copied
+- **dictation**: speak and the text is typed into the app in front, transcribed on your PC (x64 build)
 
 Builds for Windows on ARM (arm64) and x64.
 
@@ -13,8 +14,8 @@ Builds for Windows on ARM (arm64) and x64.
 
 ### Tray icon
 
-- **Left click** for the actions: translate to English, Hungarian or German, the clipboard popup and the
-  three captures — each with its shortcut beside it.
+- **Left click** for the actions: translate to English, Hungarian or German, the clipboard popup, the
+  three captures — each with its shortcut beside it — and Start/Stop Dictation.
 - **Right click** for the **Snippets Manager**, **Clear History**, **Settings** and **Quit**.
 - **Hourly chime** (off by default, **Settings → About**):
   - any sound from `C:\Windows\Media`
@@ -99,6 +100,29 @@ Builds for Windows on ARM (arm64) and x64.
   - Codex: `npm install -g @openai/codex`, then `codex login`
   - Claude Code: `irm https://claude.ai/install.ps1 | iex` in PowerShell, then `claude` → `/login`
 
+### Dictation
+
+- **Hold Ctrl+Win, speak, let go**: the speech is transcribed **on your PC** and typed into the
+  app in front. The text also stays on the clipboard and in the history, so a paste that lands in
+  the wrong place is never lost.
+- **Activation:** held for at least 0.3 s it is push-to-talk; a short tap keeps listening until the
+  next press. Push-to-talk only and tap-to-toggle only are options, and a custom shortcut can
+  replace Ctrl+Win.
+- Ctrl+Win combined with another key (Ctrl+Win+→, Ctrl+Win+D) is left to Windows and cancels the
+  recording; Esc cancels too. Releasing Ctrl+Win never opens the Start menu.
+- **Language shortcuts** (optional, not set by default): one shortcut each for English, German and
+  Hungarian that dictates in that language whatever the Language setting says. Whisper models only.
+- **Models**, downloaded once from Hugging Face and checked against a fixed checksum: **Whisper
+  Large v3 Turbo** (default), **Parakeet Ultra** and **Whisper Small**. Languages: English, German
+  and Hungarian — fixed, or *Automatic* among the ones you tick.
+- **Feedback:** soft start/stop/paste sounds (volume adjustable), a *Listening / Transcribing* pill
+  at the bottom of the screen, and a red dot on the tray icon while recording.
+- **Privacy:** audio never leaves the PC and is never written to disk; the log has lengths and
+  timings, never the text. If Windows blocks microphone access, **Settings → Dictation** says so
+  and opens the privacy page.
+- **x64 only:** the speech engine (transcribe.cpp) has no Windows-on-ARM build, so Dictation is in
+  the x64 `Mukker.exe`. That build also runs on Windows on ARM, under emulation (slower).
+
 All shortcuts can be changed in **Settings → Hotkeys** and **Settings → Translate**. The defaults
 avoid Ctrl+Alt, which is AltGr on many European keyboard layouts.
 
@@ -108,6 +132,7 @@ avoid Ctrl+Alt, which is AltGr on many European keyboard layouts.
 | --- | --- |
 | History database | `%LOCALAPPDATA%\Mukker\mukker.sqlite` (same schema as the macOS app) |
 | Images / rich text | `%LOCALAPPDATA%\Mukker\images`, `…\richtext` |
+| Dictation models | `%LOCALAPPDATA%\Mukker\models` |
 | Settings | `%APPDATA%\Mukker\settings.json` |
 | Log (never contains clipboard text) | `%LOCALAPPDATA%\Mukker\mukker.log` |
 
@@ -120,6 +145,10 @@ dotnet build                      # everything
 dotnet test tests/Mukker.Core.Tests
 scripts/publish.sh                # dist/win-arm64/Mukker.exe and dist/win-x64/Mukker.exe
 ```
+
+`publish.sh` first runs `scripts/fetch-native.sh`, which downloads the pinned transcribe.cpp
+0.4.2 x64 build (checked against its SHA-256) into the git-ignored `native/win-x64/`; the win-x64
+exe carries it inside and unpacks it at run time.
 
 The result is a single self-contained `Mukker.exe` with no installer. Start it and it lives in the
 notification area. Turn on **Settings → About → Start Mukker when you sign in** to launch it

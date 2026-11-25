@@ -6,6 +6,8 @@ using Microsoft.Win32;
 using Mukker.App.Chime;
 using Mukker.App.Capture;
 using Mukker.App.Clipboard;
+using Mukker.App.Dictation;
+using Mukker.App.Dictation.Engine;
 using Mukker.App.Editor;
 using Mukker.App.Interop;
 using Mukker.App.Popup;
@@ -44,6 +46,11 @@ public sealed class AppHost : IDisposable
     internal PopupController Popup { get; }
     internal TranslationController Translation { get; }
     internal CaptureCoordinator Capture { get; }
+    internal TranscriptionEngine DictationEngine { get; }
+    internal DictationModelStore DictationStore { get; }
+    internal DictationService DictationSvc { get; }
+    internal DictationKeyHook DictationHook { get; }
+    private DictationOverlay? _dictationOverlay;
 
     private readonly DispatcherTimer _retentionTimer;
     private readonly DispatcherTimer _settingsDebounce;
@@ -70,6 +77,11 @@ public sealed class AppHost : IDisposable
         Popup = new PopupController(this);
         Translation = new TranslationController(this);
         Capture = new CaptureCoordinator(this);
+        DictationEngine = new TranscriptionEngine(Paths.ModelsDirectory, () => Settings.Current.Dictation);
+        DictationStore = new DictationModelStore(Paths.ModelsDirectory, DictationEngine);
+        DictationSvc = new DictationService(this, DictationEngine, DictationStore);
+        DictationHook = new DictationKeyHook(() => Settings.Current.Dictation, () => HotKeys.Suspended,
+            () => DictationSvc.IsRecording, DictationSvc.HandleTriggerEvents, DictationSvc.EscapePressed);
 
         _retentionTimer = new DispatcherTimer { Interval = TimeSpan.FromHours(1) };
         _retentionTimer.Tick += (_, _) => SweepRetention();
@@ -99,6 +111,10 @@ public sealed class AppHost : IDisposable
 
         Monitor.Start();
         FastAppend.Sync();
+        _dictationOverlay = new DictationOverlay(DictationSvc, () => Settings.Current.Dictation.OverlayEnabled);
+        DictationSvc.StateChanged += () => Tray.SetRecording(DictationSvc.IsRecording);
+        HotKeys.SuspendedChanged += () => DictationHook.ResetTracker();
+        DictationHook.Sync();
         Chime.Reschedule();
         _retentionTimer.Start();
         SweepRetention();
@@ -111,6 +127,8 @@ public sealed class AppHost : IDisposable
         {
             HotKeys.ReRegister();
             FastAppend.Sync();
+            DictationSvc.SettingsChanged();
+            DictationHook.Sync();
             Chime.Reschedule();
             SyncStartup();
             _settingsDebounce.Stop();
@@ -127,8 +145,11 @@ public sealed class AppHost : IDisposable
     }
 
     /// <summary>
-    /// MUKKER_OPEN=popup|settings[:tab]|snippets|menu|menu-right|editor|translate-en|translate-hu opens a surface at
-    /// launch, so it can be screenshotted in a VM without a human clicking.
+    /// MUKKER_OPEN=popup|settings[:tab]|snippets|menu|menu-right|editor|translate-en|translate-hu|translate-de|
+    /// dictation|dictation-notice|dictate-file:&lt;wav&gt; opens a surface at launch, so it can be screenshotted in a VM
+    /// without a human clicking. <c>dictation</c> toggles a recording as the tray item does, <c>dictation-notice</c>
+    /// shows a sample overlay notice, and <c>dictate-file</c> transcribes a WAV with the selected model and prints
+    /// the result (the engine without a microphone).
     /// </summary>
     private void RunDebugHook()
     {
@@ -148,6 +169,9 @@ public sealed class AppHost : IDisposable
                 case "translate-en": Translation.Request(Core.Translate.TranslationLanguage.English); break;
                 case "translate-hu": Translation.Request(Core.Translate.TranslationLanguage.Hungarian); break;
                 case "translate-de": Translation.Request(Core.Translate.TranslationLanguage.German); break;
+                case "dictation": DictationSvc.ToggleFromMenu(); break;
+                case "dictation-notice": DictationSvc.ShowNotice("Download Whisper Large v3 Turbo in Settings → Dictation first."); break;
+                case "dictate-file" when parts.Length > 1: DictateFileDebug.Run(parts[1], DictationEngine, Settings.Current.Dictation); break;
             }
         });
     }
@@ -209,6 +233,9 @@ public sealed class AppHost : IDisposable
     {
         try { Monitor.Stop(); } catch { }
         FastAppend.Dispose();
+        DictationHook.Dispose();
+        _dictationOverlay?.Close();
+        DictationEngine.Dispose();
         Tray?.Dispose();
         MessageWindow.Dispose();
         Database.Dispose();

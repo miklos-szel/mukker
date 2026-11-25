@@ -4,7 +4,7 @@ import HotKey
 
 /// Every global (system-wide) shortcut in one observable object: the popup from
 /// the clipboard/snippets side, the three capture shortcuts, the four window
-/// tiling shortcuts, the three translate shortcuts and the optional dictation shortcut. `HotKeyManager` subscribes to all of them, the settings
+/// tiling shortcuts, the three translate shortcuts, the optional dictation shortcut and its three per-language variants. `HotKeyManager` subscribes to all of them, the settings
 /// panes edit them, and the menu-bar menu derives its glyphs from them — so the
 /// three never drift apart.
 @MainActor
@@ -37,6 +37,12 @@ final class ShortcutSettings: ObservableObject {
     static let defaultFullscreenCombo = KeyCombo(key: .three, modifiers: [.command, .shift, .control])
     static let defaultScrollCombo = KeyCombo(key: .five, modifiers: [.command, .shift, .control])
 
+    /// Dictation forced to one language (Whisper models only); off unless
+    /// `DictationSettings.languageShortcutsEnabled`. Defaults ⌃⌥E / ⌃⌥G / ⌃⌥H.
+    @Published var dictationEnglishCombo: KeyCombo { didSet { defaults.set(dictationEnglishCombo.dictionary, forKey: K.dictationEnglish) } }
+    @Published var dictationGermanCombo: KeyCombo { didSet { defaults.set(dictationGermanCombo.dictionary, forKey: K.dictationGerman) } }
+    @Published var dictationHungarianCombo: KeyCombo { didSet { defaults.set(dictationHungarianCombo.dictionary, forKey: K.dictationHungarian) } }
+
     static let defaultTileLeftCombo = KeyCombo(key: .leftArrow, modifiers: [.control, .command])
     static let defaultTileRightCombo = KeyCombo(key: .rightArrow, modifiers: [.control, .command])
     // The vertical pair is deliberately "inverted" — top is ⌃⌘↓ and bottom is
@@ -49,6 +55,10 @@ final class ShortcutSettings: ObservableObject {
     static let defaultTranslateGermanCombo = KeyCombo(key: .e, modifiers: [.command, .control])
 
     static let defaultDictationCombo = KeyCombo(key: .space, modifiers: [.option])
+
+    static let defaultDictationEnglishCombo = KeyCombo(key: .e, modifiers: [.control, .option])
+    static let defaultDictationGermanCombo = KeyCombo(key: .g, modifiers: [.control, .option])
+    static let defaultDictationHungarianCombo = KeyCombo(key: .h, modifiers: [.control, .option])
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -68,6 +78,9 @@ final class ShortcutSettings: ObservableObject {
         translateGermanCombo = Self.combo(from: defaults, key: K.translateGerman) ?? Self.defaultTranslateGermanCombo
 
         dictationCombo = Self.combo(from: defaults, key: K.dictation) ?? Self.defaultDictationCombo
+        dictationEnglishCombo = Self.combo(from: defaults, key: K.dictationEnglish) ?? Self.defaultDictationEnglishCombo
+        dictationGermanCombo = Self.combo(from: defaults, key: K.dictationGerman) ?? Self.defaultDictationGermanCombo
+        dictationHungarianCombo = Self.combo(from: defaults, key: K.dictationHungarian) ?? Self.defaultDictationHungarianCombo
     }
 
     /// Emits whenever any combo changes — the manager's re-register signal.
@@ -80,7 +93,8 @@ final class ShortcutSettings: ObservableObject {
         let publishers = [$popupCombo, $areaCombo, $fullscreenCombo, $scrollCombo,
                           $tileLeftCombo, $tileRightCombo, $tileTopCombo, $tileBottomCombo,
                           $translateEnglishCombo, $translateHungarianCombo, $translateGermanCombo,
-                          $dictationCombo]
+                          $dictationCombo, $dictationEnglishCombo, $dictationGermanCombo,
+                          $dictationHungarianCombo]
             .map { $0.map { _ in () }.eraseToAnyPublisher() }
         return Publishers.MergeMany(publishers)
             .dropFirst(publishers.count)
@@ -100,6 +114,9 @@ final class ShortcutSettings: ObservableObject {
         translateHungarianCombo = Self.defaultTranslateHungarianCombo
         translateGermanCombo = Self.defaultTranslateGermanCombo
         dictationCombo = Self.defaultDictationCombo
+        dictationEnglishCombo = Self.defaultDictationEnglishCombo
+        dictationGermanCombo = Self.defaultDictationGermanCombo
+        dictationHungarianCombo = Self.defaultDictationHungarianCombo
     }
 
     private static func combo(from defaults: UserDefaults, key: String) -> KeyCombo? {
@@ -120,5 +137,8 @@ final class ShortcutSettings: ObservableObject {
         static let translateHungarian = "translateHungarianCombo"
         static let translateGerman = "translateGermanCombo"
         static let dictation = "dictationCombo"
+        static let dictationEnglish = "dictationEnglishCombo"
+        static let dictationGerman = "dictationGermanCombo"
+        static let dictationHungarian = "dictationHungarianCombo"
     }
 }

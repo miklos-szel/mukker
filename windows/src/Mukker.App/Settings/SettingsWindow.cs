@@ -81,7 +81,7 @@ internal sealed class ShortcutRecorder : Button
     }
 }
 
-internal sealed class SettingsWindow : Window
+internal sealed partial class SettingsWindow : Window
 {
     private readonly AppHost _host;
     private readonly TabControl _tabs = new() { Padding = new Thickness(0), BorderThickness = new Thickness(0, 1, 0, 0) };
@@ -101,17 +101,23 @@ internal sealed class SettingsWindow : Window
         Background = (Brush)FindResource("Surface");
         Icon = BitmapFrame.Create(new Uri("pack://application:,,,/Mukker;component/Assets/mukker.ico"));
 
-        AddTab("clipboard", "Clipboard", BuildClipboard());
-        AddTab("capture", "Capture", BuildCapture());
-        AddTab("translate", "Translate", BuildTranslate());
-        AddTab("hotkeys", "Hotkeys", BuildHotkeys());
-        AddTab("about", "About", BuildAbout());
+        AddAllTabs();
         Content = _tabs;
 
         _host.HotKeys.FailuresChanged += RefreshFailures;
         Closed += (_, _) => _host.HotKeys.FailuresChanged -= RefreshFailures;
         PreviewKeyDown += (_, e) => { if (e.Key == Key.W && Keyboard.Modifiers == ModifierKeys.Control) Close(); };
         RefreshFailures();
+    }
+
+    private void AddAllTabs()
+    {
+        AddTab("clipboard", "Clipboard", BuildClipboard());
+        AddTab("capture", "Capture", BuildCapture());
+        AddTab("translate", "Translate", BuildTranslate());
+        AddTab("dictation", "Dictation", BuildDictation());
+        AddTab("hotkeys", "Hotkeys", BuildHotkeys());
+        AddTab("about", "About", BuildAbout());
     }
 
     public void SelectTab(string? name)
@@ -480,11 +486,7 @@ internal sealed class SettingsWindow : Window
             var selected = _tabs.SelectedIndex;
             _tabs.Items.Clear();
             _byName.Clear();
-            AddTab("clipboard", "Clipboard", BuildClipboard());
-            AddTab("capture", "Capture", BuildCapture());
-                AddTab("translate", "Translate", BuildTranslate());
-            AddTab("hotkeys", "Hotkeys", BuildHotkeys());
-            AddTab("about", "About", BuildAbout());
+            AddAllTabs();
             _tabs.SelectedIndex = selected;
             RefreshFailures();
         };

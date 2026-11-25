@@ -11,6 +11,7 @@ public sealed class AppSettings
     public ChimeSettings Chime { get; set; } = new();
     public TranslationSettings Translation { get; set; } = new();
     public ShortcutSettings Shortcuts { get; set; } = new();
+    public DictationSettings Dictation { get; set; } = new();
     public bool StartWithWindows { get; set; } = false;
 }
 

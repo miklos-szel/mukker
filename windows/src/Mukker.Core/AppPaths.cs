@@ -32,6 +32,8 @@ public sealed class AppPaths
     public string DatabasePath => Path.Combine(DataDirectory, DatabaseFileName);
     public string ImagesDirectory => Path.Combine(DataDirectory, "images");
     public string RichTextDirectory => Path.Combine(DataDirectory, "richtext");
+    /// <summary>Dictation's downloaded speech models (verified before they get their final name).</summary>
+    public string ModelsDirectory => Path.Combine(DataDirectory, "models");
     public string SettingsPath => Path.Combine(SettingsDirectory, "settings.json");
 
     public static string DefaultForeverHistoryDirectory =>
@@ -42,6 +44,7 @@ public sealed class AppPaths
         Directory.CreateDirectory(DataDirectory);
         Directory.CreateDirectory(ImagesDirectory);
         Directory.CreateDirectory(RichTextDirectory);
+        Directory.CreateDirectory(ModelsDirectory);
         Directory.CreateDirectory(SettingsDirectory);
     }
 }

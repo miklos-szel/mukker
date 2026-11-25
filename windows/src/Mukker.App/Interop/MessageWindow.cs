@@ -77,10 +77,14 @@ internal sealed class HotKeyManager
 
     public void Add(HotKeyAction action) => _actions.Add(action);
 
+    /// <summary>Raised when <see cref="Suspended"/> flips; the dictation key hook stops listening while a shortcut is recorded.</summary>
+    public event Action? SuspendedChanged;
+
     public void Suspend(bool suspended)
     {
         Suspended = suspended;
         ReRegister();
+        SuspendedChanged?.Invoke();
     }
 
     public void ReRegister()

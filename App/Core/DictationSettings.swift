@@ -86,6 +86,8 @@ final class DictationSettings: ObservableObject {
     }
     /// A CoreAudio device UID; empty follows the system default input.
     @Published var microphoneUID: String { didSet { defaults.set(microphoneUID, forKey: K.microphone) } }
+    /// Extra global shortcuts that dictate in one fixed language (Whisper models only).
+    @Published var languageShortcutsEnabled: Bool { didSet { defaults.set(languageShortcutsEnabled, forKey: K.languageShortcuts) } }
     @Published var soundsEnabled: Bool { didSet { defaults.set(soundsEnabled, forKey: K.sounds) } }
     @Published var soundVolume: Double { didSet { defaults.set(soundVolume, forKey: K.volume) } }
     @Published var overlayEnabled: Bool { didSet { defaults.set(overlayEnabled, forKey: K.overlay) } }
@@ -107,6 +109,7 @@ final class DictationSettings: ObservableObject {
             .map { $0.compactMap(DictationLanguage.init(rawValue:)) }
             ?? Self.defaultPreferredLanguages()
         microphoneUID = defaults.string(forKey: K.microphone) ?? ""
+        languageShortcutsEnabled = defaults.object(forKey: K.languageShortcuts) as? Bool ?? false
         soundsEnabled = defaults.object(forKey: K.sounds) as? Bool ?? true
         soundVolume = min(max(defaults.object(forKey: K.volume) as? Double ?? 0.6, 0), 1)
         overlayEnabled = defaults.object(forKey: K.overlay) as? Bool ?? true
@@ -139,6 +142,7 @@ final class DictationSettings: ObservableObject {
         static let preferred = "dictationPreferredLanguages"
         static let microphone = "dictationMicrophoneUID"
         static let sounds = "dictationSounds"
+        static let languageShortcuts = "dictationLanguageShortcuts"
         static let volume = "dictationSoundVolume"
         static let overlay = "dictationOverlay"
         static let trailingSpace = "dictationTrailingSpace"

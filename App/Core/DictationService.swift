@@ -35,6 +35,9 @@ final class DictationService: ObservableObject {
     private var escapeMonitors: [Any] = []
     private var noticeTimer: Timer?
     private var playing: NSSound?
+    /// The language of the per-language shortcut that started this recording, if any.
+    private var forcedLanguage: DictationLanguage?
+    private var pendingLanguage: DictationLanguage?
     private var generation = 0
     private var cancellables: Set<AnyCancellable> = []
 
@@ -69,7 +72,9 @@ final class DictationService: ObservableObject {
 
     // MARK: - Trigger
 
-    func press() {
+    func press(language: DictationLanguage? = nil) {
+        pendingLanguage = language
+        defer { pendingLanguage = nil }
         apply(machine.press(at: ProcessInfo.processInfo.systemUptime))
     }
 
@@ -134,8 +139,9 @@ final class DictationService: ObservableObject {
         noticeTimer?.invalidate()
         level = 0
         state = .recording
+        forcedLanguage = pendingLanguage
         installEscapeMonitors()
-        playSound("Tink")
+        playSound(.start)
         Log.dictation.info("recording started")
         return true
     }
@@ -144,7 +150,9 @@ final class DictationService: ObservableObject {
         guard isRecording else { return }
         removeEscapeMonitors()
         let samples = recorder.stop()
-        playSound("Pop")
+        let forced = forcedLanguage
+        forcedLanguage = nil
+        playSound(.stop)
         let duration = Double(samples.count) / DictationRecorder.sampleRate
         guard duration >= Self.minimumDuration else {
             Log.dictation.info("recording too short (\(Int(duration * 1000)) ms); dropped")
@@ -157,7 +165,7 @@ final class DictationService: ObservableObject {
         let token = generation
         let model = settings.model
         let plan = DictationLanguagePlan.plan(model: model, selected: settings.language,
-                                              preferred: settings.preferredLanguages)
+                                              preferred: settings.preferredLanguages, forced: forced)
         TranscriptionEngine.shared.transcribe(samples, model: model, plan: plan) { [weak self] outcome in
             guard let self, token == self.generation else { return }
             switch outcome {
@@ -174,6 +182,7 @@ final class DictationService: ObservableObject {
         guard isRecording else { return }
         removeEscapeMonitors()
         recorder.cancel()
+        forcedLanguage = nil
         state = .idle
         Log.dictation.info("recording cancelled: \(reason, privacy: .public)")
     }
@@ -186,6 +195,7 @@ final class DictationService: ObservableObject {
         }
         state = .idle
         Paster.shared.pasteText(text)
+        playSound(.paste)
     }
 
     /// Trims what the model returns and optionally adds one trailing space, so
@@ -237,11 +247,28 @@ final class DictationService: ObservableObject {
         noticeTimer = timer
     }
 
+    private enum Cue: String {
+        case start = "dictation-start"
+        case stop = "dictation-stop"
+        case paste = "dictation-paste"
+
+        /// The old system sound, used only if the bundled file is missing.
+        var fallback: String { self == .start ? "Tink" : "Pop" }
+    }
+
     /// Plays on the current default output device, like the hourly chime —
     /// `NSSound` would otherwise follow "Play sound effects through". Retained,
-    /// since `play()` returns at once.
-    private func playSound(_ name: String) {
-        guard settings.soundsEnabled, let sound = NSSound(named: name)?.copy() as? NSSound else { return }
+    /// since `play()` returns at once. The cues are bundled WAVs
+    /// (`scripts/make-sounds.py`, shared with Windows).
+    private func playSound(_ cue: Cue) {
+        guard settings.soundsEnabled else { return }
+        let sound: NSSound?
+        if let url = Bundle.main.url(forResource: cue.rawValue, withExtension: "wav") {
+            sound = NSSound(contentsOf: url, byReference: true)
+        } else {
+            sound = NSSound(named: cue.fallback)?.copy() as? NSSound
+        }
+        guard let sound else { return }
         sound.volume = Float(settings.soundVolume)
         sound.playbackDeviceIdentifier = AudioDevices.defaultOutputDeviceUID()
         playing = sound

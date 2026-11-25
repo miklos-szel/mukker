@@ -1,8 +1,10 @@
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Reflection;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using Mukker.App.Dictation.Engine;
 using Mukker.Core.Settings;
 using Mukker.Core.Translate;
 
@@ -21,6 +23,7 @@ internal sealed class TrayController : IDisposable
     private readonly NotifyIcon _icon;
     private readonly ContextMenuStrip _settingsMenu;
     private Icon? _current;
+    private bool _recording;
 
     public TrayController(AppHost host)
     {
@@ -51,9 +54,51 @@ internal sealed class TrayController : IDisposable
     {
         var icon = LoadIcon(SystemInformation.SmallIconSize);
         if (icon == null) return;
+        if (_recording && WithRecordingDot(icon) is { } dotted)
+        {
+            icon.Dispose();
+            icon = dotted;
+        }
         _icon.Icon = icon;
         _current?.Dispose();
         _current = icon;
+    }
+
+    /// <summary>Dictation is recording: the icon gets a red dot in its corner until it stops.</summary>
+    public void SetRecording(bool recording)
+    {
+        if (_recording == recording) return;
+        _recording = recording;
+        _icon.Text = recording ? "Mukker — recording" : "Mukker";
+        Refresh();
+    }
+
+    /// <summary>A copy of <paramref name="icon"/> with a red dot (white rim) bottom-right, at the icon's own size.</summary>
+    private static Icon? WithRecordingDot(Icon icon)
+    {
+        try
+        {
+            using var bitmap = icon.ToBitmap();
+            using (var g = Graphics.FromImage(bitmap))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                var d = Math.Max(6, bitmap.Width * 5 / 11f);
+                var r = new RectangleF(bitmap.Width - d - 0.5f, bitmap.Height - d - 0.5f, d, d);
+                using var rim = new SolidBrush(Color.White);
+                using var fill = new SolidBrush(Color.FromArgb(230, 32, 32));
+                g.FillEllipse(rim, r);
+                r.Inflate(-1f, -1f);
+                g.FillEllipse(fill, r);
+            }
+            var handle = bitmap.GetHicon();
+            try { return (Icon)Icon.FromHandle(handle).Clone(); }
+            finally { Mukker.App.Interop.Native.DestroyIcon(handle); }
+        }
+        catch (Exception e)
+        {
+            AppHost.Log($"tray recording icon: {e.Message}");
+            return null;
+        }
     }
 
     private static Icon? LoadIcon(Size size)
@@ -124,6 +169,26 @@ internal sealed class TrayController : IDisposable
             menu.Items.Add(new ToolStripMenuItem("Translate to English", null, (_, _) => _host.Translation.Request(TranslationLanguage.English)) { ShortcutKeyDisplayString = Keys(s.Shortcuts.TranslateEnglish) });
             menu.Items.Add(new ToolStripMenuItem("Translate to Hungarian", null, (_, _) => _host.Translation.Request(TranslationLanguage.Hungarian)) { ShortcutKeyDisplayString = Keys(s.Shortcuts.TranslateHungarian) });
             menu.Items.Add(new ToolStripMenuItem("Translate to German", null, (_, _) => _host.Translation.Request(TranslationLanguage.German)) { ShortcutKeyDisplayString = Keys(s.Shortcuts.TranslateGerman) });
+            menu.Items.Add(new ToolStripSeparator());
+        }
+
+        if (s.Dictation.Enabled)
+        {
+            var model = s.Dictation.Model;
+            if (!TranscriptionEngine.IsSupported)
+                menu.Items.Add(new ToolStripMenuItem("Dictation needs the x64 build") { Enabled = false });
+            else if (!_host.DictationStore.IsInstalled(model))
+                menu.Items.Add(new ToolStripMenuItem($"Download {model.Name}", null, (_, _) =>
+                {
+                    _host.DictationStore.Download(model);
+                    _host.OpenSettings("dictation");
+                }));
+            else
+                menu.Items.Add(new ToolStripMenuItem(_host.DictationSvc.IsRecording ? "Stop Dictation" : "Start Dictation", null, (_, _) => _host.DictationSvc.ToggleFromMenu())
+                {
+                    ShortcutKeyDisplayString = s.Dictation.Trigger == DictationTrigger.CtrlWin ? "Ctrl+Win" : Keys(s.Dictation.Combo),
+                });
+            menu.Items.Add(new ToolStripMenuItem("Dictation Settings…", null, (_, _) => _host.OpenSettings("dictation")));
             menu.Items.Add(new ToolStripSeparator());
         }
 
