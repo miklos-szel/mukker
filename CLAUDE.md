@@ -107,6 +107,8 @@ make run          # quit any running instance, build, launch
 make rebuild      # quit + clean + regenerate + build + launch
 make quit         # quit cleanly (no Dock icon, so AppleScript/pkill)
 make dmg          # Release .dmg into dist/ (ad-hoc signed)
+make tap-status   # show the local Homebrew tap checkout (git status/remote/last commit)
+make brew-upgrade # brew update, show the tap, brew upgrade --cask mukker
 ```
 
 SPM dependencies (resolved on first build): `GRDB.swift` (SQLite), `HotKey` (Carbon global-hotkey
