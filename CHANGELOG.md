@@ -3,7 +3,7 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
-## [1.4.2] - 2026-11-24
+## [1.4.2] - 2026-11-25
 
 ### Added
 - **Dictation in a chosen language with one shortcut.** Optional shortcuts for English, German
