@@ -10,9 +10,11 @@ CONFIG       := Debug
 DERIVED      := build
 APP          := $(DERIVED)/Build/Products/$(CONFIG)/$(SCHEME).app
 TESTS        := AppTests
+TAP          := miklos-szel/mukker
+CASK         := mukker
 XCODEBUILD   := xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration $(CONFIG) -derivedDataPath $(DERIVED)
 
-.PHONY: all generate build build-tests run rebuild test test-one quit clean dmg
+.PHONY: all generate build build-tests run rebuild test test-one quit clean dmg tap-status brew-upgrade
 
 all: build
 
@@ -56,6 +58,16 @@ dmg:
 ## Rename the app (product name only; data locations stay put)
 rename:
 	./scripts/rename.sh $(NAME)
+
+## Show the local Homebrew tap checkout (is it behind / dirty / on the wrong remote?)
+tap-status:
+	cd "$$(brew --repository $(TAP))" && git status && git remote -v && git log -1
+
+## Pull the tap and upgrade the installed cask (when brew misses a fresh release)
+brew-upgrade:
+	brew update
+	@$(MAKE) --no-print-directory tap-status
+	brew upgrade --cask $(CASK)
 
 ## Remove build artifacts
 clean:

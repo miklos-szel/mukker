@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import NaturalLanguage
 import SwiftUI
 
 /// The languages the translate hotkeys aim at. The source language is never
@@ -31,6 +32,52 @@ enum TranslationLanguage: String, CaseIterable, Identifiable {
         case "hu": self = .hungarian
         case "de": self = .german
         default: return nil
+        }
+    }
+}
+
+/// The source languages the automatic translate shortcut tells apart, each
+/// with its own default target in Settings. `other` covers everything else —
+/// and text too short or mixed to call.
+enum TranslationSourceLanguage: String, CaseIterable, Identifiable {
+    case english
+    case german
+    case hungarian
+    case other
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .english: return "English"
+        case .german: return "German"
+        case .hungarian: return "Hungarian"
+        case .other: return "Other languages"
+        }
+    }
+
+    /// Hungarian from English and German, German from Hungarian — the
+    /// user's own choice; anything unrecognised goes to Hungarian.
+    var defaultTarget: TranslationLanguage {
+        switch self {
+        case .hungarian: return .german
+        case .english, .german, .other: return .hungarian
+        }
+    }
+
+    /// Detects the language of `text` on the Mac (NaturalLanguage, nothing
+    /// is sent anywhere). Only a confident English/German/Hungarian answer
+    /// counts; anything else is `.other`.
+    nonisolated static func detect(_ text: String) -> TranslationSourceLanguage {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(String(text.prefix(2000)))
+        guard let (language, confidence) = recognizer.languageHypotheses(withMaximum: 1).first,
+              confidence >= 0.3 else { return .other }
+        switch language {
+        case .english: return .english
+        case .german: return .german
+        case .hungarian: return .hungarian
+        default: return .other
         }
     }
 }
@@ -144,6 +191,13 @@ final class TranslationSettings: ObservableObject {
         didSet { defaults.set(copiesResult, forKey: K.copiesResult) }
     }
 
+    /// Whether text selected in the focused app is also written to the
+    /// pasteboard when a translate shortcut sends it, so the original lands in
+    /// the clipboard history next to its translation. On by default.
+    @Published var copiesSelection: Bool {
+        didSet { defaults.set(copiesSelection, forKey: K.copiesSelection) }
+    }
+
     /// Which CLI the next request goes through.
     @Published var backend: TranslationBackend {
         didSet { defaults.set(backend.rawValue, forKey: K.backend) }
@@ -174,6 +228,25 @@ final class TranslationSettings: ObservableObject {
     /// choice to the CLI.
     @Published var claudeModel: String {
         didSet { defaults.set(claudeModel, forKey: K.claudeModel) }
+    }
+
+    /// The automatic shortcut's target for each detected source language.
+    /// Missing entries fall back to `TranslationSourceLanguage.defaultTarget`.
+    @Published var defaultTargets: [TranslationSourceLanguage: TranslationLanguage] {
+        didSet {
+            for (source, target) in defaultTargets {
+                defaults.set(target.rawValue, forKey: K.defaultTargetPrefix + source.rawValue)
+            }
+        }
+    }
+
+    func defaultTarget(for source: TranslationSourceLanguage) -> TranslationLanguage {
+        defaultTargets[source] ?? source.defaultTarget
+    }
+
+    /// The target the automatic shortcut picks for `text`.
+    func defaultTarget(forText text: String) -> TranslationLanguage {
+        defaultTarget(for: TranslationSourceLanguage.detect(text))
     }
 
     /// The result panel's size in points, set in the Translate pane.
@@ -226,11 +299,18 @@ final class TranslationSettings: ObservableObject {
         // A plain `defaults.bool(forKey:)` cannot express default-on.
         isEnabled = defaults.object(forKey: K.enabled) as? Bool ?? true
         copiesResult = defaults.object(forKey: K.copiesResult) as? Bool ?? true
+        copiesSelection = defaults.object(forKey: K.copiesSelection) as? Bool ?? true
         backend = defaults.string(forKey: K.backend).flatMap(TranslationBackend.init(rawValue:)) ?? .codex
         codexPath = defaults.string(forKey: K.codexPath) ?? ""
         codexModel = defaults.string(forKey: K.codexModel) ?? TranslationBackend.codex.defaultModel
         claudePath = defaults.string(forKey: K.claudePath) ?? ""
         claudeModel = defaults.string(forKey: K.claudeModel) ?? TranslationBackend.claude.defaultModel
+        var targets: [TranslationSourceLanguage: TranslationLanguage] = [:]
+        for source in TranslationSourceLanguage.allCases {
+            targets[source] = defaults.string(forKey: K.defaultTargetPrefix + source.rawValue)
+                .flatMap(TranslationLanguage.init(rawValue:)) ?? source.defaultTarget
+        }
+        defaultTargets = targets
         let width = defaults.object(forKey: K.panelWidth) as? Double ?? Self.defaultPanelSize.width
         let height = defaults.object(forKey: K.panelHeight) as? Double ?? Self.defaultPanelSize.height
         borderEnabled = defaults.object(forKey: K.borderEnabled) as? Bool ?? true
@@ -277,6 +357,7 @@ final class TranslationSettings: ObservableObject {
     private enum K {
         static let enabled = "translationEnabled"
         static let copiesResult = "translationCopiesResult"
+        static let copiesSelection = "translationCopiesSelection"
         static let backend = "translationBackend"
         static let codexPath = "translationCodexPath"
         static let codexModel = "translationCodexModel"
@@ -288,5 +369,6 @@ final class TranslationSettings: ObservableObject {
         static let borderEnabled = "translationBorderEnabled"
         static let borderColor = "translationBorderColor"
         static let borderWidth = "translationBorderWidth"
+        static let defaultTargetPrefix = "translationDefaultTarget."
     }
 }

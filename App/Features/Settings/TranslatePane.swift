@@ -33,6 +33,9 @@ struct TranslatePane: View {
                 LabeledContent("Translate selection or latest to German") {
                     ShortcutRecorderField(combo: $shortcuts.translateGermanCombo).frame(width: 160)
                 }
+                LabeledContent("Translate selection or latest to default language") {
+                    ShortcutRecorderField(combo: $shortcuts.translateAutoCombo).frame(width: 160)
+                }
             } header: {
                 Text("Shortcuts")
             } footer: {
@@ -40,6 +43,25 @@ struct TranslatePane: View {
                      + "They work even when \(Branding.name) isn't focused; pressing one again "
                      + "while the panel is open closes it — or, once you've edited the text in "
                      + "the panel, translates that instead.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(!settings.isEnabled)
+
+            Section {
+                ForEach(TranslationSourceLanguage.allCases) { source in
+                    Picker("From \(source.label)", selection: targetBinding(for: source)) {
+                        ForEach(TranslationLanguage.allCases) { language in
+                            Text(language.label).tag(language)
+                        }
+                    }
+                }
+            } header: {
+                Text("Default target")
+            } footer: {
+                Text("The default-language shortcut detects the text's language on this Mac and "
+                     + "translates it into the language chosen here. Text in a language not listed, "
+                     + "or too short to tell, uses “Other languages”.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -97,6 +119,7 @@ struct TranslatePane: View {
                 TextField("Path", text: pathBinding, prompt: Text("Auto-detect"))
                 TextField("Model", text: modelBinding,
                           prompt: Text(settings.backend == .codex ? "Codex default" : "CLI default"))
+                Toggle("Copy selected text to clipboard", isOn: $settings.copiesSelection)
                 Toggle("Copy translation to clipboard", isOn: $settings.copiesResult)
             } header: {
                 Text("Engine")
@@ -137,8 +160,8 @@ struct TranslatePane: View {
         let source = "Translates the text selected in the frontmost app — or, with nothing "
             + "selected, the newest text in the clipboard history — into English, Hungarian or German, "
             + "shows it in a small panel and copies the translation."
-        let selection = "A selection is read without copying it, so it never enters the "
-            + "clipboard or its history. Reading it needs the Accessibility permission "
+        let selection = "A selection is read through Accessibility (never a simulated ⌘C) and, "
+            + "unless switched off below, copied so it lands in the clipboard history too. Reading it needs the Accessibility permission "
             + "(Settings → Permissions). Chromium-based browsers and Electron apps build their "
             + "accessibility data only when asked, so the first press in such an app can take a "
             + "second or two; apps that don't expose a selection at all get the clipboard text."
@@ -159,6 +182,11 @@ struct TranslatePane: View {
             : "The model defaults to “\(backend.defaultModel)”; clear it to use the CLI's own default."
         return "\(backend.installHint) Leave the path empty to look in the usual install "
             + "locations. \(modelNote) The copied translation also lands in the clipboard history."
+    }
+
+    private func targetBinding(for source: TranslationSourceLanguage) -> Binding<TranslationLanguage> {
+        Binding(get: { settings.defaultTarget(for: source) },
+                set: { settings.defaultTargets[source] = $0 })
     }
 
     private var pathBinding: Binding<String> {

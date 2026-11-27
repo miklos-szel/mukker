@@ -100,7 +100,7 @@ final class DictationSettings: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         isEnabled = defaults.object(forKey: K.enabled) as? Bool ?? true
-        trigger = defaults.string(forKey: K.trigger).flatMap(DictationTrigger.init(rawValue:)) ?? .fn
+        trigger = defaults.string(forKey: K.trigger).flatMap(DictationTrigger.init(rawValue:)) ?? .rightOption
         activation = defaults.string(forKey: K.activation).flatMap(DictationActivation.init(rawValue:)) ?? .holdOrToggle
         let storedModel = defaults.string(forKey: K.model) ?? DictationCatalog.defaultModelID
         modelID = DictationCatalog.model(id: storedModel).id

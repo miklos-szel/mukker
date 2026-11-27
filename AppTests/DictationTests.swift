@@ -171,7 +171,7 @@ final class DictationTests: XCTestCase {
     func testSettingsDefaults() {
         let settings = DictationSettings(defaults: makeDefaults())
         XCTAssertTrue(settings.isEnabled)
-        XCTAssertEqual(settings.trigger, .fn)
+        XCTAssertEqual(settings.trigger, .rightOption)
         XCTAssertEqual(settings.activation, .holdOrToggle)
         XCTAssertEqual(settings.modelID, "whisper-large-v3-turbo")
         XCTAssertNil(settings.language)

@@ -33,14 +33,16 @@ separate apps:
 - **Mouse battery.** The battery level of a connected wireless Razer Viper, read over USB, as a
   coloured dot + percentage inside a *Mouse* submenu (the submenu's own title is just "Mouse"), with
   a warning row at the top of the menu below a threshold (**15%** by default, 5–40% in Settings). Needs no permissions and never touches the database. macOS only — not ported.
-- **Translate.** Three global shortcuts (⌘⇧E → English, ⌘⌥E → Hungarian, ⌃⌘E → German by default) send the text
-  selected in the frontmost app — read through Accessibility, never copied — or, with nothing
+- **Translate.** Three global shortcuts (⌘⇧E → English, ⌘⌥E → Hungarian, ⌃⌘E → German by default),
+  plus a fourth (⌥⇧⌘E) whose target follows the source's detected language (Hungarian from
+  English/German, German from Hungarian by default), send the text
+  selected in the frontmost app — read through Accessibility, then copied — or, with nothing
   selected, the newest text entry of the clipboard history to a command-line client signed in with
   the user's own subscription — the Codex CLI (ChatGPT, the default) or the Claude Code CLI — and
   show the result in a floating panel, copying it to the clipboard. No API key; the Accessibility
   grant is optional (without it only history is used). It is the only feature that sends anything
   off the Mac and the only one that spawns a process.
-- **Dictation.** Hold **fn** (default; right ⌥ or a custom combo are options), speak, release: the
+- **Dictation.** Hold **right ⌥** (default; fn or a custom combo are options), speak, release: the
   microphone is transcribed **on the Mac** by transcribe.cpp (Metal) and the text is pasted into
   the frontmost app through `Paster.pasteText`, so it also lands on the clipboard and in history.
   Hold-or-tap by default (≥300 ms is push-to-talk, a shorter tap latches), push-to-talk and toggle
@@ -107,6 +109,8 @@ make run          # quit any running instance, build, launch
 make rebuild      # quit + clean + regenerate + build + launch
 make quit         # quit cleanly (no Dock icon, so AppleScript/pkill)
 make dmg          # Release .dmg into dist/ (ad-hoc signed)
+make tap-status   # show the local Homebrew tap checkout (git status/remote/last commit)
+make brew-upgrade # brew update, show the tap, brew upgrade --cask mukker
 ```
 
 SPM dependencies (resolved on first build): `GRDB.swift` (SQLite), `HotKey` (Carbon global-hotkey
@@ -186,9 +190,9 @@ point is a plain AppKit `App/App/main.swift`.
   read-only and feeds the menu bar calendar's event rows; requesting it without
   `NSCalendarsFullAccessUsageDescription` in `project.yml` terminates the app.
   Don't add a second permissions type.
-- **`ShortcutSettings`** holds all fifteen global combos (`popupCombo`, `areaCombo`,
+- **`ShortcutSettings`** holds all sixteen global combos (`popupCombo`, `areaCombo`,
   `fullscreenCombo`, `scrollCombo`, `tileLeftCombo`/`tileRightCombo`/`tileTopCombo`/
-  `tileBottomCombo`, plus `translateEnglishCombo`/`translateHungarianCombo`/`translateGermanCombo`, `dictationCombo`, `dictationEnglishCombo`/`dictationGermanCombo`/`dictationHungarianCombo`) as `HotKey.KeyCombo`s persisted to `UserDefaults`, and publishes
+  `tileBottomCombo`, plus `translateEnglishCombo`/`translateHungarianCombo`/`translateGermanCombo`/`translateAutoCombo`, `dictationCombo`, `dictationEnglishCombo`/`dictationGermanCombo`/`dictationHungarianCombo`) as `HotKey.KeyCombo`s persisted to `UserDefaults`, and publishes
   `comboChanges` — whose `dropFirst(n)` **must equal the number of merged publishers**, because
   `@Published` replays on subscribe. `@Published` also emits from `willSet`, *before* the new
   value is stored, so a subscriber must either use the emitted value or be delivered on a later
@@ -627,7 +631,15 @@ AX selection read are verified by hand (`MUKKER_TRANSLATE=en|hu|de`).
   selection over AX (some terminals) and secure fields therefore get the history entry. A blank
   selection is no selection; a selection from an app in `ClipboardSettings.ignoredBundleIDs` is
   dropped, as history would drop its copy; one longer than `maxClipSize.characterLimit` is
-  refused with a message rather than swapped for history.
+  refused with a message rather than swapped for history. Once read, the selection **is** written
+  to the pasteboard by `TranslationService.copy` (`copiesSelection`, on by default — the user
+  asked for it), so it lands in history before its translation; still never via a synthetic ⌘C.
+- **The automatic target** (`translateAutoCombo`, a nil `TranslationLanguage` through
+  `TranslationPanelController.show` and the service) is resolved only once the text is known:
+  `TranslationSourceLanguage.detect` (NaturalLanguage, on the Mac, en/de/hu or `.other`) →
+  `TranslationSettings.defaultTargets` (Translate pane, *Default target*). Before the text is known
+  — waiting on a Chromium tree, or a failure — the `.other` target stands in. `MUKKER_TRANSLATE=auto`
+  exercises it.
 - **Chromium and Electron apps build their AX tree only when asked** — until then the
   system-wide element reports no focused element. `read()` recognises them by bundle (Electron's
   or CEF's framework, or a `<Name> Framework.framework/Helpers`), sets `AXManualAccessibility`

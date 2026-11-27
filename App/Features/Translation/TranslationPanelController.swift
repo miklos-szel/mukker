@@ -115,6 +115,10 @@ final class TranslationPanelController {
 
     var isVisible: Bool { panel?.isVisible == true }
 
+    /// Whether the last hotkey/menu request was the automatic one — what lets
+    /// a second press of that shortcut close the panel.
+    private var lastShowWasAutomatic = false
+
     /// Shows the panel and starts translating the text selected in the focused
     /// app, or the newest history entry when nothing is selected. A second
     /// press of the same language's hotkey while the panel is up closes it
@@ -123,11 +127,16 @@ final class TranslationPanelController {
     /// The selection is read **before** `present()`: putting the panel up and
     /// activating moves focus, and with it the element whose selection we
     /// want — the same ordering rule as `ActiveAppTracker.captureFrontmost()`.
-    func show(language: TranslationLanguage) {
+    ///
+    /// A nil `language` is the automatic shortcut: the target follows the
+    /// detected source language (`TranslationSettings.defaultTargets`), and
+    /// pressing it again closes a panel it opened.
+    func show(language: TranslationLanguage?) {
         guard debounce.accept() else {
             Log.translate.debug("translate show ignored (duplicate request)")
             return
         }
+        defer { lastShowWasAutomatic = language == nil }
         let service = TranslationService.shared
         if isVisible {
             // Typed text wins over everything: the hotkey translates it.
@@ -136,7 +145,7 @@ final class TranslationPanelController {
                 service.translateDraft(to: language)
                 return
             }
-            if service.state.language == language {
+            if language == nil ? lastShowWasAutomatic : service.state.language == language {
                 close()
                 return
             }
