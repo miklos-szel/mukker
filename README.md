@@ -98,8 +98,12 @@ window to half the screen.
   clipboard history is (the source language is detected either way). The result is shown in a
   small floating panel next to the original, marked *from Selection* or *from Clipboard*, and
   copied so you can paste it straight away. Buttons in the panel redo it in another language.
-- **A selection is never copied.** It is read through the Accessibility permission, so it doesn't
-  replace what is on your clipboard and doesn't appear in the history. Native Mac apps (TextEdit,
+- **Or let it pick the language** — ⌥⇧⌘E translates into a *default target* chosen by the text's
+  own language, detected on your Mac: English and German go to Hungarian, Hungarian goes to
+  German. Change each pairing in **Settings → Translate → Default target**.
+- **A translated selection is copied too**, so the original sits in your clipboard history next
+  to its translation (switch it off in **Settings → Translate**). It is read through the
+  Accessibility permission, never with a simulated ⌘C. Native Mac apps (TextEdit,
   Notes, Mail, …) expose their selection, and Safari pages usually do. Chromium-based browsers
   (Chrome, Brave, Edge, …) and Electron apps (VS Code, Slack, …) work too, though the first press
   in one can take a second or two while it gets ready. Some terminals don't expose a selection,
@@ -121,11 +125,11 @@ window to half the screen.
 
 ### Dictation
 
-- **Hold fn, speak, let go** — what you said is typed into the app in front of you. A quick tap
+- **Hold right ⌥, speak, let go** — what you said is typed into the app in front of you. A quick tap
   instead keeps listening until the next tap, so longer passages don't need a held key. Prefer
-  plain push-to-talk or tap-to-toggle, right ⌥ instead of fn, or any shortcut? It's all in
-  **Settings → Dictation**. Esc cancels a recording; fn combined with another key (fn+arrow,
-  fn+F-key) is left alone.
+  plain push-to-talk or tap-to-toggle, fn instead of right ⌥, or any shortcut? It's all in
+  **Settings → Dictation**. Esc cancels a recording; the key combined with another key (right ⌥+arrow,
+  right ⌥+letter) is left alone.
 - **Runs entirely on your Mac.** Speech is transcribed locally with
   [transcribe.cpp](https://github.com/handy-computer/transcribe.cpp) on the GPU — no account,
   no cloud, and the audio never touches the disk. The default model is **Whisper Large v3
@@ -177,7 +181,8 @@ Every feature set has its own tab; Hotkeys, Permissions and About are shared.
 | ⌃⌘← / ⌃⌘→ | Tile the frontmost window to the left / right half |
 | ⌃⌘↓ / ⌃⌘↑ | Tile the frontmost window to the top / bottom half |
 | ⌘⇧E / ⌘⌥E / ⌃⌘E | Translate the selection (or the latest clipboard text) into English / Hungarian / German |
-| fn (hold, or tap) | Dictate into the frontmost app |
+| ⌥⇧⌘E | Translate the selection (or the latest clipboard text) into the default target for its language |
+| Right ⌥ (hold, or tap) | Dictate into the frontmost app |
 | ↑ / ↓ | Move selection in the popup |
 | Return | Paste selected item (with formatting) |
 | ⌘⇧V | Paste **without** formatting (plain text) |
@@ -187,7 +192,7 @@ Every feature set has its own tab; Hotkeys, Permissions and About are shared.
 | Esc | Close |
 
 The popup and capture shortcuts are configurable in **Settings → Hotkeys**; the four tiling
-shortcuts live in **Settings → Windows** and the two translate shortcuts in
+shortcuts live in **Settings → Windows** and the four translate shortcuts in
 **Settings → Translate**, and the dictation key in **Settings → Dictation**, each next to the
 switch that turns them on and off. A new
 shortcut has to include ⌘, ⌃ or ⌥ (F1–F20 may be used on their own), since a global shortcut

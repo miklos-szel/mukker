@@ -119,6 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       handler: { [weak self] in self?.translateSelectionOrLatest(.hungarian) }),
                 .init(combo: \.translateGermanCombo, isEnabled: translationEnabled,
                       handler: { [weak self] in self?.translateSelectionOrLatest(.german) }),
+                .init(combo: \.translateAutoCombo, isEnabled: translationEnabled,
+                      handler: { [weak self] in self?.translateSelectionOrLatest(nil) }),
                 .init(combo: \.dictationCombo, isEnabled: dictationComboEnabled,
                       handler: { DictationService.shared.press() },
                       releaseHandler: { DictationService.shared.release() }),
@@ -182,10 +184,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             RunLoop.main.add(timer, forMode: .common)
         }
-        // The translate panel on the selection or newest history entry (`MUKKER_TRANSLATE=en|hu|de`),
-        // after the cache has loaded — the hotkey is otherwise the only way in.
+        // The translate panel on the selection or newest history entry
+        // (`MUKKER_TRANSLATE=en|hu|de|auto`), after the cache has loaded — the
+        // hotkey is otherwise the only way in.
         if let code = ProcessInfo.processInfo.environment["MUKKER_TRANSLATE"],
-           let language = TranslationLanguage(shortCode: code) {
+           code == "auto" || TranslationLanguage(shortCode: code) != nil {
+            let language = TranslationLanguage(shortCode: code)
             let timer = Timer(timeInterval: 1.0, repeats: false) { _ in
                 MainActor.assumeIsolated { self.translateSelectionOrLatest(language) }
             }
@@ -217,6 +221,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         actions.translateToEnglish = { [weak self] in self?.translateSelectionOrLatest(.english) }
         actions.translateToHungarian = { [weak self] in self?.translateSelectionOrLatest(.hungarian) }
         actions.translateToGerman = { [weak self] in self?.translateSelectionOrLatest(.german) }
+        actions.translateAutomatically = { [weak self] in self?.translateSelectionOrLatest(nil) }
         actions.openDictationSettings = { [weak self] in self?.openSettings(tab: .dictation) }
 #if DEBUG
         actions.openDebugSample = { [weak self] in self?.openDebugSample() }
@@ -282,7 +287,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the clipboard history; pressing the same language's hotkey again while
     /// the panel is up closes it. The panel controller reads the selection
     /// before it shows anything, so nothing here may take focus first.
-    func translateSelectionOrLatest(_ language: TranslationLanguage) {
+    /// A nil `language` translates into the default target for the detected
+    /// source language.
+    func translateSelectionOrLatest(_ language: TranslationLanguage?) {
         TranslationPanelController.shared.show(language: language)
     }
 

@@ -76,6 +76,7 @@ final class CoreSettingsTests: XCTestCase {
         XCTAssertEqual(second.translateEnglishCombo, ShortcutSettings.defaultTranslateEnglishCombo)
         XCTAssertEqual(second.translateHungarianCombo, ShortcutSettings.defaultTranslateHungarianCombo)
         XCTAssertEqual(second.translateGermanCombo, ShortcutSettings.defaultTranslateGermanCombo)
+        XCTAssertEqual(second.translateAutoCombo, ShortcutSettings.defaultTranslateAutoCombo)
     }
 
     @MainActor

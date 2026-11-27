@@ -3,6 +3,20 @@
 All notable changes to Mukker are documented here. The format loosely follows
 [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.0] - 2026-11-27
+
+### Added
+- **Translate to a default language.** A fourth translate shortcut, **⌥⇧⌘E**, detects the text's
+  language on your Mac and translates it into the target you chose for that language in
+  **Settings → Translate → Default target** — by default Hungarian from English and German, and
+  German from Hungarian.
+
+### Changed
+- **A translated selection is copied to the clipboard**, so the original lands in the history next
+  to its translation. Switch it off with *Copy selected text to clipboard* in
+  **Settings → Translate**.
+- **Dictation starts with right ⌥ by default** instead of fn.
+
 ## [1.4.2] - 2026-11-25
 
 ### Added

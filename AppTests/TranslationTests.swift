@@ -410,4 +410,35 @@ final class TranslationTests: XCTestCase {
         XCTAssertEqual(count, 2)
         cancellable.cancel()
     }
+
+    // MARK: - Default target
+
+    @MainActor
+    func testDefaultTargetsAreHungarianFromEnglishAndGermanAndGermanFromHungarian() {
+        let settings = TranslationSettings(defaults: makeDefaults())
+        XCTAssertEqual(settings.defaultTarget(for: .english), .hungarian)
+        XCTAssertEqual(settings.defaultTarget(for: .german), .hungarian)
+        XCTAssertEqual(settings.defaultTarget(for: .hungarian), .german)
+        XCTAssertEqual(settings.defaultTarget(for: .other), .hungarian)
+    }
+
+    @MainActor
+    func testDefaultTargetPersists() {
+        let defaults = makeDefaults()
+        TranslationSettings(defaults: defaults).defaultTargets[.english] = .german
+        let reloaded = TranslationSettings(defaults: defaults)
+        XCTAssertEqual(reloaded.defaultTarget(for: .english), .german)
+        XCTAssertEqual(reloaded.defaultTarget(for: .hungarian), .german)
+    }
+
+    func testDetectsSourceLanguage() {
+        XCTAssertEqual(TranslationSourceLanguage.detect(
+            "The meeting has been moved to Thursday afternoon, please let everyone know."), .english)
+        XCTAssertEqual(TranslationSourceLanguage.detect(
+            "Das Treffen wurde auf Donnerstagnachmittag verschoben, bitte gib allen Bescheid."), .german)
+        XCTAssertEqual(TranslationSourceLanguage.detect(
+            "A megbeszélést csütörtök délutánra tettük át, kérlek, szólj mindenkinek."), .hungarian)
+        XCTAssertEqual(TranslationSourceLanguage.detect(
+            "La réunion a été déplacée à jeudi après-midi, merci de prévenir tout le monde."), .other)
+    }
 }

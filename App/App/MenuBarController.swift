@@ -31,6 +31,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         var translateToEnglish: () -> Void = {}
         var translateToHungarian: () -> Void = {}
         var translateToGerman: () -> Void = {}
+        var translateAutomatically: () -> Void = {}
         var openDictationSettings: () -> Void = {}
 #if DEBUG
         /// Defaulted so the memberwise initialiser stays identical in both
@@ -381,6 +382,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             clipboardItems.append(ActionMenuItem("Translate Selection or Latest to German",
                                                  combo: shortcuts.translateGermanCombo,
                                                  handler: actions.translateToGerman))
+            clipboardItems.append(ActionMenuItem("Translate Selection or Latest to Default Language",
+                                                 combo: shortcuts.translateAutoCombo,
+                                                 handler: actions.translateAutomatically))
         }
         items.append(submenu("Clipboard & Snippets", of: clipboardItems))
 

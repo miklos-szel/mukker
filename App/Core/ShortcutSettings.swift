@@ -4,7 +4,7 @@ import HotKey
 
 /// Every global (system-wide) shortcut in one observable object: the popup from
 /// the clipboard/snippets side, the three capture shortcuts, the four window
-/// tiling shortcuts, the three translate shortcuts, the optional dictation shortcut and its three per-language variants. `HotKeyManager` subscribes to all of them, the settings
+/// tiling shortcuts, the four translate shortcuts, the optional dictation shortcut and its three per-language variants. `HotKeyManager` subscribes to all of them, the settings
 /// panes edit them, and the menu-bar menu derives its glyphs from them — so the
 /// three never drift apart.
 @MainActor
@@ -27,6 +27,9 @@ final class ShortcutSettings: ObservableObject {
     @Published var translateEnglishCombo: KeyCombo { didSet { defaults.set(translateEnglishCombo.dictionary, forKey: K.translateEnglish) } }
     @Published var translateHungarianCombo: KeyCombo { didSet { defaults.set(translateHungarianCombo.dictionary, forKey: K.translateHungarian) } }
     @Published var translateGermanCombo: KeyCombo { didSet { defaults.set(translateGermanCombo.dictionary, forKey: K.translateGerman) } }
+    /// Translates into the default target for the detected source language
+    /// (`TranslationSettings.defaultTargets`). Default ⌥⇧⌘E.
+    @Published var translateAutoCombo: KeyCombo { didSet { defaults.set(translateAutoCombo.dictionary, forKey: K.translateAuto) } }
 
     /// Used only when Dictation's trigger is "Custom shortcut" (the default
     /// trigger, fn alone, can't be a Carbon hotkey). Default ⌥Space.
@@ -53,6 +56,7 @@ final class ShortcutSettings: ObservableObject {
     static let defaultTranslateEnglishCombo = KeyCombo(key: .e, modifiers: [.command, .shift])
     static let defaultTranslateHungarianCombo = KeyCombo(key: .e, modifiers: [.command, .option])
     static let defaultTranslateGermanCombo = KeyCombo(key: .e, modifiers: [.command, .control])
+    static let defaultTranslateAutoCombo = KeyCombo(key: .e, modifiers: [.command, .option, .shift])
 
     static let defaultDictationCombo = KeyCombo(key: .space, modifiers: [.option])
 
@@ -76,6 +80,7 @@ final class ShortcutSettings: ObservableObject {
         translateEnglishCombo = Self.combo(from: defaults, key: K.translateEnglish) ?? Self.defaultTranslateEnglishCombo
         translateHungarianCombo = Self.combo(from: defaults, key: K.translateHungarian) ?? Self.defaultTranslateHungarianCombo
         translateGermanCombo = Self.combo(from: defaults, key: K.translateGerman) ?? Self.defaultTranslateGermanCombo
+        translateAutoCombo = Self.combo(from: defaults, key: K.translateAuto) ?? Self.defaultTranslateAutoCombo
 
         dictationCombo = Self.combo(from: defaults, key: K.dictation) ?? Self.defaultDictationCombo
         dictationEnglishCombo = Self.combo(from: defaults, key: K.dictationEnglish) ?? Self.defaultDictationEnglishCombo
@@ -93,6 +98,7 @@ final class ShortcutSettings: ObservableObject {
         let publishers = [$popupCombo, $areaCombo, $fullscreenCombo, $scrollCombo,
                           $tileLeftCombo, $tileRightCombo, $tileTopCombo, $tileBottomCombo,
                           $translateEnglishCombo, $translateHungarianCombo, $translateGermanCombo,
+                          $translateAutoCombo,
                           $dictationCombo, $dictationEnglishCombo, $dictationGermanCombo,
                           $dictationHungarianCombo]
             .map { $0.map { _ in () }.eraseToAnyPublisher() }
@@ -113,6 +119,7 @@ final class ShortcutSettings: ObservableObject {
         translateEnglishCombo = Self.defaultTranslateEnglishCombo
         translateHungarianCombo = Self.defaultTranslateHungarianCombo
         translateGermanCombo = Self.defaultTranslateGermanCombo
+        translateAutoCombo = Self.defaultTranslateAutoCombo
         dictationCombo = Self.defaultDictationCombo
         dictationEnglishCombo = Self.defaultDictationEnglishCombo
         dictationGermanCombo = Self.defaultDictationGermanCombo
@@ -136,6 +143,7 @@ final class ShortcutSettings: ObservableObject {
         static let translateEnglish = "translateEnglishCombo"
         static let translateHungarian = "translateHungarianCombo"
         static let translateGerman = "translateGermanCombo"
+        static let translateAuto = "translateAutoCombo"
         static let dictation = "dictationCombo"
         static let dictationEnglish = "dictationEnglishCombo"
         static let dictationGerman = "dictationGermanCombo"

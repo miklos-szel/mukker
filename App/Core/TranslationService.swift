@@ -138,7 +138,10 @@ final class TranslationService: ObservableObject {
     /// accessibility tree — after polling it for up to
     /// `selectionWakeTimeout`. The panel shows "Reading the selection…"
     /// meanwhile (a running state with an empty source).
-    func translate(_ read: SelectionRead, to language: TranslationLanguage) {
+    ///
+    /// A nil `language` is the automatic shortcut: the target is the default
+    /// one for the source's detected language, resolved once the text is known.
+    func translate(_ read: SelectionRead, to language: TranslationLanguage?) {
         switch read {
         case .ready(let selection):
             translateSelectionOrLatest(to: language, selection: selection)
@@ -147,12 +150,13 @@ final class TranslationService: ObservableObject {
         }
     }
 
-    private func awaitSelection(inApp pid: pid_t, language: TranslationLanguage) {
+    private func awaitSelection(inApp pid: pid_t, language: TranslationLanguage?) {
         cancel()
         let token = generation
         origin = .selection
         draft = ""
-        state = .running(source: "", language: language, backend: settings.backend)
+        state = .running(source: "", language: language ?? settings.defaultTarget(for: .other),
+                         backend: settings.backend)
         Log.translate.info("translate: waiting for pid \(pid) to build its accessibility tree")
         let deadline = Date().addingTimeInterval(Self.selectionWakeTimeout)
         // A run-loop timer in `.common`, not `asyncAfter`: it must keep firing
@@ -179,27 +183,36 @@ final class TranslationService: ObservableObject {
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    /// Translates the panel's source field — edited or not — into `language`.
-    func translateDraft(to language: TranslationLanguage) {
+    /// Translates the panel's source field — edited or not — into `language`,
+    /// or (nil) into the default target for its detected language.
+    func translateDraft(to language: TranslationLanguage?) {
         let text = draft
         guard !SelectedTextReader.isBlank(text) else { return }
-        translate(text, to: language, origin: isDraftEdited ? .edited : (origin ?? .history))
+        translate(text, to: language ?? settings.defaultTarget(forText: text), origin: isDraftEdited ? .edited : (origin ?? .history))
     }
 
     /// Translates `selection` — text selected in the focused app, read through
     /// Accessibility by the caller *before* the panel took focus — or, when
     /// there is none, the newest text entry of the clipboard history.
-    func translateSelectionOrLatest(to language: TranslationLanguage, selection: String?) {
+    func translateSelectionOrLatest(to requested: TranslationLanguage?, selection: String?) {
+        // Before the text is known (failures), an automatic request shows the
+        // fallback target; once it is, the detected language picks it.
+        let language = requested ?? settings.defaultTarget(for: .other)
+        let target = { (text: String) in requested ?? self.settings.defaultTarget(forText: text) }
         let cache = ClipboardCache.shared
         let limit = ClipboardSettings.shared.maxClipSize.characterLimit
         switch Self.source(selection: selection, history: cache.items, characterLimit: limit) {
         case .selection(let text):
             Log.translate.info("translate source: selection")
-            translate(text, to: language, origin: .selection)
+            // The user asked for a translated selection to be copied too, so
+            // the original sits in history beside its translation. Written
+            // directly — never a synthetic ⌘C (see SelectedTextReader).
+            if settings.copiesSelection { copy(text) }
+            translate(text, to: target(text), origin: .selection)
         case .history(let item):
             if let text = cache.fullText(for: item), !SelectedTextReader.isBlank(text) {
                 Log.translate.info("translate source: clipboard history")
-                translate(text, to: language, origin: .history)
+                translate(text, to: target(text), origin: .history)
             } else {
                 failNothingToTranslate(language)
             }

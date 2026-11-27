@@ -52,8 +52,8 @@ targets:
         CFBundleDisplayName: Mukker
         CFBundleIdentifier: com.mukker.Mukker
         CFBundleIconName: AppIcon
-        CFBundleShortVersionString: "1.4.2"
-        CFBundleVersion: "26"
+        CFBundleShortVersionString: "1.5.0"
+        CFBundleVersion: "27"
         CFBundlePackageType: APPL
         LSMinimumSystemVersion: "14.0"
         LSUIElement: true
